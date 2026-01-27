@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        hakon: '#EAB308',
+        hakon: "#EAB308",
       },
     },
   },
