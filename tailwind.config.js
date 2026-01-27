@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -7,8 +7,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        hakon: '#EAB308', // Amarelo Hakon
-      }
+        hakon: '#EAB308',
+      },
     },
   },
   plugins: [],
