@@ -4,12 +4,12 @@ import { User, Award, ArrowLeft, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { supabase } from '../supabase';
 
 export default function Login({ onLogin }) {
-  const [step, setStep] = useState(1); // 1: Escolher tipo, 2: Login
-  const [userType, setUserType] = useState(null); // 'client' ou 'professional'
+  const [step, setStep] = useState(1); // 1 = escolher tipo | 2 = login
+  const [userType, setUserType] = useState(null); // 'client' | 'professional'
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -28,34 +28,40 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      // Autenticar no Supabase
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
+      // 1️⃣ Login no Supabase Auth
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
 
       if (authError) throw authError;
 
-      // Buscar tipo de usuário
+      // 2️⃣ Buscar perfil do app
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('type')
         .eq('id', authData.user.id)
-        .single();
+        .maybeSingle(); // ⬅️ IMPORTANTE
 
-      if (userError) throw userError;
-
-      // Verificar se o tipo corresponde
-      if (userData.type !== userType) {
-        setError(`Esta conta é de ${userData.type === 'client' ? 'cliente' : 'profissional'}. Volte e selecione o tipo correto.`);
+      if (userError || !userData) {
         await supabase.auth.signOut();
-        setLoading(false);
-        return;
+        throw new Error('Perfil do usuário não encontrado.');
       }
 
-      // Login bem-sucedido
+      // 3️⃣ Verificar tipo correto
+      if (userData.type !== userType) {
+        await supabase.auth.signOut();
+        throw new Error(
+          `Esta conta é de ${
+            userData.type === 'client' ? 'CLIENTE' : 'PROFISSIONAL'
+          }. Volte e selecione o tipo correto.`
+        );
+      }
+
+      // 4️⃣ Login OK
       onLogin(authData.user, userData.type);
-      
+
       if (userData.type === 'professional') {
         navigate('/dashboard');
       } else {
@@ -63,8 +69,8 @@ export default function Login({ onLogin }) {
       }
 
     } catch (err) {
-      console.error('Erro ao fazer login:', err);
-      setError(err.message || 'Email ou senha incorretos');
+      console.error(err);
+      setError(err.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
     }
@@ -79,223 +85,128 @@ export default function Login({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 right-20 w-64 h-64 sm:w-96 sm:h-96 bg-primary/20 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 left-20 w-80 h-80 sm:w-96 sm:h-96 bg-yellow-600/20 rounded-full blur-3xl"></div>
-      </div>
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
 
-      <div className="relative z-10 w-full max-w-md">
-        {/* Back to Home */}
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6 font-bold"
+          className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6 font-bold"
         >
           <ArrowLeft className="w-4 h-4" />
           Voltar para Home
         </Link>
 
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 sm:p-8 shadow-2xl">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
-              <span className="text-black font-black text-2xl sm:text-3xl">H</span>
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black">HAKON</h1>
-              <p className="text-xs text-primary font-bold -mt-1">BARBEARIA ELITE</p>
-            </div>
-          </div>
+        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
 
-          {/* STEP 1: Escolher tipo de usuário */}
+          {/* STEP 1 */}
           {step === 1 && (
-            <div className="animate-fade-in">
-              <h2 className="text-xl sm:text-2xl font-black text-center mb-3 sm:mb-4">
-                Como você deseja entrar?
+            <>
+              <h2 className="text-xl font-black text-center mb-6">
+                Entrar como:
               </h2>
-              <p className="text-sm sm:text-base text-gray-400 text-center mb-6 sm:mb-8">
-                Selecione o tipo de conta
-              </p>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {/* Cliente */}
+              <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => handleTypeSelection('client')}
-                  className="group bg-dark-200 border-2 border-gray-800 hover:border-blue-500 rounded-custom p-4 sm:p-6 transition-all hover:scale-105"
+                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500"
                 >
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-500/20 rounded-custom flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:bg-blue-500/30 transition-all">
-                    <User className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400" />
-                  </div>
-                  <div className="text-base sm:text-lg font-black text-white mb-1">CLIENTE</div>
-                  <div className="text-xs sm:text-sm text-gray-500 font-bold">Agendar serviços</div>
+                  <User className="mx-auto mb-2 text-blue-400" />
+                  <div className="font-black">CLIENTE</div>
                 </button>
 
-                {/* Profissional */}
                 <button
                   onClick={() => handleTypeSelection('professional')}
-                  className="group bg-dark-200 border-2 border-gray-800 hover:border-primary rounded-custom p-4 sm:p-6 transition-all hover:scale-105"
+                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary"
                 >
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-primary/20 rounded-custom flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:bg-primary/30 transition-all">
-                    <Award className="w-6 h-6 sm:w-7 sm:h-7 text-primary" />
-                  </div>
-                  <div className="text-base sm:text-lg font-black text-white mb-1">PROFISSIONAL</div>
-                  <div className="text-xs sm:text-sm text-gray-500 font-bold">Gerenciar barbearia</div>
+                  <Award className="mx-auto mb-2 text-primary" />
+                  <div className="font-black">PROFISSIONAL</div>
                 </button>
               </div>
-            </div>
+            </>
           )}
 
-          {/* STEP 2: Formulário de login */}
+          {/* STEP 2 */}
           {step === 2 && (
-            <div className="animate-fade-in">
-              {/* Voltar */}
+            <>
               <button
                 onClick={() => setStep(1)}
-                className="flex items-center gap-2 text-sm text-gray-400 hover:text-primary transition-colors mb-4 font-bold"
+                className="text-sm text-gray-400 mb-4 flex items-center gap-1"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Trocar tipo de conta
+                Trocar tipo
               </button>
 
-              {/* Título */}
-              <div className="text-center mb-6 sm:mb-8">
-                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-button mb-3 ${
-                  userType === 'client' 
-                    ? 'bg-blue-500/20 border border-blue-500/30' 
-                    : 'bg-primary/20 border border-primary/30'
-                }`}>
-                  {userType === 'client' ? (
-                    <>
-                      <User className="w-4 h-4 text-blue-400" />
-                      <span className="text-blue-400 font-bold text-sm">CLIENTE</span>
-                    </>
-                  ) : (
-                    <>
-                      <Award className="w-4 h-4 text-primary" />
-                      <span className="text-primary font-bold text-sm">PROFISSIONAL</span>
-                    </>
-                  )}
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black">Entrar na Conta</h2>
-              </div>
+              <h2 className="text-xl font-black mb-6 text-center">
+                Entrar como {userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}
+              </h2>
 
-              {/* Formulário */}
-              <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
-                {/* Email */}
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm sm:text-base font-bold text-gray-300 mb-2">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="seu@email.com"
-                      className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                      required
-                    />
-                  </div>
+                  <label className="text-sm font-bold">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom"
+                    required
+                  />
                 </div>
 
-                {/* Senha */}
                 <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm sm:text-base font-bold text-gray-300">
-                      Senha
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const email = formData.email;
-                        if (!email) {
-                          alert('Digite seu email primeiro');
-                          return;
-                        }
-                        if (confirm(`Enviar email de recuperação para ${email}?`)) {
-                          supabase.auth.resetPasswordForEmail(email, {
-                            redirectTo: `${window.location.origin}/redefinir-senha`
-                          }).then(({ error }) => {
-                            if (error) {
-                              alert('Erro ao enviar email: ' + error.message);
-                            } else {
-                              alert('✅ Email de recuperação enviado! Verifique sua caixa de entrada.');
-                            }
-                          });
-                        }
-                      }}
-                      className="text-xs sm:text-sm text-primary hover:text-yellow-500 font-bold transition-colors"
-                    >
-                      Esqueci a senha
-                    </button>
-                  </div>
+                  <label className="text-sm font-bold">Senha</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="••••••••"
-                      className="w-full pl-11 pr-12 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? <EyeOff /> : <Eye />}
                     </button>
                   </div>
                 </div>
 
-                {/* Erro */}
                 {error && (
-                  <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm font-bold animate-fade-in">
+                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom">
                     {error}
                   </div>
                 )}
 
-                {/* Botão de Login */}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 sm:py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black attachments
+                  rounded-button"
                 >
                   {loading ? 'ENTRANDO...' : 'ENTRAR'}
                 </button>
 
-                {/* Link para Cadastro */}
                 <div className="text-center pt-4 border-t border-gray-800">
-                  <p className="text-sm sm:text-base text-gray-400 mb-3">
-                    Não tem uma conta?
+                  <p className="text-sm text-gray-400 mb-2">
+                    Não tem conta?
                   </p>
                   <button
                     type="button"
                     onClick={handleSignupRedirect}
-                    className="text-primary hover:text-yellow-500 font-black text-sm sm:text-base transition-colors"
+                    className="text-primary font-black"
                   >
-                    CRIAR CONTA {userType === 'client' ? 'DE CLIENTE' : 'PROFISSIONAL'} →
+                    CRIAR CONTA →
                   </button>
                 </div>
               </form>
-            </div>
+            </>
           )}
         </div>
-
-        {/* Footer Info */}
-        <p className="text-center text-xs sm:text-sm text-gray-600 mt-6 font-bold">
-          Ao continuar, você concorda com nossos{' '}
-          <a href="#" className="text-primary hover:text-yellow-500 transition-colors">
-            Termos de Uso
-          </a>{' '}
-          e{' '}
-          <a href="#" className="text-primary hover:text-yellow-500 transition-colors">
-            Política de Privacidade
-          </a>
-        </p>
       </div>
     </div>
   );
