@@ -202,9 +202,35 @@ export default function Login({ onLogin }) {
 
                 {/* Senha */}
                 <div>
-                  <label className="block text-sm sm:text-base font-bold text-gray-300 mb-2">
-                    Senha
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm sm:text-base font-bold text-gray-300">
+                      Senha
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const email = formData.email;
+                        if (!email) {
+                          alert('Digite seu email primeiro');
+                          return;
+                        }
+                        if (confirm(`Enviar email de recuperação para ${email}?`)) {
+                          supabase.auth.resetPasswordForEmail(email, {
+                            redirectTo: `${window.location.origin}/redefinir-senha`
+                          }).then(({ error }) => {
+                            if (error) {
+                              alert('Erro ao enviar email: ' + error.message);
+                            } else {
+                              alert('✅ Email de recuperação enviado! Verifique sua caixa de entrada.');
+                            }
+                          });
+                        }
+                      }}
+                      className="text-xs sm:text-sm text-primary hover:text-yellow-500 font-bold transition-colors"
+                    >
+                      Esqueci a senha
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input
