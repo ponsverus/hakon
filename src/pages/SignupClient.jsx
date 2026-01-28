@@ -27,27 +27,19 @@ export default function SignupClient({ onLogin }) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
 
-      // Criar conta no Supabase Auth
+      // Criar conta no Supabase Auth (trigger cria user automaticamente)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-      });
-
-      if (authError) throw authError;
-
-      // Criar registro na tabela users
-      const { error: userError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email: formData.email,
+        options: {
+          data: {
             type: 'client',
             nome: formData.nome
           }
-        ]);
+        }
+      });
 
-      if (userError) throw userError;
+      if (authError) throw authError;
 
       // Login automático
       onLogin(authData.user, 'client');
