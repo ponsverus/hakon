@@ -188,7 +188,9 @@ export default function Home({ user, userType, onLogout }) {
               CRIAR VITRINE GRÁTIS
               <Zap className="w-5 h-5 group-hover:rotate-12 transition-transform" />
             </Link>
-            <button className="px-8 sm:px-10 py-4 sm:py-5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-button font-bold text-base sm:text-lg hover:bg-white/20 transition-all">
+            <button 
+              onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-8 sm:px-10 py-4 sm:py-5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-button font-bold text-base sm:text-lg hover:bg-white/20 transition-all">
               Ver Como Funciona
             </button>
           </div>
@@ -206,6 +208,85 @@ export default function Home({ user, userType, onLogout }) {
             <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
               <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">0%</div>
               <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Comissão</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMO FUNCIONA SECTION */}
+      <section id="como-funciona" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-dark-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-3 sm:mb-4">
+              COMO <span className="text-primary">FUNCIONA?</span>
+            </h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
+              Em 3 passos simples, você está pronto para faturar mais
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 sm:gap-12 max-w-5xl mx-auto">
+            {/* Passo 1 */}
+            <div className="relative">
+              <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                1
+              </div>
+              <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 sm:p-8 pt-10">
+                <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Cadastre sua Barbearia</h3>
+                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                  Crie sua conta profissional, adicione serviços, defina horários e profissionais. 
+                  Tudo em <span className="text-primary font-bold">menos de 3 minutos</span>.
+                </p>
+              </div>
+            </div>
+
+            {/* Passo 2 */}
+            <div className="relative">
+              <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                2
+              </div>
+              <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 sm:p-8 pt-10">
+                <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Compartilhe sua Vitrine</h3>
+                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                  Receba um <span className="text-primary font-bold">link único</span> (ex: hakon.app/v/sua-barbearia).
+                  Compartilhe no Instagram, WhatsApp e redes sociais.
+                </p>
+              </div>
+            </div>
+
+            {/* Passo 3 */}
+            <div className="relative">
+              <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                3
+              </div>
+              <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 sm:p-8 pt-10">
+                <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Receba Agendamentos</h3>
+                <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
+                  Clientes agendam <span className="text-primary font-bold">24/7</span>. 
+                  Cancelou? Sistema reaproveita automaticamente. Você só confirma e atende.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Destaque do Agendamento Inteligente */}
+          <div className="mt-12 sm:mt-16 bg-gradient-to-br from-primary/20 to-yellow-600/20 border border-primary/30 rounded-custom p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary/30 rounded-custom flex items-center justify-center flex-shrink-0">
+                <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black mb-2 text-white">🔥 Agendamento Inteligente</h3>
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed mb-3">
+                  Cliente cancelou um corte de 50 minutos às 14h? Nosso sistema{' '}
+                  <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem 
+                  (ex: barba de 30min) e mostra automaticamente na vitrine.
+                </p>
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
+                  <span className="text-primary font-bold">Zero esforço seu.</span> Máximo aproveitamento da agenda.
+                  É como ter um assistente trabalhando 24h por você.
+                </p>
+              </div>
             </div>
           </div>
         </div>
