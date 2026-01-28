@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 // Páginas
 import Home from './pages/Home';
 import Login from './pages/Login';
+import SignupChoice from './pages/SignupChoice';
 import SignupClient from './pages/SignupClient';
 import SignupProfessional from './pages/SignupProfessional';
 import Dashboard from './pages/Dashboard';
@@ -67,6 +68,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home user={user} userType={userType} onLogout={handleLogout} />} />
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route path="/cadastro" element={<SignupChoice />} />
         <Route path="/cadastro/cliente" element={<SignupClient onLogin={handleLogin} />} />
         <Route path="/cadastro/profissional" element={<SignupProfessional onLogin={handleLogin} />} />
         
