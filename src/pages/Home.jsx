@@ -63,7 +63,7 @@ export default function Home({ user, userType, onLogout }) {
                     Entrar
                   </Link>
                   <Link
-                    to="/login"
+                    to="/cadastro"
                     className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
                   >
                     Cadastrar Grátis
@@ -134,7 +134,7 @@ export default function Home({ user, userType, onLogout }) {
                       Entrar
                     </Link>
                     <Link
-                      to="/login"
+                      to="/cadastro"
                       className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
@@ -182,7 +182,7 @@ export default function Home({ user, userType, onLogout }) {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 sm:mb-16 animate-slide-up px-4" style={{ animationDelay: '0.2s' }}>
             <Link
-              to="/login"
+              to="/cadastro"
               className="group px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3"
             >
               CRIAR VITRINE GRÁTIS
@@ -309,7 +309,7 @@ export default function Home({ user, userType, onLogout }) {
             Crie sua vitrine em menos de 3 minutos
           </p>
           <Link
-            to="/login"
+            to="/cadastro"
             className="inline-flex items-center gap-3 px-10 sm:px-12 py-4 sm:py-6 bg-black text-primary rounded-button font-black text-lg sm:text-xl hover:bg-dark-100 hover:shadow-2xl transition-all hover:scale-105"
           >
             COMEÇAR AGORA GRÁTIS
