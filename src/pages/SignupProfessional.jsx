@@ -59,33 +59,25 @@ export default function SignupProfessional({ onLogin }) {
         .from('barbearias')
         .select('slug')
         .eq('slug', formData.urlBarbearia)
-        .single();
+        .maybeSingle();
 
       if (existingBarbearia) {
         throw new Error('Esta URL já está em uso. Escolha outro nome para a barbearia.');
       }
 
-      // Criar conta no Supabase Auth
+      // Criar conta no Supabase Auth (trigger cria user automaticamente)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-      });
-
-      if (authError) throw authError;
-
-      // Criar registro na tabela users
-      const { error: userError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email: formData.email,
+        options: {
+          data: {
             type: 'professional',
             nome: formData.nome
           }
-        ]);
+        }
+      });
 
-      if (userError) throw userError;
+      if (authError) throw authError;
 
       // Criar barbearia
       const { data: barbeariaData, error: barbeariaError } = await supabase
