@@ -7,7 +7,7 @@ export default function SignupProfessional({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -45,7 +45,6 @@ export default function SignupProfessional({ onLogin }) {
     setLoading(true);
 
     try {
-      // Validações
       if (formData.password.length < 6) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
@@ -54,18 +53,19 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('URL da barbearia inválida');
       }
 
-      // Verificar se URL já existe
-      const { data: existingBarbearia } = await supabase
+      // 1) Verificar se slug já existe
+      const { data: existingBarbearia, error: slugError } = await supabase
         .from('barbearias')
-        .select('slug')
+        .select('id')
         .eq('slug', formData.urlBarbearia)
         .maybeSingle();
 
+      if (slugError) throw slugError;
       if (existingBarbearia) {
         throw new Error('Esta URL já está em uso. Escolha outro nome para a barbearia.');
       }
 
-      // Criar conta no Supabase Auth (trigger cria user automaticamente)
+      // 2) Criar conta no Auth (trigger cria public.users)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -78,13 +78,16 @@ export default function SignupProfessional({ onLogin }) {
       });
 
       if (authError) throw authError;
+      if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
-      // Criar barbearia
-      const { data: barbeariaData, error: barbeariaError } = await supabase
+      const userId = authData.user.id;
+
+      // 3) Criar barbearia (evitar .single())
+      const { data: barbeariaRows, error: barbeariaError } = await supabase
         .from('barbearias')
         .insert([
           {
-            owner_id: authData.user.id,
+            owner_id: userId,
             nome: formData.nomeBarbearia,
             slug: formData.urlBarbearia,
             descricao: formData.descricao,
@@ -92,18 +95,26 @@ export default function SignupProfessional({ onLogin }) {
             endereco: formData.endereco
           }
         ])
-        .select()
-        .single();
+        .select('id')
+        .limit(1);
 
       if (barbeariaError) throw barbeariaError;
 
-      // Criar profissional (ele mesmo)
+      const barbeariaId = barbeariaRows?.[0]?.id;
+      if (!barbeariaId) {
+        throw new Error(
+          "A barbearia foi criada, mas o sistema não conseguiu ler o registro (provável RLS/SELECT). " +
+          "Confirme as policies da tabela 'barbearias' e recarregue o schema."
+        );
+      }
+
+      // 4) Criar profissional (ele mesmo)
       const { error: profissionalError } = await supabase
         .from('profissionais')
         .insert([
           {
-            barbearia_id: barbeariaData.id,
-            user_id: authData.user.id,
+            barbearia_id: barbeariaId,
+            user_id: userId,
             nome: formData.nome,
             anos_experiencia: parseInt(formData.anosExperiencia) || 0
           }
@@ -111,12 +122,16 @@ export default function SignupProfessional({ onLogin }) {
 
       if (profissionalError) throw profissionalError;
 
-      // Login automático
+      // 5) Login automático
       onLogin(authData.user, 'professional');
       navigate('/dashboard');
 
     } catch (err) {
       console.error('Erro ao criar conta:', err);
+
+      // Importantíssimo: não deixar sessão "meio cadastrada"
+      await supabase.auth.signOut();
+
       setError(err.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setLoading(false);
@@ -125,14 +140,12 @@ export default function SignupProfessional({ onLogin }) {
 
   return (
     <div className="min-h-screen bg-black text-white py-8 px-4 sm:px-6 lg:px-8">
-      {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-20 right-20 w-64 h-64 sm:w-96 sm:h-96 bg-primary/20 rounded-full blur-3xl"></div>
         <div className="absolute bottom-20 left-20 w-80 h-80 sm:w-96 sm:h-96 bg-yellow-600/20 rounded-full blur-3xl"></div>
       </div>
 
       <div className="relative z-10 w-full max-w-2xl mx-auto">
-        {/* Back Button */}
         <Link
           to="/login"
           className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6 font-bold"
@@ -142,7 +155,6 @@ export default function SignupProfessional({ onLogin }) {
         </Link>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 sm:p-8 shadow-2xl">
-          {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
             <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
               <Award className="w-7 h-7 sm:w-8 sm:h-8 text-black" />
@@ -153,7 +165,6 @@ export default function SignupProfessional({ onLogin }) {
             </div>
           </div>
 
-          {/* Título */}
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-black mb-2">Criar Sua Vitrine</h2>
             <p className="text-sm sm:text-base text-gray-400">
@@ -161,15 +172,10 @@ export default function SignupProfessional({ onLogin }) {
             </p>
           </div>
 
-          {/* Formulário */}
           <form onSubmit={handleSignup} className="space-y-4 sm:space-y-5">
-            {/* Grid 2 colunas em desktop */}
             <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
-              {/* Nome */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
-                  Seu Nome Completo *
-                </label>
+                <label className="block text-sm font-bold text-gray-300 mb-2">Seu Nome Completo *</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -183,11 +189,8 @@ export default function SignupProfessional({ onLogin }) {
                 </div>
               </div>
 
-              {/* Telefone */}
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">
-                  Telefone (WhatsApp) *
-                </label>
+                <label className="block text-sm font-bold text-gray-300 mb-2">Telefone (WhatsApp) *</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
@@ -202,11 +205,8 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* Nome da Barbearia */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Nome da Barbearia *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Nome da Barbearia *</label>
               <input
                 type="text"
                 value={formData.nomeBarbearia}
@@ -217,11 +217,8 @@ export default function SignupProfessional({ onLogin }) {
               />
             </div>
 
-            {/* URL da Barbearia */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                URL Única (não pode repetir) *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">URL Única (não pode repetir) *</label>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 text-sm font-bold">hakon.app/v/</span>
                 <input
@@ -234,16 +231,11 @@ export default function SignupProfessional({ onLogin }) {
                   pattern="[a-z0-9-]+"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1 font-bold">
-                Apenas letras minúsculas, números e hífens
-              </p>
+              <p className="text-xs text-gray-500 mt-1 font-bold">Apenas letras minúsculas, números e hífens</p>
             </div>
 
-            {/* Anos de Experiência */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Anos de Experiência *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Anos de Experiência *</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -259,17 +251,14 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* Descrição */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Descrição do Negócio *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Descrição do Negócio *</label>
               <div className="relative">
                 <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
                 <textarea
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Ex: Especialista em cortes clássicos e modernos, atendimento de qualidade..."
+                  placeholder="Ex: Especialista em cortes clássicos e modernos..."
                   rows="3"
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
                   required
@@ -277,29 +266,23 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* Endereço */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Endereço da Barbearia *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Endereço da Barbearia *</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   type="text"
                   value={formData.endereco}
                   onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  placeholder="Rua Exemplo, 123 - Centro, São Paulo"
+                  placeholder="Rua Exemplo, 123 - Centro"
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                   required
                 />
               </div>
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Email *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Email *</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -313,11 +296,8 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* Senha */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Senha *
-              </label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Senha *</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -339,14 +319,12 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* Erro */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm font-bold animate-fade-in">
                 {error}
               </div>
             )}
 
-            {/* Botão de Cadastro */}
             <button
               type="submit"
               disabled={loading}
@@ -355,11 +333,8 @@ export default function SignupProfessional({ onLogin }) {
               {loading ? 'CRIANDO VITRINE...' : 'CRIAR MINHA VITRINE'}
             </button>
 
-            {/* Link para Login */}
             <div className="text-center pt-4 border-t border-gray-800">
-              <p className="text-sm text-gray-400 mb-2">
-                Já tem uma conta?
-              </p>
+              <p className="text-sm text-gray-400 mb-2">Já tem uma conta?</p>
               <Link
                 to="/login"
                 className="text-primary hover:text-yellow-500 font-black text-sm transition-colors"
@@ -370,7 +345,6 @@ export default function SignupProfessional({ onLogin }) {
           </form>
         </div>
 
-        {/* Footer Info */}
         <div className="mt-6 bg-primary/10 border border-primary/30 rounded-custom p-4">
           <p className="text-xs sm:text-sm text-primary font-bold text-center">
             🔥 Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais
