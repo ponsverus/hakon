@@ -1,60 +1,105 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabase';
+import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle, Award, Calendar } from 'lucide-react';
 
 export default function Home({ user, userType, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [results, setResults] = useState({ barbearias: [], profissionais: [] });
-  const [searched, setSearched] = useState(false);
 
-  const runSearch = async () => {
-    const q = searchTerm.trim();
-    if (q.length < 2) {
-      setResults({ barbearias: [], profissionais: [] });
-      setSearched(true);
+  // Busca
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [resultBarbearias, setResultBarbearias] = useState([]);
+  const [resultProfissionais, setResultProfissionais] = useState([]);
+
+  const term = useMemo(() => searchTerm.trim(), [searchTerm]);
+  const hasResults = resultBarbearias.length > 0 || resultProfissionais.length > 0;
+
+  useEffect(() => {
+    let alive = true;
+
+    // Reset se termo curto
+    if (term.length < 2) {
+      setSearchLoading(false);
+      setSearchError('');
+      setResultBarbearias([]);
+      setResultProfissionais([]);
       return;
     }
 
     setSearchLoading(true);
-    setSearched(true);
+    setSearchError('');
 
-    try {
-      const { data: barbeariasData, error: bErr } = await supabase
-        .from('barbearias')
-        .select('id, nome, slug, descricao, logo_url')
-        .ilike('nome', `%${q}%`)
-        .limit(10);
+    const timer = setTimeout(async () => {
+      try {
+        // 1) Barbearias: nome/slug/endereco
+        const { data: barbData, error: barbErr } = await supabase
+          .from('barbearias')
+          .select('id, nome, slug, descricao, endereco, telefone, logo_url, created_at')
+          .or(
+            [
+              `nome.ilike.%${term}%`,
+              `slug.ilike.%${term}%`,
+              `endereco.ilike.%${term}%`,
+            ].join(',')
+          )
+          .order('created_at', { ascending: false })
+          .limit(12);
 
-      if (bErr) throw bErr;
+        if (barbErr) throw barbErr;
 
-      const { data: profissionaisData, error: pErr } = await supabase
-        .from('profissionais')
-        .select('id, nome, barbearia_id, barbearias (slug, nome)')
-        .ilike('nome', `%${q}%`)
-        .limit(10);
+        // 2) Profissionais: nome + barbearia
+        const { data: profData, error: profErr } = await supabase
+          .from('profissionais')
+          .select(`
+            id,
+            nome,
+            anos_experiencia,
+            barbearia_id,
+            created_at,
+            barbearias:barbearia_id (
+              id,
+              nome,
+              slug,
+              endereco,
+              logo_url
+            )
+          `)
+          .ilike('nome', `%${term}%`)
+          .order('created_at', { ascending: false })
+          .limit(12);
 
-      if (pErr) throw pErr;
+        if (profErr) throw profErr;
 
-      setResults({
-        barbearias: barbeariasData || [],
-        profissionais: profissionaisData || []
-      });
-    } catch (e) {
-      console.error('Erro na busca:', e);
-      setResults({ barbearias: [], profissionais: [] });
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+        if (!alive) return;
 
-  const onKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      runSearch();
-    }
+        setResultBarbearias(barbData || []);
+        setResultProfissionais(profData || []);
+      } catch (err) {
+        if (!alive) return;
+        console.error('Erro na busca:', err);
+        setSearchError(err?.message || 'Erro ao buscar');
+        setResultBarbearias([]);
+        setResultProfissionais([]);
+      } finally {
+        if (!alive) return;
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [term]);
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSearchError('');
+    setResultBarbearias([]);
+    setResultProfissionais([]);
+    setSearchLoading(false);
   };
 
   return (
@@ -82,16 +127,18 @@ export default function Home({ user, userType, onLogout }) {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={onKeyDown}
                   placeholder="Buscar profissional ou barbearia..."
-                  className="w-full pl-11 pr-24 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                  className="w-full pl-11 pr-10 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
                 />
-                <button
-                  onClick={runSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm"
-                >
-                  {searchLoading ? '...' : 'Buscar'}
-                </button>
+                {searchTerm && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-white transition-colors"
+                    aria-label="Limpar busca"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -145,6 +192,97 @@ export default function Home({ user, userType, onLogout }) {
             </button>
           </div>
 
+          {/* RESULTADOS DA BUSCA (Desktop) - VISUAL IGUAL AO SEU TEMA */}
+          {term.length >= 2 && (
+            <div className="hidden md:block pb-4">
+              <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm sm:text-base font-black">
+                    Resultados para <span className="text-primary">"{term}"</span>
+                  </div>
+                  {searchLoading && (
+                    <div className="text-xs sm:text-sm text-gray-500 font-bold">Buscando...</div>
+                  )}
+                </div>
+
+                {searchError && (
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm font-bold">
+                    ❌ {searchError}
+                  </div>
+                )}
+
+                {!searchLoading && !searchError && !hasResults && (
+                  <div className="text-gray-500 font-bold text-sm">
+                    Nenhuma barbearia ou profissional encontrado.
+                  </div>
+                )}
+
+                {(resultBarbearias.length > 0 || resultProfissionais.length > 0) && (
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    {/* Barbearias */}
+                    <div>
+                      <div className="text-xs text-gray-500 font-black uppercase mb-2">Barbearias</div>
+                      {resultBarbearias.length === 0 ? (
+                        <div className="text-gray-600 text-sm font-bold">Sem resultados</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {resultBarbearias.slice(0, 6).map((b) => (
+                            <Link
+                              key={b.id}
+                              to={`/v/${b.slug}`}
+                              className="block bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-custom p-3 transition-all"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-black text-white truncate">{b.nome}</div>
+                                  {b.endereco && (
+                                    <div className="text-xs text-gray-500 font-bold truncate">{b.endereco}</div>
+                                  )}
+                                </div>
+                                <div className="text-primary font-black text-sm whitespace-nowrap">Ver →</div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Profissionais */}
+                    <div>
+                      <div className="text-xs text-gray-500 font-black uppercase mb-2">Profissionais</div>
+                      {resultProfissionais.length === 0 ? (
+                        <div className="text-gray-600 text-sm font-bold">Sem resultados</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {resultProfissionais.slice(0, 6).map((p) => (
+                            <Link
+                              key={p.id}
+                              to={p.barbearias?.slug ? `/v/${p.barbearias.slug}` : `/`}
+                              className="block bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-custom p-3 transition-all"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-black text-white truncate">{p.nome}</div>
+                                  {p.barbearias?.nome && (
+                                    <div className="text-xs text-gray-500 font-bold truncate">
+                                      {p.barbearias.nome}
+                                      {typeof p.anos_experiencia === 'number' ? ` • ${p.anos_experiencia} anos` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-primary font-black text-sm whitespace-nowrap">Ver →</div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Mobile Menu */}
           {mobileMenuOpen && (
             <div className="lg:hidden py-4 border-t border-gray-800 animate-slide-up">
@@ -156,17 +294,91 @@ export default function Home({ user, userType, onLogout }) {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={onKeyDown}
                     placeholder="Buscar..."
-                    className="w-full pl-11 pr-24 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+                    className="w-full pl-11 pr-10 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
                   />
-                  <button
-                    onClick={runSearch}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm"
-                  >
-                    {searchLoading ? '...' : 'Buscar'}
-                  </button>
+                  {searchTerm && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-white transition-colors"
+                      aria-label="Limpar busca"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
+
+                {/* Resultados Mobile */}
+                {term.length >= 2 && (
+                  <div className="mt-3 bg-dark-100 border border-gray-800 rounded-custom p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-black">
+                        Resultados: <span className="text-primary">"{term}"</span>
+                      </div>
+                      {searchLoading && (
+                        <div className="text-xs text-gray-500 font-bold">...</div>
+                      )}
+                    </div>
+
+                    {searchError && (
+                      <div className="text-red-400 text-xs font-bold">❌ {searchError}</div>
+                    )}
+
+                    {!searchLoading && !searchError && !hasResults && (
+                      <div className="text-gray-600 text-xs font-bold">
+                        Nenhum resultado.
+                      </div>
+                    )}
+
+                    {hasResults && (
+                      <div className="space-y-3">
+                        {resultBarbearias.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-gray-500 font-black uppercase mb-1">Barbearias</div>
+                            <div className="space-y-2">
+                              {resultBarbearias.slice(0, 4).map((b) => (
+                                <Link
+                                  key={b.id}
+                                  to={`/v/${b.slug}`}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="block bg-dark-200 border border-gray-800 rounded-custom p-2"
+                                >
+                                  <div className="font-black text-sm truncate">{b.nome}</div>
+                                  {b.endereco && (
+                                    <div className="text-[10px] text-gray-500 font-bold truncate">{b.endereco}</div>
+                                  )}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {resultProfissionais.length > 0 && (
+                          <div>
+                            <div className="text-[10px] text-gray-500 font-black uppercase mb-1">Profissionais</div>
+                            <div className="space-y-2">
+                              {resultProfissionais.slice(0, 4).map((p) => (
+                                <Link
+                                  key={p.id}
+                                  to={p.barbearias?.slug ? `/v/${p.barbearias.slug}` : `/`}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="block bg-dark-200 border border-gray-800 rounded-custom p-2"
+                                >
+                                  <div className="font-black text-sm truncate">{p.nome}</div>
+                                  {p.barbearias?.nome && (
+                                    <div className="text-[10px] text-gray-500 font-bold truncate">
+                                      {p.barbearias.nome}
+                                    </div>
+                                  )}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <nav className="flex flex-col gap-2">
@@ -219,11 +431,14 @@ export default function Home({ user, userType, onLogout }) {
         </div>
       </header>
 
-      {/* HERO SECTION */}
+      {/* HERO SECTION (SEU ORIGINAL - sem mudança visual) */}
       <section className="relative py-16 sm:py-24 lg:py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-yellow-600/10"></div>
         <div className="absolute top-20 right-10 w-64 h-64 sm:w-96 sm:h-96 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 left-10 w-80 h-80 sm:w-96 sm:h-96 bg-yellow-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div
+          className="absolute bottom-20 left-10 w-80 h-80 sm:w-96 sm:h-96 bg-yellow-600/20 rounded-full blur-3xl animate-pulse"
+          style={{ animationDelay: '1s' }}
+        ></div>
 
         <div className="relative z-10 max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 border border-primary/30 rounded-button mb-6 sm:mb-8 backdrop-blur-sm animate-fade-in">
@@ -239,13 +454,19 @@ export default function Home({ user, userType, onLogout }) {
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-400 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed animate-slide-up px-4" style={{ animationDelay: '0.1s' }}>
+          <p
+            className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-400 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed animate-slide-up px-4"
+            style={{ animationDelay: '0.1s' }}
+          >
             O único sistema que{' '}
             <span className="text-primary font-bold">reaproveita cancelamentos automaticamente</span>,
             aumentando seu faturamento sem esforço.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8 sm:mb-10 animate-slide-up px-4" style={{ animationDelay: '0.2s' }}>
+          <div
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-12 sm:mb-16 animate-slide-up px-4"
+            style={{ animationDelay: '0.2s' }}
+          >
             <Link
               to="/cadastro"
               className="group px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3"
@@ -261,71 +482,28 @@ export default function Home({ user, userType, onLogout }) {
             </button>
           </div>
 
-          {/* Resultados da busca */}
-          {searched && (
-            <div className="max-w-4xl mx-auto text-left bg-dark-100/70 border border-gray-800 rounded-custom p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="font-black text-white">
-                  Resultados para: <span className="text-primary">{searchTerm || '(vazio)'}</span>
-                </div>
-                {searchLoading && <div className="text-gray-500 font-bold text-sm">Buscando...</div>}
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 font-bold mb-2">BARBEARIAS</div>
-                  {results.barbearias.length ? (
-                    <div className="space-y-2">
-                      {results.barbearias.map(b => (
-                        <Link
-                          key={b.id}
-                          to={`/v/${b.slug}`}
-                          className="block bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-3 transition-all"
-                        >
-                          <div className="font-black">{b.nome}</div>
-                          <div className="text-xs text-gray-500 font-bold line-clamp-1">{b.descricao || 'Sem descrição'}</div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-gray-500 text-sm">Nenhuma barbearia encontrada.</div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="text-xs text-gray-500 font-bold mb-2">PROFISSIONAIS</div>
-                  {results.profissionais.length ? (
-                    <div className="space-y-2">
-                      {results.profissionais.map(p => (
-                        <Link
-                          key={p.id}
-                          to={p.barbearias?.slug ? `/v/${p.barbearias.slug}` : '/'}
-                          className="block bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-3 transition-all"
-                        >
-                          <div className="font-black">{p.nome}</div>
-                          <div className="text-xs text-gray-500 font-bold">
-                            {p.barbearias?.nome ? `Barbearia: ${p.barbearias.nome}` : 'Barbearia: —'}
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-gray-500 text-sm">Nenhum profissional encontrado.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 text-xs text-gray-500 font-bold">
-                Dica: digite pelo menos 2 letras e aperte Enter.
-              </div>
+          {/* Stats */}
+          <div
+            className="grid grid-cols-3 gap-3 sm:gap-6 max-w-3xl mx-auto animate-slide-up px-4"
+            style={{ animationDelay: '0.3s' }}
+          >
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
+              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">+58%</div>
+              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Faturamento</div>
             </div>
-          )}
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
+              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">24/7</div>
+              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Disponível</div>
+            </div>
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
+              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">0%</div>
+              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Comissão</div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* resto do seu Home permanece igual (como funciona, benefits, etc) */}
-      {/* ... */}
-      {/* COMO FUNCIONA SECTION */}
+      {/* COMO FUNCIONA SECTION (SEU ORIGINAL) */}
       <section id="como-funciona" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-dark-100">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
@@ -338,6 +516,7 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 sm:gap-12 max-w-5xl mx-auto">
+            {/* Passo 1 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 1
@@ -351,6 +530,7 @@ export default function Home({ user, userType, onLogout }) {
               </div>
             </div>
 
+            {/* Passo 2 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 2
@@ -364,6 +544,7 @@ export default function Home({ user, userType, onLogout }) {
               </div>
             </div>
 
+            {/* Passo 3 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 3
@@ -378,6 +559,7 @@ export default function Home({ user, userType, onLogout }) {
             </div>
           </div>
 
+          {/* Destaque do Agendamento Inteligente */}
           <div className="mt-12 sm:mt-16 bg-gradient-to-br from-primary/20 to-yellow-600/20 border border-primary/30 rounded-custom p-6 sm:p-8">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary/30 rounded-custom flex items-center justify-center flex-shrink-0">
@@ -392,6 +574,7 @@ export default function Home({ user, userType, onLogout }) {
                 </p>
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
                   <span className="text-primary font-bold">Zero esforço seu.</span> Máximo aproveitamento da agenda.
+                  É como ter um assistente trabalhando 24h por você.
                 </p>
               </div>
             </div>
@@ -399,7 +582,7 @@ export default function Home({ user, userType, onLogout }) {
         </div>
       </section>
 
-      {/* BENEFITS SECTION */}
+      {/* BENEFITS SECTION (SEU ORIGINAL) */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
@@ -412,70 +595,82 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {/* Benefit 1 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Agendamento Inteligente</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Cancelou? <span className="text-primary font-bold">Reaproveitamos automaticamente</span> com serviços menores.
+                Cancelou? <span className="text-primary font-bold">Reaproveitamos automaticamente</span> com
+                serviços menores. Sem desperdício, sem buracos na agenda.
               </p>
             </div>
 
+            {/* Benefit 2 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Shield className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Sua Vitrine, Suas Regras</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                URL personalizada, múltiplos profissionais, controle total. <span className="text-primary font-bold">Zero comissão</span>.
+                URL personalizada, múltiplos profissionais, controle total.{' '}
+                <span className="text-primary font-bold">Zero marketplace</span>, zero comissão.
               </p>
             </div>
 
+            {/* Benefit 3 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Users className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Multiprofissional</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Adicione quantos profissionais quiser. Cada um com <span className="text-primary font-bold">agenda independente</span>.
+                Adicione quantos profissionais quiser. Cada um com{' '}
+                <span className="text-primary font-bold">agenda independente</span> e serviços próprios.
               </p>
             </div>
 
+            {/* Benefit 4 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Clock className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Tempo Real</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Sistema calcula disponibilidade <span className="text-primary font-bold">de verdade</span>, com base no horário do profissional.
+                Sistema calcula disponibilidade{' '}
+                <span className="text-primary font-bold">a cada segundo</span>. Cliente vê só o que realmente cabe.
               </p>
             </div>
 
+            {/* Benefit 5 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Star className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Avaliações Reais</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Clientes avaliam barbearia e profissionais. <span className="text-primary font-bold">Credibilidade</span>.
+                Clientes avaliam barbearia E profissionais.{' '}
+                <span className="text-primary font-bold">Credibilidade que converte</span>.
               </p>
             </div>
 
+            {/* Benefit 6 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Controle Total</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Histórico, faturamento e agenda — <span className="text-primary font-bold">seus dados são seus</span>.
+                Histórico completo, faturamento separado de agenda,{' '}
+                <span className="text-primary font-bold">seus dados são seus</span>.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA SECTION */}
+      {/* CTA SECTION (SEU ORIGINAL) */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary via-yellow-500 to-yellow-600">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-black mb-4 sm:mb-6">
@@ -497,9 +692,44 @@ export default function Home({ user, userType, onLogout }) {
         </div>
       </section>
 
-      {/* FOOTER (mantido) */}
+      {/* FOOTER (SEU ORIGINAL) */}
       <footer className="bg-black border-t border-gray-800 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-8">
+            <div>
+              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Produto</h4>
+              <ul className="space-y-2">
+                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Como Funciona</Link></li>
+                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Preços</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Para Você</h4>
+              <ul className="space-y-2">
+                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Criar Vitrine</Link></li>
+                <li><a href="mailto:suporte@hakon.app" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Suporte</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Empresa</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Sobre</a></li>
+                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Blog</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Legal</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Privacidade</a></li>
+                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Termos</a></li>
+                <li><a href="mailto:sugestoes@hakon.app" className="text-primary hover:text-yellow-500 transition-colors text-xs sm:text-sm font-black">💡 Enviar Sugestão</a></li>
+              </ul>
+            </div>
+          </div>
+
           <div className="pt-6 sm:pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
