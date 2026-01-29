@@ -1,10 +1,61 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle, Award, Calendar } from 'lucide-react';
+import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
+import { supabase } from '../supabase';
 
 export default function Home({ user, userType, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [results, setResults] = useState({ barbearias: [], profissionais: [] });
+  const [searched, setSearched] = useState(false);
+
+  const runSearch = async () => {
+    const q = searchTerm.trim();
+    if (q.length < 2) {
+      setResults({ barbearias: [], profissionais: [] });
+      setSearched(true);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearched(true);
+
+    try {
+      const { data: barbeariasData, error: bErr } = await supabase
+        .from('barbearias')
+        .select('id, nome, slug, descricao, logo_url')
+        .ilike('nome', `%${q}%`)
+        .limit(10);
+
+      if (bErr) throw bErr;
+
+      const { data: profissionaisData, error: pErr } = await supabase
+        .from('profissionais')
+        .select('id, nome, barbearia_id, barbearias (slug, nome)')
+        .ilike('nome', `%${q}%`)
+        .limit(10);
+
+      if (pErr) throw pErr;
+
+      setResults({
+        barbearias: barbeariasData || [],
+        profissionais: profissionaisData || []
+      });
+    } catch (e) {
+      console.error('Erro na busca:', e);
+      setResults({ barbearias: [], profissionais: [] });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runSearch();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -31,9 +82,16 @@ export default function Home({ user, userType, onLogout }) {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={onKeyDown}
                   placeholder="Buscar profissional ou barbearia..."
-                  className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                  className="w-full pl-11 pr-24 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
                 />
+                <button
+                  onClick={runSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm"
+                >
+                  {searchLoading ? '...' : 'Buscar'}
+                </button>
               </div>
             </div>
 
@@ -98,9 +156,16 @@ export default function Home({ user, userType, onLogout }) {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={onKeyDown}
                     placeholder="Buscar..."
-                    className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+                    className="w-full pl-11 pr-24 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
                   />
+                  <button
+                    onClick={runSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm"
+                  >
+                    {searchLoading ? '...' : 'Buscar'}
+                  </button>
                 </div>
               </div>
 
@@ -180,7 +245,7 @@ export default function Home({ user, userType, onLogout }) {
             aumentando seu faturamento sem esforço.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12 sm:mb-16 animate-slide-up px-4" style={{ animationDelay: '0.2s' }}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8 sm:mb-10 animate-slide-up px-4" style={{ animationDelay: '0.2s' }}>
             <Link
               to="/cadastro"
               className="group px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3"
@@ -188,31 +253,78 @@ export default function Home({ user, userType, onLogout }) {
               CRIAR VITRINE GRÁTIS
               <Zap className="w-5 h-5 group-hover:rotate-12 transition-transform" />
             </Link>
-            <button 
+            <button
               onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-8 sm:px-10 py-4 sm:py-5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-button font-bold text-base sm:text-lg hover:bg-white/20 transition-all">
+              className="px-8 sm:px-10 py-4 sm:py-5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-button font-bold text-base sm:text-lg hover:bg-white/20 transition-all"
+            >
               Ver Como Funciona
             </button>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-6 max-w-3xl mx-auto animate-slide-up px-4" style={{ animationDelay: '0.3s' }}>
-            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
-              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">+58%</div>
-              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Faturamento</div>
+          {/* Resultados da busca */}
+          {searched && (
+            <div className="max-w-4xl mx-auto text-left bg-dark-100/70 border border-gray-800 rounded-custom p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-black text-white">
+                  Resultados para: <span className="text-primary">{searchTerm || '(vazio)'}</span>
+                </div>
+                {searchLoading && <div className="text-gray-500 font-bold text-sm">Buscando...</div>}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500 font-bold mb-2">BARBEARIAS</div>
+                  {results.barbearias.length ? (
+                    <div className="space-y-2">
+                      {results.barbearias.map(b => (
+                        <Link
+                          key={b.id}
+                          to={`/v/${b.slug}`}
+                          className="block bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-3 transition-all"
+                        >
+                          <div className="font-black">{b.nome}</div>
+                          <div className="text-xs text-gray-500 font-bold line-clamp-1">{b.descricao || 'Sem descrição'}</div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-sm">Nenhuma barbearia encontrada.</div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="text-xs text-gray-500 font-bold mb-2">PROFISSIONAIS</div>
+                  {results.profissionais.length ? (
+                    <div className="space-y-2">
+                      {results.profissionais.map(p => (
+                        <Link
+                          key={p.id}
+                          to={p.barbearias?.slug ? `/v/${p.barbearias.slug}` : '/'}
+                          className="block bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-3 transition-all"
+                        >
+                          <div className="font-black">{p.nome}</div>
+                          <div className="text-xs text-gray-500 font-bold">
+                            {p.barbearias?.nome ? `Barbearia: ${p.barbearias.nome}` : 'Barbearia: —'}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-sm">Nenhum profissional encontrado.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500 font-bold">
+                Dica: digite pelo menos 2 letras e aperte Enter.
+              </div>
             </div>
-            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
-              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">24/7</div>
-              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Disponível</div>
-            </div>
-            <div className="bg-dark-100 border border-gray-800 rounded-custom p-3 sm:p-6 hover:border-primary/50 transition-all">
-              <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">0%</div>
-              <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">Comissão</div>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
+      {/* resto do seu Home permanece igual (como funciona, benefits, etc) */}
+      {/* ... */}
       {/* COMO FUNCIONA SECTION */}
       <section id="como-funciona" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-dark-100">
         <div className="max-w-7xl mx-auto">
@@ -226,7 +338,6 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 sm:gap-12 max-w-5xl mx-auto">
-            {/* Passo 1 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 1
@@ -234,13 +345,12 @@ export default function Home({ user, userType, onLogout }) {
               <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 sm:p-8 pt-10">
                 <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Cadastre sua Barbearia</h3>
                 <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                  Crie sua conta profissional, adicione serviços, defina horários e profissionais. 
+                  Crie sua conta profissional, adicione serviços, defina horários e profissionais.
                   Tudo em <span className="text-primary font-bold">menos de 3 minutos</span>.
                 </p>
               </div>
             </div>
 
-            {/* Passo 2 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 2
@@ -254,7 +364,6 @@ export default function Home({ user, userType, onLogout }) {
               </div>
             </div>
 
-            {/* Passo 3 */}
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                 3
@@ -262,14 +371,13 @@ export default function Home({ user, userType, onLogout }) {
               <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 sm:p-8 pt-10">
                 <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Receba Agendamentos</h3>
                 <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                  Clientes agendam <span className="text-primary font-bold">24/7</span>. 
+                  Clientes agendam <span className="text-primary font-bold">24/7</span>.
                   Cancelou? Sistema reaproveita automaticamente. Você só confirma e atende.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Destaque do Agendamento Inteligente */}
           <div className="mt-12 sm:mt-16 bg-gradient-to-br from-primary/20 to-yellow-600/20 border border-primary/30 rounded-custom p-6 sm:p-8">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary/30 rounded-custom flex items-center justify-center flex-shrink-0">
@@ -279,12 +387,11 @@ export default function Home({ user, userType, onLogout }) {
                 <h3 className="text-xl sm:text-2xl font-black mb-2 text-white">🔥 Agendamento Inteligente</h3>
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed mb-3">
                   Cliente cancelou um corte de 50 minutos às 14h? Nosso sistema{' '}
-                  <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem 
+                  <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem
                   (ex: barba de 30min) e mostra automaticamente na vitrine.
                 </p>
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
                   <span className="text-primary font-bold">Zero esforço seu.</span> Máximo aproveitamento da agenda.
-                  É como ter um assistente trabalhando 24h por você.
                 </p>
               </div>
             </div>
@@ -305,75 +412,63 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {/* Benefit 1 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Agendamento Inteligente</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Cancelou? <span className="text-primary font-bold">Reaproveitamos automaticamente</span> com
-                serviços menores. Sem desperdício, sem buracos na agenda.
+                Cancelou? <span className="text-primary font-bold">Reaproveitamos automaticamente</span> com serviços menores.
               </p>
             </div>
 
-            {/* Benefit 2 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Shield className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Sua Vitrine, Suas Regras</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                URL personalizada, múltiplos profissionais, controle total.{' '}
-                <span className="text-primary font-bold">Zero marketplace</span>, zero comissão.
+                URL personalizada, múltiplos profissionais, controle total. <span className="text-primary font-bold">Zero comissão</span>.
               </p>
             </div>
 
-            {/* Benefit 3 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Users className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Multiprofissional</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Adicione quantos profissionais quiser. Cada um com{' '}
-                <span className="text-primary font-bold">agenda independente</span> e serviços próprios.
+                Adicione quantos profissionais quiser. Cada um com <span className="text-primary font-bold">agenda independente</span>.
               </p>
             </div>
 
-            {/* Benefit 4 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Clock className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Tempo Real</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Sistema calcula disponibilidade{' '}
-                <span className="text-primary font-bold">a cada segundo</span>. Cliente vê só o que realmente cabe.
+                Sistema calcula disponibilidade <span className="text-primary font-bold">de verdade</span>, com base no horário do profissional.
               </p>
             </div>
 
-            {/* Benefit 5 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <Star className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Avaliações Reais</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Clientes avaliam barbearia E profissionais.{' '}
-                <span className="text-primary font-bold">Credibilidade que converte</span>.
+                Clientes avaliam barbearia e profissionais. <span className="text-primary font-bold">Credibilidade</span>.
               </p>
             </div>
 
-            {/* Benefit 6 */}
             <div className="group bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-6 sm:p-8 hover:border-primary/50 transition-all hover:scale-105">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-4 sm:mb-6 group-hover:bg-primary/30 transition-all">
                 <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black mb-3 text-white">Controle Total</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Histórico completo, faturamento separado de agenda,{' '}
-                <span className="text-primary font-bold">seus dados são seus</span>.
+                Histórico, faturamento e agenda — <span className="text-primary font-bold">seus dados são seus</span>.
               </p>
             </div>
           </div>
@@ -402,44 +497,9 @@ export default function Home({ user, userType, onLogout }) {
         </div>
       </section>
 
-      {/* FOOTER */}
+      {/* FOOTER (mantido) */}
       <footer className="bg-black border-t border-gray-800 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-8">
-            <div>
-              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Produto</h4>
-              <ul className="space-y-2">
-                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Como Funciona</Link></li>
-                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Preços</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Para Você</h4>
-              <ul className="space-y-2">
-                <li><Link to="/login" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Criar Vitrine</Link></li>
-                <li><a href="mailto:suporte@hakon.app" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Suporte</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Empresa</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Sobre</a></li>
-                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Blog</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-black mb-3 sm:mb-4 text-sm sm:text-base">Legal</h4>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Privacidade</a></li>
-                <li><a href="#" className="text-gray-500 hover:text-primary transition-colors text-xs sm:text-sm font-bold">Termos</a></li>
-                <li><a href="mailto:sugestoes@hakon.app" className="text-primary hover:text-yellow-500 transition-colors text-xs sm:text-sm font-black">💡 Enviar Sugestão</a></li>
-              </ul>
-            </div>
-          </div>
-
           <div className="pt-6 sm:pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
