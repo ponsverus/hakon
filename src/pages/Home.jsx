@@ -9,6 +9,9 @@ export default function Home({ user, userType, onLogout }) {
   const [resultadosBusca, setResultadosBusca] = useState([]);
   const [buscando, setBuscando] = useState(false);
 
+  // ✅ CORREÇÃO DE FLUXO: só considera logado se tiver user E userType
+  const isLogged = !!user && !!userType;
+
   // ✅ BUSCA FUNCIONAL
   useEffect(() => {
     const buscar = async () => {
@@ -56,7 +59,7 @@ export default function Home({ user, userType, onLogout }) {
         placeholder="Buscar profissional ou barbearia..."
         className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
       />
-      
+
       {resultadosBusca.length > 0 && (
         <div className="absolute top-full mt-2 w-full bg-dark-100 border border-gray-800 rounded-custom shadow-2xl z-50 max-h-96 overflow-y-auto">
           {resultadosBusca.map((r, i) => (
@@ -76,7 +79,7 @@ export default function Home({ user, userType, onLogout }) {
           ))}
         </div>
       )}
-      
+
       {buscando && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -84,6 +87,14 @@ export default function Home({ user, userType, onLogout }) {
       )}
     </div>
   );
+
+  const handleLogoutClick = async () => {
+    try {
+      await onLogout?.();
+    } finally {
+      setMobileMenuOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -105,43 +116,88 @@ export default function Home({ user, userType, onLogout }) {
             </div>
 
             <nav className="hidden lg:flex items-center gap-4">
-              {user ? (
+              {isLogged ? (
                 <>
-                  <Link to={userType === 'professional' ? '/dashboard' : '/minha-area'} className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">
+                  <Link
+                    to={userType === 'professional' ? '/dashboard' : '/minha-area'}
+                    className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors"
+                  >
                     {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
                   </Link>
-                  <button onClick={onLogout} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button">
+                  <button
+                    type="button"
+                    onClick={handleLogoutClick}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button"
+                  >
                     Sair
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">Entrar</Link>
-                  <Link to="/cadastro" className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105">Cadastrar Grátis</Link>
+                  <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">
+                    Entrar
+                  </Link>
+                  <Link
+                    to="/cadastro"
+                    className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
+                  >
+                    Cadastrar Grátis
+                  </Link>
                 </>
               )}
             </nav>
 
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 text-white">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 text-white"
+            >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
 
           {mobileMenuOpen && (
             <div className="lg:hidden py-4 border-t border-gray-800">
-              <div className="mb-4"><SearchBox mobile={true} /></div>
+              <div className="mb-4">
+                <SearchBox mobile={true} />
+              </div>
+
               <nav className="flex flex-col gap-2">
-                {user ? (
+                {isLogged ? (
                   <>
-                    <Link to={userType === 'professional' ? '/dashboard' : '/minha-area'} onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold">
+                    <Link
+                      to={userType === 'professional' ? '/dashboard' : '/minha-area'}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
+                    >
                       {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
                     </Link>
-                    <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom font-bold text-left">Sair</button>
+
+                    <button
+                      type="button"
+                      onClick={handleLogoutClick}
+                      className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom font-bold text-left"
+                    >
+                      Sair
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold">Entrar</Link>
-                    <Link to="/cadastro" onClick={() => setMobileMenuOpen(false)} className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center">Cadastrar Grátis</Link>
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
+                    >
+                      Entrar
+                    </Link>
+
+                    <Link
+                      to="/cadastro"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center"
+                    >
+                      Cadastrar Grátis
+                    </Link>
                   </>
                 )}
               </nav>
@@ -154,7 +210,7 @@ export default function Home({ user, userType, onLogout }) {
       <section className="relative py-16 sm:py-24 lg:py-32 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-yellow-600/10"></div>
         <div className="absolute top-20 right-10 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-        
+
         <div className="relative z-10 max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/20 border border-primary/30 rounded-button mb-8">
             <Zap className="w-4 h-4 text-primary" />
@@ -163,7 +219,9 @@ export default function Home({ user, userType, onLogout }) {
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 leading-tight">
             TRANSFORME SUA<br />
-            <span className="bg-gradient-to-r from-primary to-yellow-600 bg-clip-text text-transparent">BARBEARIA EM OURO</span>
+            <span className="bg-gradient-to-r from-primary to-yellow-600 bg-clip-text text-transparent">
+              BARBEARIA EM OURO
+            </span>
           </h1>
 
           <p className="text-lg md:text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
@@ -171,10 +229,18 @@ export default function Home({ user, userType, onLogout }) {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link to="/cadastro" className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3">
+            <Link
+              to="/cadastro"
+              className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3"
+            >
               CRIAR VITRINE GRÁTIS <Zap className="w-5 h-5" />
             </Link>
-            <button onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })} className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20">
+
+            <button
+              type="button"
+              onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20"
+            >
               Ver Como Funciona
             </button>
           </div>
@@ -183,7 +249,9 @@ export default function Home({ user, userType, onLogout }) {
             {['+58%', '24/7', '0%'].map((stat, i) => (
               <div key={i} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                 <div className="text-4xl font-black text-primary mb-2">{stat}</div>
-                <div className="text-sm text-gray-500 uppercase font-bold">{['Faturamento', 'Disponível', 'Comissão'][i]}</div>
+                <div className="text-sm text-gray-500 uppercase font-bold">
+                  {['Faturamento', 'Disponível', 'Comissão'][i]}
+                </div>
               </div>
             ))}
           </div>
@@ -194,7 +262,9 @@ export default function Home({ user, userType, onLogout }) {
       <section id="como-funciona" className="py-24 px-4 bg-dark-100">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-5xl font-black mb-4">COMO <span className="text-primary">FUNCIONA?</span></h2>
+            <h2 className="text-5xl font-black mb-4">
+              COMO <span className="text-primary">FUNCIONA?</span>
+            </h2>
             <p className="text-xl text-gray-400">Em 3 passos simples, você está pronto para faturar mais</p>
           </div>
 
@@ -205,7 +275,9 @@ export default function Home({ user, userType, onLogout }) {
               { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só confirma e atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
-                <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">{num}</div>
+                <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                  {num}
+                </div>
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-10">
                   <h3 className="text-2xl font-black mb-3 text-white">{title}</h3>
                   <p className="text-gray-400 leading-relaxed">{text}</p>
@@ -234,7 +306,9 @@ export default function Home({ user, userType, onLogout }) {
       <section className="py-24 px-4 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-5xl font-black mb-4">POR QUE <span className="text-primary">HAKON?</span></h2>
+            <h2 className="text-5xl font-black mb-4">
+              POR QUE <span className="text-primary">HAKON?</span>
+            </h2>
             <p className="text-xl text-gray-400">O único sistema que transforma tempo perdido em dinheiro</p>
           </div>
 
@@ -247,7 +321,10 @@ export default function Home({ user, userType, onLogout }) {
               { icon: Star, title: 'Avaliações Reais', text: 'Clientes avaliam barbearia E profissionais. Credibilidade que converte.' },
               { icon: CheckCircle, title: 'Controle Total', text: 'Histórico completo, faturamento separado, seus dados são seus.' }
             ].map(({ icon: Icon, title, text }, i) => (
-              <div key={i} className="bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-8 hover:border-primary/50 transition-all hover:scale-105">
+              <div
+                key={i}
+                className="bg-gradient-to-br from-primary/10 to-yellow-600/10 border border-primary/20 rounded-custom p-8 hover:border-primary/50 transition-all hover:scale-105"
+              >
                 <div className="w-16 h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-6">
                   <Icon className="w-8 h-8 text-primary" />
                 </div>
@@ -264,7 +341,10 @@ export default function Home({ user, userType, onLogout }) {
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-5xl font-black text-black mb-6">PRONTO PARA FATURAR MAIS?</h2>
           <p className="text-2xl text-black/80 mb-8 font-bold">Crie sua vitrine em menos de 3 minutos</p>
-          <Link to="/cadastro" className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105">
+          <Link
+            to="/cadastro"
+            className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105"
+          >
             COMEÇAR AGORA GRÁTIS <Zap className="w-6 h-6" />
           </Link>
           <p className="text-black/60 text-sm mt-6 font-bold">Sem cartão • Sem compromisso • 100% seguro</p>
@@ -285,7 +365,11 @@ export default function Home({ user, userType, onLogout }) {
                 <h4 className="text-white font-black mb-4">{title}</h4>
                 <ul className="space-y-2">
                   {links.map(link => (
-                    <li key={link}><a href="#" className="text-gray-500 hover:text-primary transition-colors text-sm font-bold">{link}</a></li>
+                    <li key={link}>
+                      <a href="#" className="text-gray-500 hover:text-primary transition-colors text-sm font-bold">
+                        {link}
+                      </a>
+                    </li>
                   ))}
                 </ul>
               </div>
