@@ -388,13 +388,23 @@ export default function Vitrine({ user }) {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => iniciarAgendamento(prof)}
-                    className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                  >
-                    <Calendar className="w-5 h-5" />
-                    AGENDAR
-                  </button>
+                  {/* Só mostra botão para clientes ou não logados */}
+{(!user || (user && userType === 'client')) && (
+  <button
+    onClick={() => iniciarAgendamento(prof)}
+    className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2"
+  >
+    <Calendar className="w-5 h-5" />
+    AGENDAR
+  </button>
+)}
+
+{/* Mensagem para profissionais */}
+{user && userType === 'professional' && (
+  <div className="w-full py-3 bg-gray-800 border border-gray-700 rounded-button text-gray-500 font-bold text-center text-sm">
+    Você está logado como profissional
+  </div>
+)}
                 </div>
               );
             })}
