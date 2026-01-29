@@ -1,23 +1,29 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { User, Award, ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import { supabase } from '../supabase';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { supabase } from './supabase';
+
+import Home from './pages/Home';
+import Login from './pages/Login';
+import SignupChoice from './pages/SignupChoice';
+import SignupClient from './pages/SignupClient';
+import SignupProfessional from './pages/SignupProfessional';
+import Dashboard from './pages/Dashboard';
+import Vitrine from './pages/Vitrine';
+import ClientArea from './pages/ClientArea';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchProfileType(userId) {
+async function fetchType(userId) {
   const { data, error } = await supabase
     .from('users')
     .select('type')
     .eq('id', userId)
     .maybeSingle();
-
   if (error) return null;
   return isValidType(data?.type) ? data.type : null;
 }
 
-// ✅ AUTO-HEAL: se o trigger falhar, cria/atualiza o perfil usando user_metadata
 async function ensureProfileRow(authUser) {
   const userId = authUser.id;
   const email = authUser.email || '';
@@ -25,29 +31,22 @@ async function ensureProfileRow(authUser) {
   const type = isValidType(meta.type) ? meta.type : 'client';
   const nome = meta.nome || null;
 
-  // precisa da policy users_insert_self / users_update_self
   await supabase
     .from('users')
-    .upsert(
-      [{ id: userId, email, type, nome }],
-      { onConflict: 'id' }
-    );
+    .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
 }
 
-async function fetchProfileTypeWithRetryAndHeal(authUser) {
-  // tenta pegar normalmente
+async function getUserTypeWithRetryAndHeal(authUser) {
   for (let i = 0; i < 6; i++) {
-    const t = await fetchProfileType(authUser.id);
+    const t = await fetchType(authUser.id);
     if (t) return t;
     await sleep(300);
   }
 
-  // ✅ se não achou, tenta “auto-curar”
   await ensureProfileRow(authUser);
 
-  // tenta de novo depois do heal
   for (let i = 0; i < 10; i++) {
-    const t = await fetchProfileType(authUser.id);
+    const t = await fetchType(authUser.id);
     if (t) return t;
     await sleep(400);
   }
@@ -55,178 +54,164 @@ async function fetchProfileTypeWithRetryAndHeal(authUser) {
   return null;
 }
 
-export default function Login({ onLogin }) {
-  const [step, setStep] = useState(1);
+export default function App() {
+  const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const navigate = useNavigate();
+  useEffect(() => {
+    let mounted = true;
 
-  const handleTypeSelection = (type) => {
+    const init = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        if (!session?.user) {
+          if (!mounted) return;
+          setUser(null);
+          setUserType(null);
+          setLoading(false);
+          return;
+        }
+
+        const type = await getUserTypeWithRetryAndHeal(session.user);
+
+        if (!mounted) return;
+
+        // ✅ aqui é o ponto: se não tiver type, NÃO fica "meio logado"
+        if (!type) {
+          setUser(null);
+          setUserType(null);
+        } else {
+          setUser(session.user);
+          setUserType(type);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setUser(null);
+        setUserType(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        const type = await getUserTypeWithRetryAndHeal(session.user);
+
+        if (!type) {
+          setUser(null);
+          setUserType(null);
+          return;
+        }
+
+        setUser(session.user);
+        setUserType(type);
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserType(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  const handleLogin = (userData, type) => {
+    setUser(userData);
     setUserType(type);
-    setStep(2);
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (authError) throw authError;
-      if (!authData?.user?.id) throw new Error('Falha ao autenticar.');
-
-      const dbType = await fetchProfileTypeWithRetryAndHeal(authData.user);
-
-      if (!dbType) {
-        await supabase.auth.signOut();
-        throw new Error(
-          'Seu perfil ainda não foi criado no banco. ' +
-          'Execute o SQL V2 (com users_insert_self) e tente novamente.'
-        );
-      }
-
-      // validar tipo selecionado
-      if (dbType !== userType) {
-        await supabase.auth.signOut();
-        throw new Error(
-          `Esta conta é de ${dbType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}. ` +
-          'Volte e selecione o tipo correto.'
-        );
-      }
-
-      onLogin(authData.user, dbType);
-      navigate(dbType === 'professional' ? '/dashboard' : '/minha-area');
-    } catch (err) {
-      setError(err.message || 'Erro ao fazer login');
-    } finally {
-      setLoading(false);
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setUserType(null);
   };
 
-  const handleSignupRedirect = () => {
-    if (userType === 'client') navigate('/cadastro/cliente');
-    else navigate('/cadastro/profissional');
-  };
+  const isLoggedIn = !!user && !!userType;
 
-  return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6 font-bold">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar para Home
-        </Link>
-
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
-          {step === 1 && (
-            <>
-              <h2 className="text-xl font-black text-center mb-6">Entrar como:</h2>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => handleTypeSelection('client')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500 transition-all"
-                >
-                  <User className="mx-auto mb-2 text-blue-400" />
-                  <div className="font-black">CLIENTE</div>
-                </button>
-
-                <button
-                  onClick={() => handleTypeSelection('professional')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary transition-all"
-                >
-                  <Award className="mx-auto mb-2 text-primary" />
-                  <div className="font-black">PROFISSIONAL</div>
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <button
-                onClick={() => setStep(1)}
-                className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Trocar tipo
-              </button>
-
-              <h2 className="text-xl font-black mb-6 text-center">
-                Entrar como {userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}
-              </h2>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="seu@email.com"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Senha</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
-                      placeholder="••••••••"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
-                >
-                  {loading ? 'ENTRANDO...' : 'ENTRAR'}
-                </button>
-
-                <div className="text-center pt-4 border-t border-gray-800">
-                  <p className="text-sm text-gray-400 mb-2">Não tem conta?</p>
-                  <button
-                    type="button"
-                    onClick={handleSignupRedirect}
-                    className="text-primary font-black hover:text-yellow-500 transition-colors"
-                  >
-                    CRIAR CONTA →
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="text-primary text-xl font-bold">Carregando...</div>
         </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} onLogout={handleLogout} />} />
+
+        <Route
+          path="/login"
+          element={
+            isLoggedIn
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+              : <Login onLogin={handleLogin} />
+          }
+        />
+
+        <Route
+          path="/cadastro"
+          element={
+            isLoggedIn
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+              : <SignupChoice />
+          }
+        />
+
+        <Route
+          path="/cadastro/cliente"
+          element={
+            isLoggedIn && userType === 'client'
+              ? <Navigate to="/minha-area" />
+              : <SignupClient onLogin={handleLogin} />
+          }
+        />
+
+        <Route
+          path="/cadastro/profissional"
+          element={
+            isLoggedIn && userType === 'professional'
+              ? <Navigate to="/dashboard" />
+              : <SignupProfessional onLogin={handleLogin} />
+          }
+        />
+
+        <Route
+          path="/dashboard"
+          element={
+            isLoggedIn && userType === 'professional'
+              ? <Dashboard user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
+          }
+        />
+
+        <Route
+          path="/minha-area"
+          element={
+            isLoggedIn && userType === 'client'
+              ? <ClientArea user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
+          }
+        />
+
+        <Route path="/v/:slug" element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />} />
+      </Routes>
+    </Router>
   );
 }
