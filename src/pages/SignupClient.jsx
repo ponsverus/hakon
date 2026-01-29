@@ -7,15 +7,21 @@ const isValidType = (t) => t === 'client' || t === 'professional';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchProfileTypeWithRetry(userId) {
-  for (let i = 0; i < 6; i++) {
+  // ✅ AUMENTADO: 15 tentativas com delay maior
+  for (let i = 0; i < 15; i++) {
     const { data, error } = await supabase
       .from('users')
       .select('type')
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && isValidType(data?.type)) return data.type;
-    await sleep(250);
+    if (!error && isValidType(data?.type)) {
+      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
+      return data.type;
+    }
+
+    console.log(`⏳ Aguardando perfil... tentativa ${i + 1}/15`);
+    await sleep(500); // ✅ 500ms entre tentativas
   }
   return null;
 }
@@ -39,6 +45,8 @@ export default function SignupClient({ onLogin }) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
 
+      console.log('📝 Iniciando cadastro de cliente...');
+
       // 1) signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -51,37 +59,70 @@ export default function SignupClient({ onLogin }) {
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
-      // 2) Se não veio sessão, tentar signIn (caso confirmação de email esteja OFF)
+      console.log('✅ Conta criada no Auth:', authData.user.id);
+
+      // 2) ✅ AGUARDAR trigger criar perfil
+      console.log('⏳ Aguardando criação do perfil no banco...');
+      await sleep(1500); // 1.5 segundos
+
+      // 3) Fazer login se não veio sessão
       if (!authData.session) {
+        console.log('🔑 Fazendo login...');
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
 
         if (signInError) {
-          // Aqui normalmente é "Email not confirmed"
           throw new Error(
-            'Conta criada, mas não foi possível iniciar sessão automaticamente. ' +
-            'Se a confirmação de e-mail estiver ativa, confirme no seu e-mail e depois faça login.'
+            'Conta criada, mas não foi possível iniciar sessão. ' +
+            'Tente fazer login manualmente.'
           );
         }
 
-        const dbType = await fetchProfileTypeWithRetry(signInData.user.id);
-        if (!dbType) throw new Error('Perfil do usuário (public.users) não encontrado.');
+        console.log('✅ Login realizado');
 
+        // Buscar tipo com retry
+        const dbType = await fetchProfileTypeWithRetry(signInData.user.id);
+        
+        if (!dbType) {
+          throw new Error(
+            'Perfil não foi criado no banco. ' +
+            'Tente fazer login novamente em alguns segundos.'
+          );
+        }
+
+        console.log('✅ Perfil validado:', dbType);
         onLogin(signInData.user, dbType);
         navigate('/minha-area');
         return;
       }
 
-      // 3) Sessão OK → buscar tipo no DB (trigger)
+      // 4) Sessão OK → buscar tipo no DB
+      console.log('⏳ Buscando perfil do usuário...');
       const dbType = await fetchProfileTypeWithRetry(authData.user.id);
-      if (!dbType) throw new Error('Perfil do usuário (public.users) não encontrado.');
+      
+      if (!dbType) {
+        throw new Error(
+          'Perfil não foi criado no banco. ' +
+          'Tente fazer login novamente em alguns segundos.'
+        );
+      }
+
+      console.log('✅ Perfil validado:', dbType);
+      console.log('🎉 Cadastro completo! Redirecionando...');
 
       onLogin(authData.user, dbType);
       navigate('/minha-area');
+
     } catch (err) {
-      console.error('Erro ao criar conta:', err);
+      console.error('❌ Erro no cadastro:', err);
+      
+      // ✅ NÃO deslogar se o erro for só de perfil não encontrado
+      if (!err.message.includes('Perfil não foi criado')) {
+        await supabase.auth.signOut();
+      }
+
       setError(err.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setLoading(false);
