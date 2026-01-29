@@ -1,10 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Plus, Edit, Trash2, Save, X, ExternalLink, Eye, Copy, Check,
-  Calendar, DollarSign, Users, TrendingUp, Award, LogOut, AlertCircle
+import {
+  Plus, X, ExternalLink, Eye, Copy, Check,
+  Calendar, DollarSign, Users, TrendingUp, Award, LogOut, AlertCircle, Save
 } from 'lucide-react';
 import { supabase } from '../supabase';
+
+const DIAS = [
+  { key: 'mon', label: 'Seg' },
+  { key: 'tue', label: 'Ter' },
+  { key: 'wed', label: 'Qua' },
+  { key: 'thu', label: 'Qui' },
+  { key: 'fri', label: 'Sex' },
+  { key: 'sat', label: 'Sáb' },
+  { key: 'sun', label: 'Dom' },
+];
+
+function nowSaoPauloIsoDate() {
+  // sua base usa timezone('America/Sao_Paulo', now()) no banco;
+  // aqui usamos a data local do navegador como "hoje".
+  return new Date().toISOString().split('T')[0];
+}
+
+function timeToMinutes(t) {
+  const [h, m] = String(t || '00:00').split(':').map(Number);
+  return h * 60 + m;
+}
 
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
@@ -19,7 +40,16 @@ export default function Dashboard({ user, onLogout }) {
   // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
   const [showNovoProfissional, setShowNovoProfissional] = useState(false);
-  const [editingServico, setEditingServico] = useState(null);
+
+  // Edição horários
+  const [editingHorarioProf, setEditingHorarioProf] = useState(null); // profissional inteiro
+  const [formHorario, setFormHorario] = useState({
+    horario_inicio: '08:00',
+    horario_fim: '18:00',
+    dias_trabalho: {
+      mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false
+    }
+  });
 
   // Forms
   const [formServico, setFormServico] = useState({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
@@ -27,31 +57,23 @@ export default function Dashboard({ user, onLogout }) {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    
-    try {
-      console.log('🔍 Buscando barbearia para user:', user.id);
 
-      // Buscar barbearia do usuário
+    try {
       const { data: barbeariaData, error: barbeariaError } = await supabase
         .from('barbearias')
         .select('*')
         .eq('owner_id', user.id)
         .maybeSingle();
 
-      console.log('📊 Resultado barbearia:', { barbeariaData, barbeariaError });
-
-      if (barbeariaError) {
-        console.error('❌ Erro ao buscar barbearia:', barbeariaError);
-        throw new Error(`Erro ao buscar barbearia: ${barbeariaError.message}`);
-      }
+      if (barbeariaError) throw barbeariaError;
 
       if (!barbeariaData) {
-        console.warn('⚠️ Nenhuma barbearia encontrada para este usuário');
         setError('Nenhuma barbearia cadastrada. Entre em contato com o suporte.');
         setLoading(false);
         return;
@@ -59,76 +81,71 @@ export default function Dashboard({ user, onLogout }) {
 
       setBarbearia(barbeariaData);
 
-      // Buscar profissionais
       const { data: profissionaisData, error: profError } = await supabase
         .from('profissionais')
         .select('*')
         .eq('barbearia_id', barbeariaData.id);
 
-      if (profError) {
-        console.error('❌ Erro ao buscar profissionais:', profError);
-      } else {
-        setProfissionais(profissionaisData || []);
-      }
+      if (profError) throw profError;
+      setProfissionais(profissionaisData || []);
 
-      // Buscar serviços
-      if (profissionaisData && profissionaisData.length > 0) {
-        const profissionalIds = profissionaisData.map(p => p.id);
+      const profissionalIds = (profissionaisData || []).map(p => p.id);
+
+      if (profissionalIds.length > 0) {
         const { data: servicosData, error: servError } = await supabase
           .from('servicos')
           .select('*, profissionais (nome)')
           .in('profissional_id', profissionalIds);
 
-        if (servError) {
-          console.error('❌ Erro ao buscar serviços:', servError);
-        } else {
-          setServicos(servicosData || []);
-        }
+        if (servError) throw servError;
+        setServicos(servicosData || []);
 
-        // Buscar agendamentos
         const { data: agendamentosData, error: agendError } = await supabase
           .from('agendamentos')
           .select(`
             *,
-            servicos (nome, preco),
+            servicos (nome, preco, duracao_minutos),
             profissionais (nome),
             users (nome)
           `)
           .in('profissional_id', profissionalIds)
           .order('data', { ascending: false })
-          .limit(50);
+          .limit(200);
 
-        if (agendError) {
-          console.error('❌ Erro ao buscar agendamentos:', agendError);
-        } else {
-          setAgendamentos(agendamentosData || []);
-        }
+        if (agendError) throw agendError;
+        setAgendamentos(agendamentosData || []);
+      } else {
+        setServicos([]);
+        setAgendamentos([]);
       }
-
-    } catch (error) {
-      console.error('💥 Erro geral ao carregar dados:', error);
-      setError(error.message || 'Erro desconhecido ao carregar dados');
+    } catch (e) {
+      console.error('Erro ao carregar dashboard:', e);
+      setError(e.message || 'Erro desconhecido ao carregar dados');
     } finally {
       setLoading(false);
     }
   };
 
   const copyLink = () => {
-    if (barbearia) {
-      const url = `${window.location.origin}/v/${barbearia.slug}`;
-      navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    if (!barbearia) return;
+    const url = `${window.location.origin}/v/${barbearia.slug}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const createServico = async (e) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('servicos')
-        .insert([formServico]);
+      const payload = {
+        nome: formServico.nome,
+        duracao_minutos: Number(formServico.duracao_minutos),
+        preco: Number(formServico.preco),
+        profissional_id: formServico.profissional_id,
+        ativo: true
+      };
 
+      const { error } = await supabase.from('servicos').insert([payload]);
       if (error) throw error;
 
       alert('✅ Serviço criado!');
@@ -141,36 +158,11 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  const updateServico = async (e) => {
-    e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from('servicos')
-        .update(formServico)
-        .eq('id', editingServico);
-
-      if (error) throw error;
-
-      alert('✅ Serviço atualizado!');
-      setEditingServico(null);
-      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
-      loadData();
-    } catch (error) {
-      alert('❌ Erro ao atualizar: ' + error.message);
-    }
-  };
-
   const deleteServico = async (id) => {
-    if (!confirm('Tem certeza que deseja excluir?')) return;
-
+    if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
     try {
-      const { error } = await supabase
-        .from('servicos')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('servicos').delete().eq('id', id);
       if (error) throw error;
-
       alert('✅ Serviço excluído!');
       loadData();
     } catch (error) {
@@ -181,13 +173,17 @@ export default function Dashboard({ user, onLogout }) {
   const createProfissional = async (e) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('profissionais')
-        .insert([{
-          ...formProfissional,
-          barbearia_id: barbearia.id
-        }]);
+      const payload = {
+        nome: formProfissional.nome,
+        anos_experiencia: formProfissional.anos_experiencia ? Number(formProfissional.anos_experiencia) : null,
+        barbearia_id: barbearia.id,
+        // defaults
+        horario_inicio: '08:00',
+        horario_fim: '18:00',
+        dias_trabalho: { mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false }
+      };
 
+      const { error } = await supabase.from('profissionais').insert([payload]);
       if (error) throw error;
 
       alert('✅ Profissional adicionado!');
@@ -212,6 +208,52 @@ export default function Dashboard({ user, onLogout }) {
       loadData();
     } catch (error) {
       alert('❌ Erro ao confirmar: ' + error.message);
+    }
+  };
+
+  const abrirEditarHorario = (prof) => {
+    setEditingHorarioProf(prof);
+
+    const dias = prof.dias_trabalho && typeof prof.dias_trabalho === 'object'
+      ? prof.dias_trabalho
+      : { mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false };
+
+    setFormHorario({
+      horario_inicio: prof.horario_inicio || '08:00',
+      horario_fim: prof.horario_fim || '18:00',
+      dias_trabalho: {
+        mon: !!dias.mon, tue: !!dias.tue, wed: !!dias.wed, thu: !!dias.thu,
+        fri: !!dias.fri, sat: !!dias.sat, sun: !!dias.sun,
+      }
+    });
+  };
+
+  const salvarHorario = async () => {
+    try {
+      const hi = formHorario.horario_inicio;
+      const hf = formHorario.horario_fim;
+
+      if (timeToMinutes(hi) >= timeToMinutes(hf)) {
+        alert('Horário inválido: início deve ser menor que fim.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('profissionais')
+        .update({
+          horario_inicio: hi,
+          horario_fim: hf,
+          dias_trabalho: formHorario.dias_trabalho
+        })
+        .eq('id', editingHorarioProf.id);
+
+      if (error) throw error;
+
+      alert('✅ Horários atualizados!');
+      setEditingHorarioProf(null);
+      loadData();
+    } catch (e) {
+      alert('❌ Erro ao salvar horários: ' + e.message);
     }
   };
 
@@ -247,21 +289,39 @@ export default function Dashboard({ user, onLogout }) {
               Sair
             </button>
           </div>
-          <p className="text-xs text-gray-600 mt-6">
-            Se o problema persistir, entre em contato com{' '}
-            <a href="mailto:suporte@hakon.app" className="text-primary hover:text-yellow-500">
-              suporte@hakon.app
-            </a>
-          </p>
         </div>
       </div>
     );
   }
 
-  const hoje = new Date().toISOString().split('T')[0];
-  const agendamentosHoje = agendamentos.filter(a => a.data === hoje && !a.status.includes('cancelado'));
-  const concluidos = agendamentosHoje.filter(a => a.status === 'concluido');
-  const faturamentoHoje = concluidos.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
+  const hoje = nowSaoPauloIsoDate();
+
+  const agendamentosHoje = agendamentos.filter(a =>
+    a.data === hoje && !String(a.status || '').includes('cancelado')
+  );
+
+  // ✅ faturamento: concluiu OU já passou do horário final (sem cancelamento)
+  const agora = new Date();
+  const faturamentoHoje = agendamentosHoje.reduce((sum, a) => {
+    const preco = Number(a.servicos?.preco || 0);
+
+    const isCancelado = String(a.status || '').includes('cancelado');
+    if (isCancelado) return sum;
+
+    const jaConcluiu = a.status === 'concluido';
+
+    // já passou do horário final?
+    let passou = false;
+    if (a.data && a.hora_fim) {
+      const dt = new Date(`${a.data}T${a.hora_fim}`);
+      passou = dt.getTime() < agora.getTime();
+    }
+
+    if (jaConcluiu || passou) return sum + preco;
+    return sum;
+  }, 0);
+
+  const cancelados = agendamentos.filter(a => String(a.status || '').includes('cancelado'));
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -354,7 +414,7 @@ export default function Dashboard({ user, onLogout }) {
         {/* Tabs */}
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
-            {['visao-geral', 'agendamentos', 'servicos', 'profissionais'].map(tab => (
+            {['visao-geral', 'agendamentos', 'cancelados', 'servicos', 'profissionais'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -370,11 +430,10 @@ export default function Dashboard({ user, onLogout }) {
           </div>
 
           <div className="p-6">
-            {/* Conteúdo das tabs (simplificado por espaço) */}
             {activeTab === 'visao-geral' && (
               <div className="text-center py-12">
                 <p className="text-gray-400 mb-4">Bem-vindo ao seu dashboard!</p>
-                <p className="text-sm text-gray-500">Use as abas acima para gerenciar seus serviços e profissionais.</p>
+                <p className="text-sm text-gray-500">Use as abas acima para gerenciar serviços, profissionais e agendamentos.</p>
               </div>
             )}
 
@@ -403,23 +462,12 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
                         </div>
                         <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingServico(s.id);
-                              setFormServico({ ...s });
-                            }}
-                            className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => deleteServico(s.id)}
-                            className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
-                          >
-                            Excluir
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => deleteServico(s.id)}
+                          className="w-full py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                        >
+                          Excluir
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -455,18 +503,29 @@ export default function Dashboard({ user, onLogout }) {
                     <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-black text-xl">
-                          {p.nome[0]}
+                          {p.nome?.[0] || 'P'}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-black">{p.nome}</h3>
-                          {p.anos_experiencia && (
+                          {p.anos_experiencia != null && (
                             <p className="text-xs text-gray-500 font-bold">{p.anos_experiencia} anos</p>
                           )}
+                          <p className="text-xs text-gray-500 font-bold mt-1">
+                            {p.horario_inicio || '08:00'} - {p.horario_fim || '18:00'}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-400">
+
+                      <div className="text-sm text-gray-400 mb-4">
                         {servicos.filter(s => s.profissional_id === p.id).length} serviços
                       </div>
+
+                      <button
+                        onClick={() => abrirEditarHorario(p)}
+                        className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                      >
+                        Editar Horários
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -494,7 +553,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div className="grid grid-cols-3 gap-4 mb-4">
                           <div>
                             <div className="text-xs text-gray-500 font-bold">Horário</div>
-                            <div className="text-sm font-bold">{a.hora_inicio}</div>
+                            <div className="text-sm font-bold">{a.hora_inicio} - {a.hora_fim}</div>
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-bold">Valor</div>
@@ -517,11 +576,40 @@ export default function Dashboard({ user, onLogout }) {
                 )}
               </div>
             )}
+
+            {activeTab === 'cancelados' && (
+              <div>
+                <h2 className="text-2xl font-black mb-6">Cancelados</h2>
+
+                {cancelados.length > 0 ? (
+                  <div className="space-y-4">
+                    {cancelados.map(a => (
+                      <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
+                            <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
+                            <p className="text-xs text-gray-500 font-bold mt-1">
+                              {new Date(a.data).toLocaleDateString('pt-BR')} • {a.hora_inicio}
+                            </p>
+                          </div>
+                          <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 text-red-400">
+                            {a.status}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-12">Nenhum cancelamento ainda</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Modais (simplificados) */}
+      {/* Modal Novo Serviço */}
       {showNovoServico && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
@@ -593,6 +681,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       )}
 
+      {/* Modal Novo Profissional */}
       {showNovoProfissional && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
@@ -632,6 +721,77 @@ export default function Dashboard({ user, onLogout }) {
                 ADICIONAR
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Horários */}
+      {editingHorarioProf && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-black">Horários • {editingHorarioProf.nome}</h3>
+              <button onClick={() => setEditingHorarioProf(null)} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 mb-2">Início</label>
+                  <input
+                    type="time"
+                    value={formHorario.horario_inicio}
+                    onChange={(e) => setFormHorario(prev => ({ ...prev, horario_inicio: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 mb-2">Fim</label>
+                  <input
+                    type="time"
+                    value={formHorario.horario_fim}
+                    onChange={(e) => setFormHorario(prev => ({ ...prev, horario_fim: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">Dias de trabalho</label>
+                <div className="grid grid-cols-7 gap-2">
+                  {DIAS.map(d => (
+                    <button
+                      key={d.key}
+                      onClick={() => setFormHorario(prev => ({
+                        ...prev,
+                        dias_trabalho: { ...prev.dias_trabalho, [d.key]: !prev.dias_trabalho[d.key] }
+                      }))}
+                      className={`py-2 rounded-custom font-black text-xs border transition-all ${
+                        formHorario.dias_trabalho[d.key]
+                          ? 'bg-primary/20 border-primary/50 text-primary'
+                          : 'bg-dark-200 border-gray-800 text-gray-500'
+                      }`}
+                      type="button"
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={salvarHorario}
+                className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black flex items-center justify-center gap-2"
+              >
+                <Save className="w-5 h-5" />
+                SALVAR
+              </button>
+              <p className="text-xs text-gray-500 font-bold">
+                Esses horários controlam os horários disponíveis na vitrine e no agendamento inteligente.
+              </p>
+            </div>
           </div>
         </div>
       )}
