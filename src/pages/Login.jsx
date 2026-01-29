@@ -4,19 +4,24 @@ import { User, Award, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../supabase';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchProfileTypeWithRetry(userId) {
-  for (let i = 0; i < 6; i++) {
+  // ✅ AUMENTADO: 12 tentativas com delay maior
+  for (let i = 0; i < 12; i++) {
     const { data, error } = await supabase
       .from('users')
       .select('type')
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && isValidType(data?.type)) return data.type;
-    await sleep(250);
+    if (!error && isValidType(data?.type)) {
+      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
+      return data.type;
+    }
+
+    console.log(`⏳ Buscando perfil... tentativa ${i + 1}/12`);
+    await sleep(400); // ✅ 400ms entre tentativas
   }
   return null;
 }
@@ -43,6 +48,8 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
+      console.log('🔑 Tentando login...');
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
@@ -51,16 +58,23 @@ export default function Login({ onLogin }) {
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Falha ao autenticar.');
 
+      console.log('✅ Autenticado:', authData.user.email);
+
+      // ✅ Buscar tipo com retry aprimorado
       const dbType = await fetchProfileTypeWithRetry(authData.user.id);
 
       if (!dbType) {
         await supabase.auth.signOut();
         throw new Error(
-          'Conta existe no Auth, mas o perfil do app (public.users) não foi encontrado. ' +
-          'Isso indica trigger/policy/rollback no banco.'
+          'Perfil do usuário não encontrado no banco de dados. ' +
+          'Isso pode acontecer se o cadastro foi feito recentemente. ' +
+          'Aguarde alguns segundos e tente novamente.'
         );
       }
 
+      console.log('✅ Tipo encontrado:', dbType);
+
+      // ✅ Validar tipo selecionado
       if (dbType !== userType) {
         await supabase.auth.signOut();
         throw new Error(
@@ -69,11 +83,13 @@ export default function Login({ onLogin }) {
         );
       }
 
+      console.log('🎉 Login completo! Redirecionando...');
+      
       onLogin(authData.user, dbType);
-
       navigate(dbType === 'professional' ? '/dashboard' : '/minha-area');
+
     } catch (err) {
-      console.error(err);
+      console.error('❌ Erro no login:', err);
       setError(err.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
@@ -104,7 +120,7 @@ export default function Login({ onLogin }) {
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => handleTypeSelection('client')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500"
+                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500 transition-all"
                 >
                   <User className="mx-auto mb-2 text-blue-400" />
                   <div className="font-black">CLIENTE</div>
@@ -112,7 +128,7 @@ export default function Login({ onLogin }) {
 
                 <button
                   onClick={() => handleTypeSelection('professional')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary"
+                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary transition-all"
                 >
                   <Award className="mx-auto mb-2 text-primary" />
                   <div className="font-black">PROFISSIONAL</div>
@@ -125,7 +141,7 @@ export default function Login({ onLogin }) {
             <>
               <button
                 onClick={() => setStep(1)}
-                className="text-sm text-gray-400 mb-4 flex items-center gap-1"
+                className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Trocar tipo
@@ -137,38 +153,40 @@ export default function Login({ onLogin }) {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="text-sm font-bold">Email</label>
+                  <label className="text-sm font-bold mb-2 block">Email</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom"
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                    placeholder="seu@email.com"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-bold">Senha</label>
+                  <label className="text-sm font-bold mb-2 block">Senha</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom"
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
+                      placeholder="••••••••"
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                     >
-                      {showPassword ? <EyeOff /> : <Eye />}
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
 
                 {error && (
-                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom">
+                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
                     {error}
                   </div>
                 )}
@@ -176,7 +194,7 @@ export default function Login({ onLogin }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60"
+                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
                 >
                   {loading ? 'ENTRANDO...' : 'ENTRAR'}
                 </button>
@@ -186,7 +204,7 @@ export default function Login({ onLogin }) {
                   <button
                     type="button"
                     onClick={handleSignupRedirect}
-                    className="text-primary font-black"
+                    className="text-primary font-black hover:text-yellow-500 transition-colors"
                   >
                     CRIAR CONTA →
                   </button>
