@@ -6,35 +6,63 @@ import { supabase } from '../supabase';
 const isValidType = (t) => t === 'client' || t === 'professional';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchProfileTypeWithRetry(userId) {
-  // ✅ AUMENTADO: 12 tentativas com delay maior
-  for (let i = 0; i < 12; i++) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('type')
-      .eq('id', userId)
-      .maybeSingle();
+async function fetchProfileType(userId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('type')
+    .eq('id', userId)
+    .maybeSingle();
 
-    if (!error && isValidType(data?.type)) {
-      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
-      return data.type;
-    }
+  if (error) return null;
+  return isValidType(data?.type) ? data.type : null;
+}
 
-    console.log(`⏳ Buscando perfil... tentativa ${i + 1}/12`);
-    await sleep(400); // ✅ 400ms entre tentativas
+// ✅ AUTO-HEAL: se o trigger falhar, cria/atualiza o perfil usando user_metadata
+async function ensureProfileRow(authUser) {
+  const userId = authUser.id;
+  const email = authUser.email || '';
+  const meta = authUser.user_metadata || {};
+  const type = isValidType(meta.type) ? meta.type : 'client';
+  const nome = meta.nome || null;
+
+  // precisa da policy users_insert_self / users_update_self
+  await supabase
+    .from('users')
+    .upsert(
+      [{ id: userId, email, type, nome }],
+      { onConflict: 'id' }
+    );
+}
+
+async function fetchProfileTypeWithRetryAndHeal(authUser) {
+  // tenta pegar normalmente
+  for (let i = 0; i < 6; i++) {
+    const t = await fetchProfileType(authUser.id);
+    if (t) return t;
+    await sleep(300);
   }
+
+  // ✅ se não achou, tenta “auto-curar”
+  await ensureProfileRow(authUser);
+
+  // tenta de novo depois do heal
+  for (let i = 0; i < 10; i++) {
+    const t = await fetchProfileType(authUser.id);
+    if (t) return t;
+    await sleep(400);
+  }
+
   return null;
 }
 
 export default function Login({ onLogin }) {
-  const [step, setStep] = useState(1); // 1 = escolher tipo | 2 = login
-  const [userType, setUserType] = useState(null); // 'client' | 'professional'
+  const [step, setStep] = useState(1);
+  const [userType, setUserType] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({ email: '', password: '' });
-
   const navigate = useNavigate();
 
   const handleTypeSelection = (type) => {
@@ -48,8 +76,6 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      console.log('🔑 Tentando login...');
-
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
@@ -58,23 +84,17 @@ export default function Login({ onLogin }) {
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Falha ao autenticar.');
 
-      console.log('✅ Autenticado:', authData.user.email);
-
-      // ✅ Buscar tipo com retry aprimorado
-      const dbType = await fetchProfileTypeWithRetry(authData.user.id);
+      const dbType = await fetchProfileTypeWithRetryAndHeal(authData.user);
 
       if (!dbType) {
         await supabase.auth.signOut();
         throw new Error(
-          'Perfil do usuário não encontrado no banco de dados. ' +
-          'Isso pode acontecer se o cadastro foi feito recentemente. ' +
-          'Aguarde alguns segundos e tente novamente.'
+          'Seu perfil ainda não foi criado no banco. ' +
+          'Execute o SQL V2 (com users_insert_self) e tente novamente.'
         );
       }
 
-      console.log('✅ Tipo encontrado:', dbType);
-
-      // ✅ Validar tipo selecionado
+      // validar tipo selecionado
       if (dbType !== userType) {
         await supabase.auth.signOut();
         throw new Error(
@@ -83,13 +103,9 @@ export default function Login({ onLogin }) {
         );
       }
 
-      console.log('🎉 Login completo! Redirecionando...');
-      
       onLogin(authData.user, dbType);
       navigate(dbType === 'professional' ? '/dashboard' : '/minha-area');
-
     } catch (err) {
-      console.error('❌ Erro no login:', err);
       setError(err.message || 'Erro ao fazer login');
     } finally {
       setLoading(false);
@@ -104,10 +120,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6 font-bold"
-        >
+        <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6 font-bold">
           <ArrowLeft className="w-4 h-4" />
           Voltar para Home
         </Link>
