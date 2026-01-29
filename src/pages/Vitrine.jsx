@@ -1,44 +1,64 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft, 
-  Zap, User, X, ChevronRight, AlertCircle 
+import {
+  Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft,
+  Zap, X, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
-export default function Vitrine({ user }) {
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+function minutesToTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function addMinutes(time, delta) {
+  return minutesToTime(timeToMinutes(time) + delta);
+}
+
+export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
   const navigate = useNavigate();
-  
+
   const [barbearia, setBarbearia] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFavorito, setIsFavorito] = useState(false);
-  
-  // Modal de agendamento
+
+  // Agendamento (flow state único pra não quebrar ao voltar)
   const [showAgendamento, setShowAgendamento] = useState(false);
-  const [selectedProfissional, setSelectedProfissional] = useState(null);
-  const [selectedServico, setSelectedServico] = useState(null);
-  const [selectedData, setSelectedData] = useState('');
-  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
-  const [selectedHorario, setSelectedHorario] = useState(null);
-  const [step, setStep] = useState(1);
+  const [flow, setFlow] = useState({
+    step: 1, // 1 servico, 2 data, 3 horario, 4 confirmar
+    profissional: null,
+    servico: null,
+    data: '',
+    horario: null, // {hora, tipo, slot...}
+  });
+
+  // Avaliar
+  const [showAvaliar, setShowAvaliar] = useState(false);
+  const [avaliarNota, setAvaliarNota] = useState(5);
+  const [avaliarTexto, setAvaliarTexto] = useState('');
+  const [avaliarLoading, setAvaliarLoading] = useState(false);
 
   useEffect(() => {
     loadVitrine();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   useEffect(() => {
-    if (user && barbearia) {
-      checkFavorito();
-    }
-  }, [user, barbearia]);
+    if (user && barbearia) checkFavorito();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, barbearia?.id]);
 
   const loadVitrine = async () => {
+    setLoading(true);
     try {
-      // Buscar barbearia
       const { data: barbeariaData, error: barbeariaError } = await supabase
         .from('barbearias')
         .select('*')
@@ -48,39 +68,40 @@ export default function Vitrine({ user }) {
       if (barbeariaError) throw barbeariaError;
       setBarbearia(barbeariaData);
 
-      // Buscar profissionais
-      const { data: profissionaisData } = await supabase
+      const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
         .select('*')
         .eq('barbearia_id', barbeariaData.id);
 
+      if (profErr) throw profErr;
       setProfissionais(profissionaisData || []);
 
-      // Buscar serviços de todos os profissionais
-      const profissionalIds = profissionaisData?.map(p => p.id) || [];
-      const { data: servicosData } = await supabase
-        .from('servicos')
-        .select('*')
-        .in('profissional_id', profissionalIds)
-        .eq('ativo', true);
+      const profissionalIds = (profissionaisData || []).map(p => p.id);
+      if (profissionalIds.length > 0) {
+        const { data: servicosData, error: servErr } = await supabase
+          .from('servicos')
+          .select('*')
+          .in('profissional_id', profissionalIds)
+          .eq('ativo', true);
 
-      setServicos(servicosData || []);
+        if (servErr) throw servErr;
+        setServicos(servicosData || []);
+      } else {
+        setServicos([]);
+      }
 
-      // Buscar avaliações
-      const { data: avaliacoesData } = await supabase
+      const { data: avaliacoesData, error: avalErr } = await supabase
         .from('avaliacoes')
-        .select(`
-          *,
-          users (nome)
-        `)
+        .select(`*, users (nome)`)
         .eq('barbearia_id', barbeariaData.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
+      if (avalErr) throw avalErr;
       setAvaliacoes(avaliacoesData || []);
-
     } catch (error) {
       console.error('Erro ao carregar vitrine:', error);
+      setBarbearia(null);
     } finally {
       setLoading(false);
     }
@@ -97,8 +118,8 @@ export default function Vitrine({ user }) {
         .single();
 
       setIsFavorito(!!data);
-    } catch (error) {
-      // Não é favorito
+    } catch {
+      setIsFavorito(false);
     }
   };
 
@@ -107,14 +128,14 @@ export default function Vitrine({ user }) {
       alert('Faça login para favoritar');
       return;
     }
-
     try {
       if (isFavorito) {
         await supabase
           .from('favoritos')
           .delete()
           .eq('cliente_id', user.id)
-          .eq('barbearia_id', barbearia.id);
+          .eq('barbearia_id', barbearia.id)
+          .eq('tipo', 'barbearia');
         setIsFavorito(false);
       } else {
         await supabase
@@ -128,136 +149,203 @@ export default function Vitrine({ user }) {
       }
     } catch (error) {
       console.error('Erro ao favoritar:', error);
+      alert('Erro ao favoritar. Tente novamente.');
     }
   };
 
   const iniciarAgendamento = (profissional) => {
     if (!user) {
-      if (confirm('Você precisa fazer login para agendar. Deseja fazer login agora?')) {
-        navigate('/login');
-      }
+      if (confirm('Você precisa fazer login para agendar. Deseja fazer login agora?')) navigate('/login');
       return;
     }
 
-    setSelectedProfissional(profissional);
+    // ✅ BLOQUEIO: profissional não agenda
+    if (userType === 'professional') {
+      alert('Você está logado como PROFISSIONAL. Para agendar, entre como CLIENTE.');
+      return;
+    }
+
+    setFlow({
+      step: 1,
+      profissional,
+      servico: null,
+      data: '',
+      horario: null
+    });
     setShowAgendamento(true);
-    setStep(1);
   };
 
+  const servicosDoProf = useMemo(() => {
+    if (!flow.profissional) return [];
+    return servicos.filter(s => s.profissional_id === flow.profissional.id);
+  }, [servicos, flow.profissional]);
+
+  // ✅ Horários calculados de forma correta:
+  // - base no horario_inicio/fim do profissional
+  // - slots de 30 min como início (padrão)
+  // - mas só mostra se o serviço cabe sem ultrapassar o fim
+  // - e se não conflita com agendamentos existentes
+  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
+
   const calcularHorariosDisponiveis = async () => {
-    if (!selectedProfissional || !selectedData) return;
+    if (!flow.profissional || !flow.data || !flow.servico) return;
 
     try {
-      // Buscar agendamentos do dia
-      const { data: agendamentos } = await supabase
+      const inicio = flow.profissional.horario_inicio || '08:00';
+      const fim = flow.profissional.horario_fim || '18:00';
+
+      const duracao = Number(flow.servico.duracao_minutos || 0);
+      if (!duracao) {
+        setHorariosDisponiveis([]);
+        return;
+      }
+
+      // agendamentos do dia
+      const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select('hora_inicio, hora_fim, status')
-        .eq('profissional_id', selectedProfissional.id)
-        .eq('data', selectedData);
+        .eq('profissional_id', flow.profissional.id)
+        .eq('data', flow.data);
 
-      // Buscar slots temporários (cancelamentos)
-      const { data: slots } = await supabase
+      if (agErr) throw agErr;
+
+      // slots temporários (cancelados reaproveitáveis)
+      const { data: slots, error: slotErr } = await supabase
         .from('slots_temporarios')
         .select('*')
-        .eq('profissional_id', selectedProfissional.id)
-        .eq('data', selectedData)
+        .eq('profissional_id', flow.profissional.id)
+        .eq('data', flow.data)
         .eq('ativo', true);
 
-      // Gerar horários
+      if (slotErr) {
+        // não derruba; apenas ignora slots temporários se tabela/policy falhar
+        console.warn('slots_temporarios indisponível:', slotErr.message);
+      }
+
+      const agendamentosValidos = (ags || []).filter(a => !String(a.status || '').includes('cancelado'));
+
       const horarios = [];
-      const inicio = selectedProfissional.horario_inicio || '08:00';
-      const fim = selectedProfissional.horario_fim || '18:00';
-      
-      let hora = inicio;
-      while (hora < fim) {
-        // Verificar se horário está ocupado
-        const ocupado = agendamentos?.some(a => 
-          a.hora_inicio <= hora && a.hora_fim > hora && 
-          !a.status.includes('cancelado')
-        );
+      let cur = timeToMinutes(inicio);
+      const end = timeToMinutes(fim);
 
-        if (!ocupado) {
-          // Verificar se é um slot temporário
-          const slot = slots?.find(s => s.hora_inicio === hora);
-          
+      while (cur + duracao <= end) {
+        const hora = minutesToTime(cur);
+        const horaFim = minutesToTime(cur + duracao);
+
+        const conflita = agendamentosValidos.some(a => {
+          const ai = timeToMinutes(a.hora_inicio);
+          const af = timeToMinutes(a.hora_fim);
+          const ni = timeToMinutes(hora);
+          const nf = timeToMinutes(horaFim);
+          // overlap
+          return ni < af && nf > ai;
+        });
+
+        if (!conflita) {
+          const slot = (slots || []).find(s => s.hora_inicio === hora);
+
           if (slot) {
-            // AGENDAMENTO INTELIGENTE: Calcular tempo disponível
-            const agora = new Date();
-            const dataHoraFim = new Date(`${selectedData}T${slot.hora_fim}`);
-            const minutosDisponiveis = Math.floor((dataHoraFim - agora) / 60000);
+            // regra do slot: só aceita se o serviço cabe dentro do slot.hora_fim
+            const slotFimMin = timeToMinutes(slot.hora_fim);
+            const cabeNoSlot = (cur + duracao) <= slotFimMin;
 
-            if (minutosDisponiveis > 0) {
-              horarios.push({
-                hora,
-                tipo: 'slot',
-                tempoDisponivel: minutosDisponiveis,
-                slot: slot
-              });
+            if (cabeNoSlot) {
+              horarios.push({ hora, tipo: 'slot', slot });
             }
           } else {
-            // Horário normal
-            horarios.push({
-              hora,
-              tipo: 'normal'
-            });
+            horarios.push({ hora, tipo: 'normal' });
           }
         }
 
-        // Próximo horário (intervalo de 30min)
-        const [h, m] = hora.split(':').map(Number);
-        const proximaHora = new Date(2000, 0, 1, h, m + 30);
-        hora = `${String(proximaHora.getHours()).padStart(2, '0')}:${String(proximaHora.getMinutes()).padStart(2, '0')}`;
+        cur += 30; // padrão 30min como “grade” de início
       }
 
       setHorariosDisponiveis(horarios);
     } catch (error) {
       console.error('Erro ao calcular horários:', error);
+      setHorariosDisponiveis([]);
     }
   };
 
   useEffect(() => {
-    if (selectedProfissional && selectedData) {
+    if (showAgendamento && flow.step === 3) {
       calcularHorariosDisponiveis();
     }
-  }, [selectedProfissional, selectedData]);
-
-  const servicosDoProf = servicos.filter(s => s.profissional_id === selectedProfissional?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAgendamento, flow.profissional?.id, flow.data, flow.servico?.id, flow.step]);
 
   const confirmarAgendamento = async () => {
+    if (!user || userType === 'professional') {
+      alert('Você precisa estar logado como CLIENTE para agendar.');
+      return;
+    }
+
     try {
+      const horaInicio = flow.horario.hora;
+      const horaFim = addMinutes(horaInicio, Number(flow.servico.duracao_minutos || 0));
+
       const { error } = await supabase
         .from('agendamentos')
         .insert({
-          profissional_id: selectedProfissional.id,
+          profissional_id: flow.profissional.id,
           cliente_id: user.id,
-          servico_id: selectedServico.id,
-          data: selectedData,
-          hora_inicio: selectedHorario.hora,
-          hora_fim: calcularHoraFim(selectedHorario.hora, selectedServico.duracao_minutos),
+          servico_id: flow.servico.id,
+          data: flow.data,
+          hora_inicio: horaInicio,
+          hora_fim: horaFim,
           status: 'agendado'
         });
 
       if (error) throw error;
 
-      alert('✅ Agendamento confirmado! Você receberá uma confirmação.');
+      alert('✅ Agendamento confirmado!');
       setShowAgendamento(false);
       navigate('/minha-area');
     } catch (error) {
       console.error('Erro ao agendar:', error);
-      alert('❌ Erro ao criar agendamento');
+      alert('❌ Erro ao criar agendamento: ' + (error.message || ''));
     }
   };
 
-  const calcularHoraFim = (horaInicio, duracaoMinutos) => {
-    const [h, m] = horaInicio.split(':').map(Number);
-    const fim = new Date(2000, 0, 1, h, m + duracaoMinutos);
-    return `${String(fim.getHours()).padStart(2, '0')}:${String(fim.getMinutes()).padStart(2, '0')}`;
+  const abrirAvaliar = () => {
+    if (!user) {
+      if (confirm('Você precisa fazer login para avaliar. Deseja fazer login agora?')) navigate('/login');
+      return;
+    }
+    if (userType === 'professional') {
+      alert('Você está logado como PROFISSIONAL. Avaliação é só para CLIENTE.');
+      return;
+    }
+    setAvaliarNota(5);
+    setAvaliarTexto('');
+    setShowAvaliar(true);
   };
 
-  const servicoCabeNoSlot = (servico, horario) => {
-    if (horario.tipo !== 'slot') return true;
-    // REGRA: Serviço deve ser MENOR que tempo disponível
-    return servico.duracao_minutos < horario.tempoDisponivel;
+  const enviarAvaliacao = async () => {
+    if (!user || userType === 'professional') return;
+
+    try {
+      setAvaliarLoading(true);
+
+      const payload = {
+        cliente_id: user.id,
+        barbearia_id: barbearia.id,
+        nota: avaliarNota,
+        comentario: avaliarTexto || null
+      };
+
+      const { error } = await supabase.from('avaliacoes').insert(payload);
+      if (error) throw error;
+
+      setShowAvaliar(false);
+      await loadVitrine();
+      alert('✅ Avaliação enviada!');
+    } catch (error) {
+      console.error('Erro ao avaliar:', error);
+      alert('❌ Erro ao enviar avaliação: ' + (error.message || ''));
+    } finally {
+      setAvaliarLoading(false);
+    }
   };
 
   if (loading) {
@@ -289,23 +377,45 @@ export default function Vitrine({ user }) {
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors font-bold">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors font-bold"
+            >
               <ArrowLeft className="w-5 h-5" />
               <span className="hidden sm:inline">Voltar</span>
             </button>
 
-            <button
-              onClick={toggleFavorito}
-              className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all ${
-                isFavorito
-                  ? 'bg-red-500/20 border border-red-500/50 text-red-400'
-                  : 'bg-dark-200 border border-gray-800 text-gray-400 hover:text-red-400'
-              }`}
-            >
-              <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
-              <span className="hidden sm:inline">{isFavorito ? 'Favoritado' : 'Favoritar'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Avaliar */}
+              <button
+                onClick={abrirAvaliar}
+                className="flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all bg-dark-200 border border-gray-800 text-gray-300 hover:border-primary"
+              >
+                <Star className="w-5 h-5 text-primary" />
+                <span className="hidden sm:inline">Avaliar</span>
+              </button>
+
+              {/* Favorito */}
+              <button
+                onClick={toggleFavorito}
+                className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all ${
+                  isFavorito
+                    ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+                    : 'bg-dark-200 border border-gray-800 text-gray-400 hover:text-red-400'
+                }`}
+              >
+                <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
+                <span className="hidden sm:inline">{isFavorito ? 'Favoritado' : 'Favoritar'}</span>
+              </button>
+            </div>
           </div>
+
+          {/* aviso se profissional */}
+          {user && userType === 'professional' && (
+            <div className="mt-3 bg-yellow-600/10 border border-yellow-600/30 rounded-custom p-3 text-yellow-300 text-sm font-bold">
+              Você está logado como <b>PROFISSIONAL</b>. Nesta vitrine, o agendamento fica desativado para evitar marcações indevidas.
+            </div>
+          )}
         </div>
       </header>
 
@@ -358,18 +468,21 @@ export default function Vitrine({ user }) {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {profissionais.map(prof => {
               const servicosProf = servicos.filter(s => s.profissional_id === prof.id);
-              
+
               return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
-                      {prof.nome[0]}
+                      {prof.nome?.[0] || 'P'}
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
-                      {prof.anos_experiencia && (
+                      {prof.anos_experiencia != null && (
                         <p className="text-sm text-gray-500 font-bold">{prof.anos_experiencia} anos de experiência</p>
                       )}
+                      <p className="text-xs text-gray-500 font-bold mt-2">
+                        Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
+                      </p>
                     </div>
                   </div>
 
@@ -388,23 +501,18 @@ export default function Vitrine({ user }) {
                     </div>
                   </div>
 
-                  {/* Só mostra botão para clientes ou não logados */}
-{(!user || (user && userType === 'client')) && (
-  <button
-    onClick={() => iniciarAgendamento(prof)}
-    className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2"
-  >
-    <Calendar className="w-5 h-5" />
-    AGENDAR
-  </button>
-)}
-
-{/* Mensagem para profissionais */}
-{user && userType === 'professional' && (
-  <div className="w-full py-3 bg-gray-800 border border-gray-700 rounded-button text-gray-500 font-bold text-center text-sm">
-    Você está logado como profissional
-  </div>
-)}
+                  <button
+                    onClick={() => iniciarAgendamento(prof)}
+                    className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      user && userType === 'professional'
+                        ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
+                    }`}
+                    disabled={!!(user && userType === 'professional')}
+                  >
+                    <Calendar className="w-5 h-5" />
+                    AGENDAR
+                  </button>
                 </div>
               );
             })}
@@ -415,7 +523,15 @@ export default function Vitrine({ user }) {
       {/* Avaliações */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black mb-6">Avaliações</h2>
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
+            <button
+              onClick={abrirAvaliar}
+              className="px-5 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm transition-all"
+            >
+              + Avaliar
+            </button>
+          </div>
 
           {avaliacoes.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -444,143 +560,225 @@ export default function Vitrine({ user }) {
         </div>
       </section>
 
-      {/* Modal de Agendamento */}
+      {/* Modal Agendamento */}
       {showAgendamento && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-dark-100 border-b border-gray-800 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-black">Agendar com {selectedProfissional?.nome}</h2>
+              <h2 className="text-2xl font-black">Agendar com {flow.profissional?.nome}</h2>
               <button onClick={() => setShowAgendamento(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             <div className="p-6">
-              {/* Step 1: Escolher Serviço */}
-              {step === 1 && (
+              {/* Step 1: Serviço */}
+              {flow.step === 1 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Escolha o Serviço</h3>
                   <div className="space-y-3">
                     {servicosDoProf.map(s => (
                       <button
                         key={s.id}
-                        onClick={() => {
-                          setSelectedServico(s);
-                          setStep(2);
-                        }}
+                        onClick={() => setFlow(prev => ({ ...prev, servico: s, step: 2 }))}
                         className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
                       >
                         <div className="flex justify-between items-center">
                           <div>
                             <p className="font-black">{s.nome}</p>
-                            <p className="text-sm text-gray-500"><Clock className="w-4 h-4 inline mr-1" />{s.duracao_minutos} min</p>
+                            <p className="text-sm text-gray-500">
+                              <Clock className="w-4 h-4 inline mr-1" />
+                              {s.duracao_minutos} min
+                            </p>
                           </div>
                           <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
                         </div>
                       </button>
                     ))}
+                    {servicosDoProf.length === 0 && (
+                      <p className="text-gray-500">Este profissional ainda não tem serviços cadastrados.</p>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Step 2: Escolher Data */}
-              {step === 2 && (
+              {/* Step 2: Data */}
+              {flow.step === 2 && (
                 <div>
-                  <button onClick={() => setStep(1)} className="text-primary mb-4">← Voltar</button>
+                  <button
+                    onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
+                    className="text-primary mb-4 font-bold"
+                  >
+                    ← Voltar
+                  </button>
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
                   <input
                     type="date"
                     min={new Date().toISOString().split('T')[0]}
-                    value={selectedData}
-                    onChange={(e) => {
-                      setSelectedData(e.target.value);
-                      setStep(3);
-                    }}
+                    value={flow.data}
+                    onChange={(e) => setFlow(prev => ({ ...prev, data: e.target.value }))}
                     className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   />
+                  <button
+                    onClick={() => {
+                      if (!flow.data) return alert('Selecione uma data.');
+                      setFlow(prev => ({ ...prev, step: 3, horario: null }));
+                    }}
+                    className="mt-4 w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
+                  >
+                    CONTINUAR
+                  </button>
                 </div>
               )}
 
-              {/* Step 3: Escolher Horário */}
-              {step === 3 && (
+              {/* Step 3: Horário */}
+              {flow.step === 3 && (
                 <div>
-                  <button onClick={() => setStep(2)} className="text-primary mb-4">← Voltar</button>
+                  <button
+                    onClick={() => setFlow(prev => ({ ...prev, step: 2 }))}
+                    className="text-primary mb-4 font-bold"
+                  >
+                    ← Voltar
+                  </button>
+
                   <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
 
                   {horariosDisponiveis.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                      {horariosDisponiveis.map((h, i) => {
-                        const cabe = servicoCabeNoSlot(selectedServico, h);
-                        
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => cabe && (setSelectedHorario(h), setStep(4))}
-                            disabled={!cabe}
-                            className={`relative p-3 rounded-custom font-bold transition-all ${
-                              cabe
-                                ? 'bg-dark-200 border border-gray-800 hover:border-primary'
-                                : 'bg-dark-200 border border-red-500/30 opacity-50 cursor-not-allowed'
-                            }`}
-                          >
-                            {h.tipo === 'slot' && cabe && (
-                              <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
-                            )}
-                            <div className="text-lg">{h.hora}</div>
-                            {h.tipo === 'slot' && (
-                              <div className="text-[10px] text-gray-500">
-                                {cabe ? `${h.tempoDisponivel}min` : 'Não cabe'}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                      {horariosDisponiveis.map((h, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 4 }))}
+                          className="relative p-3 rounded-custom font-bold transition-all bg-dark-200 border border-gray-800 hover:border-primary"
+                        >
+                          {h.tipo === 'slot' && (
+                            <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
+                          )}
+                          <div className="text-lg">{h.hora}</div>
+                          {h.tipo === 'slot' && (
+                            <div className="text-[10px] text-gray-500">Slot</div>
+                          )}
+                        </button>
+                      ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500">Nenhum horário disponível</p>
+                    <p className="text-gray-500">Nenhum horário disponível para este serviço nessa data.</p>
                   )}
 
                   <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
                     <AlertCircle className="w-5 h-5 text-blue-400 inline mr-2" />
-                    <span className="text-sm text-blue-300">Horários com <Zap className="w-4 h-4 inline text-primary" /> são cancelamentos reaproveitados!</span>
+                    <span className="text-sm text-blue-300">
+                      Horários com <Zap className="w-4 h-4 inline text-primary" /> são slots reaproveitados (cancelamentos).
+                    </span>
                   </div>
                 </div>
               )}
 
               {/* Step 4: Confirmar */}
-              {step === 4 && (
+              {flow.step === 4 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
+
                   <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Profissional:</span>
-                      <span className="font-bold">{selectedProfissional.nome}</span>
+                      <span className="font-bold">{flow.profissional?.nome}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Serviço:</span>
-                      <span className="font-bold">{selectedServico.nome}</span>
+                      <span className="font-bold">{flow.servico?.nome}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Data:</span>
-                      <span className="font-bold">{new Date(selectedData).toLocaleDateString('pt-BR')}</span>
+                      <span className="font-bold">{new Date(flow.data).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Horário:</span>
-                      <span className="font-bold">{selectedHorario.hora}</span>
+                      <span className="font-bold">{flow.horario?.hora}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Duração:</span>
+                      <span className="font-bold">{flow.servico?.duracao_minutos} min</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Valor:</span>
-                      <span className="font-bold text-primary text-xl">R$ {selectedServico.preco}</span>
+                      <span className="font-bold text-primary text-xl">R$ {flow.servico?.preco}</span>
                     </div>
                   </div>
 
                   <div className="flex gap-3">
-                    <button onClick={() => setStep(3)} className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold">Voltar</button>
-                    <button onClick={confirmarAgendamento} className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">CONFIRMAR</button>
+                    <button
+                      onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
+                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      onClick={confirmarAgendamento}
+                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
+                    >
+                      CONFIRMAR
+                    </button>
                   </div>
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Avaliar */}
+      {showAvaliar && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-black">Avaliar</h3>
+              <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <div className="text-sm text-gray-300 font-bold mb-2">Nota</div>
+              <div className="flex gap-2">
+                {[1,2,3,4,5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setAvaliarNota(n)}
+                    className={`w-10 h-10 rounded-custom border font-black transition-all ${
+                      avaliarNota >= n
+                        ? 'bg-primary/20 border-primary/50 text-primary'
+                        : 'bg-dark-200 border-gray-800 text-gray-500'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <div className="text-sm text-gray-300 font-bold mb-2">Comentário (opcional)</div>
+              <textarea
+                value={avaliarTexto}
+                onChange={(e) => setAvaliarTexto(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+                placeholder="Conte como foi sua experiência..."
+              />
+            </div>
+
+            <button
+              onClick={enviarAvaliacao}
+              disabled={avaliarLoading}
+              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black disabled:opacity-60"
+            >
+              {avaliarLoading ? 'ENVIANDO...' : 'ENVIAR AVALIAÇÃO'}
+            </button>
+
+            <p className="text-xs text-gray-500 mt-3 font-bold">
+              Somente clientes logados podem avaliar.
+            </p>
           </div>
         </div>
       )}
