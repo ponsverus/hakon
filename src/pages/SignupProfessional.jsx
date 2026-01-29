@@ -7,15 +7,21 @@ const isValidType = (t) => t === 'client' || t === 'professional';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchProfileTypeWithRetry(userId) {
-  for (let i = 0; i < 6; i++) {
+  // ✅ AUMENTADO: 15 tentativas com delay maior
+  for (let i = 0; i < 15; i++) {
     const { data, error } = await supabase
       .from('users')
       .select('type')
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && isValidType(data?.type)) return data.type;
-    await sleep(250);
+    if (!error && isValidType(data?.type)) {
+      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
+      return data.type;
+    }
+    
+    console.log(`⏳ Aguardando perfil... tentativa ${i + 1}/15`);
+    await sleep(500); // ✅ 500ms entre tentativas
   }
   return null;
 }
@@ -62,6 +68,7 @@ export default function SignupProfessional({ onLogin }) {
     setLoading(true);
 
     try {
+      // ✅ Validações
       if (formData.password.length < 6) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
@@ -69,6 +76,8 @@ export default function SignupProfessional({ onLogin }) {
       if (!formData.urlBarbearia || formData.urlBarbearia.length < 3) {
         throw new Error('URL da barbearia inválida');
       }
+
+      console.log('📝 Iniciando cadastro de profissional...');
 
       // 1) Verificar se slug já existe
       const { data: existingBarbearia, error: slugError } = await supabase
@@ -82,7 +91,9 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('Esta URL já está em uso. Escolha outro nome para a barbearia.');
       }
 
-      // 2) Criar conta no Auth (trigger cria public.users)
+      console.log('✅ Slug disponível');
+
+      // 2) Criar conta no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -97,11 +108,18 @@ export default function SignupProfessional({ onLogin }) {
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
-      // 3) Garantir sessão (se signUp não retornou)
+      console.log('✅ Conta criada no Auth:', authData.user.id);
+
+      // 3) ✅ AGUARDAR trigger criar perfil (dar tempo para o banco processar)
+      console.log('⏳ Aguardando criação do perfil no banco...');
+      await sleep(1500); // 1.5 segundos
+
+      // 4) Fazer login para garantir sessão
       let sessionUser = authData.user;
       let hasSession = !!authData.session;
 
       if (!hasSession) {
+        console.log('🔑 Fazendo login...');
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
@@ -109,22 +127,41 @@ export default function SignupProfessional({ onLogin }) {
 
         if (signInError) {
           throw new Error(
-            'Conta criada, mas não foi possível iniciar sessão automaticamente. ' +
-            'Se a confirmação de e-mail estiver ativa, confirme no seu e-mail e depois faça login.'
+            'Conta criada, mas não foi possível iniciar sessão. ' +
+            'Tente fazer login manualmente.'
           );
         }
 
         sessionUser = signInData.user;
         hasSession = true;
+        console.log('✅ Login realizado');
       }
 
       if (!hasSession) {
-        throw new Error('Sessão não iniciada. Verifique confirmação de e-mail no Supabase.');
+        throw new Error('Não foi possível iniciar sessão. Tente fazer login manualmente.');
       }
 
       const userId = sessionUser.id;
 
-      // 4) Criar barbearia
+      // 5) ✅ Buscar tipo com retry ANTES de criar barbearia
+      console.log('⏳ Buscando perfil do usuário...');
+      const dbType = await fetchProfileTypeWithRetry(userId);
+      
+      if (!dbType) {
+        throw new Error(
+          'Perfil não foi criado no banco. Verifique se o trigger está ativo. ' +
+          'Tente fazer login novamente em alguns segundos.'
+        );
+      }
+
+      if (dbType !== 'professional') {
+        throw new Error('Perfil criado com tipo incorreto. Verifique o cadastro.');
+      }
+
+      console.log('✅ Perfil validado:', dbType);
+
+      // 6) Criar barbearia
+      console.log('🏪 Criando barbearia...');
       const { data: barbeariaRows, error: barbeariaError } = await supabase
         .from('barbearias')
         .insert([
@@ -140,17 +177,20 @@ export default function SignupProfessional({ onLogin }) {
         .select('id')
         .limit(1);
 
-      if (barbeariaError) throw barbeariaError;
+      if (barbeariaError) {
+        console.error('❌ Erro ao criar barbearia:', barbeariaError);
+        throw new Error('Erro ao criar barbearia: ' + barbeariaError.message);
+      }
 
       const barbeariaId = barbeariaRows?.[0]?.id;
       if (!barbeariaId) {
-        throw new Error(
-          "A barbearia foi criada, mas o sistema não conseguiu ler o registro. " +
-          "Isso normalmente é RLS/SELECT. Confirme as policies da tabela 'barbearias'."
-        );
+        throw new Error('Barbearia criada mas ID não retornado. Verifique as policies RLS.');
       }
 
-      // 5) Criar profissional (ele mesmo)
+      console.log('✅ Barbearia criada:', barbeariaId);
+
+      // 7) Criar profissional
+      console.log('👤 Criando profissional...');
       const { error: profissionalError } = await supabase
         .from('profissionais')
         .insert([
@@ -162,23 +202,27 @@ export default function SignupProfessional({ onLogin }) {
           }
         ]);
 
-      if (profissionalError) throw profissionalError;
-
-      // 6) Buscar tipo no DB (trigger) e logar
-      const dbType = await fetchProfileTypeWithRetry(userId);
-      if (!dbType) throw new Error('Perfil do usuário (public.users) não encontrado.');
-
-      if (dbType !== 'professional') {
-        throw new Error('Perfil criado com tipo incorreto. Verifique trigger handle_new_user().');
+      if (profissionalError) {
+        console.error('❌ Erro ao criar profissional:', profissionalError);
+        throw new Error('Erro ao criar profissional: ' + profissionalError.message);
       }
 
-      onLogin(sessionUser, 'professional');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Erro ao criar conta:', err);
+      console.log('✅ Profissional criado!');
 
-      // não deixar sessão "meio cadastrada"
-      await supabase.auth.signOut();
+      // 8) ✅ Fazer login no app
+      onLogin(sessionUser, 'professional');
+      
+      console.log('🎉 Cadastro completo! Redirecionando...');
+      navigate('/dashboard');
+
+    } catch (err) {
+      console.error('❌ Erro no cadastro:', err);
+      
+      // ✅ NÃO deslogar se o erro for só de perfil não encontrado
+      // (pode ser questão de timing)
+      if (!err.message.includes('Perfil não foi criado')) {
+        await supabase.auth.signOut();
+      }
 
       setError(err.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
