@@ -13,7 +13,6 @@ import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -21,18 +20,94 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkUser();
+    let mounted = true;
 
+    // ✅ Fallback: nunca ficar preso no loading infinito
+    const hardStop = setTimeout(() => {
+      if (!mounted) return;
+      console.warn('⚠️ hardStop: forçando fim do loading para evitar loop infinito');
+      setLoading(false);
+    }, 8000);
+
+    const getUserType = async (userId) => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('type')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (error) {
+          console.error('❌ Erro ao buscar tipo:', error);
+          return null;
+        }
+
+        return isValidType(data?.type) ? data.type : null;
+      } catch (e) {
+        console.error('❌ Erro ao buscar tipo (catch):', e);
+        return null;
+      }
+    };
+
+    const safeInit = async () => {
+      try {
+        // ✅ Timeout do getSession (evita travar se algo ficar pendente)
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('getSession timeout')), 5000)
+        );
+
+        const { data } = await Promise.race([sessionPromise, timeoutPromise]);
+        const session = data?.session;
+
+        if (!mounted) return;
+
+        if (session?.user) {
+          const type = await getUserType(session.user.id);
+
+          // ✅ Se existe sessão mas não existe perfil em public.users, desloga para não bugar UI
+          if (!type) {
+            console.warn('⚠️ Sessão existe, mas perfil users não encontrado. Fazendo signOut()');
+            await supabase.auth.signOut();
+            if (!mounted) return;
+            setUser(null);
+            setUserType(null);
+          } else {
+            setUser(session.user);
+            setUserType(type);
+          }
+        } else {
+          setUser(null);
+          setUserType(null);
+        }
+      } catch (e) {
+        console.error('❌ safeInit erro:', e);
+        // Em erro, libera a Home deslogada (melhor do que travar)
+        if (!mounted) return;
+        setUser(null);
+        setUserType(null);
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    };
+
+    safeInit();
+
+    // ✅ Listener de Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔐 Auth event:', event);
 
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-        const type = await getUserTypeWithRetry(session.user.id);
+      if (!mounted) return;
 
-        // ❌ Se não existe perfil no public.users, não pode manter sessão
-        if (!isValidType(type)) {
-          console.error('❌ Perfil public.users não encontrado. Deslogando...');
+      if (event === 'SIGNED_IN' && session?.user) {
+        const type = await getUserType(session.user.id);
+
+        // Se logou mas não tem perfil, desloga pra não ficar “meio logado”
+        if (!type) {
+          console.warn('⚠️ SIGNED_IN mas perfil users não encontrado. Fazendo signOut()');
           await supabase.auth.signOut();
+          if (!mounted) return;
           setUser(null);
           setUserType(null);
           return;
@@ -40,54 +115,22 @@ export default function App() {
 
         setUser(session.user);
         setUserType(type);
+        return;
       }
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setUserType(null);
+        return;
       }
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(hardStop);
+      subscription?.unsubscribe();
+    };
   }, []);
-
-  const checkUser = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        const type = await getUserTypeWithRetry(session.user.id);
-
-        if (!isValidType(type)) {
-          console.error('❌ Sessão existe, mas perfil não. Deslogando...');
-          await supabase.auth.signOut();
-          setUser(null);
-          setUserType(null);
-        } else {
-          setUser(session.user);
-          setUserType(type);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erro ao verificar usuário:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getUserTypeWithRetry = async (userId) => {
-    for (let i = 0; i < 6; i++) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('type')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (!error && isValidType(data?.type)) return data.type;
-      await sleep(250);
-    }
-    return null;
-  };
 
   const handleLogin = async (userData, type) => {
     setUser(userData);
@@ -118,36 +161,47 @@ export default function App() {
 
         <Route
           path="/login"
-          element={user
-            ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
-            : <Login onLogin={handleLogin} />
+          element={
+            user
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+              : <Login onLogin={handleLogin} />
           }
         />
 
         <Route
           path="/cadastro"
-          element={user
-            ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
-            : <SignupChoice />
+          element={
+            user
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+              : <SignupChoice />
           }
         />
 
-        <Route path="/cadastro/cliente" element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />} />
-        <Route path="/cadastro/profissional" element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />} />
+        <Route
+          path="/cadastro/cliente"
+          element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
+        />
+
+        <Route
+          path="/cadastro/profissional"
+          element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
+        />
 
         <Route
           path="/dashboard"
-          element={user && userType === 'professional'
-            ? <Dashboard user={user} onLogout={handleLogout} />
-            : <Navigate to="/login" />
+          element={
+            user && userType === 'professional'
+              ? <Dashboard user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
           }
         />
 
         <Route
           path="/minha-area"
-          element={user && userType === 'client'
-            ? <ClientArea user={user} onLogout={handleLogout} />
-            : <Navigate to="/login" />
+          element={
+            user && userType === 'client'
+              ? <ClientArea user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
           }
         />
 
