@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
 // Importação das páginas
+import Home from './pages/Home'; // <--- ADICIONADO AQUI
 import Login from './pages/Login';
 import SignupClient from './pages/SignupClient';
 import SignupProfessional from './pages/SignupProfessional';
@@ -15,14 +16,11 @@ export default function App() {
   const [userType, setUserType] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // O useNavigate deve estar dentro do contexto do Router. 
-  // Se o App.jsx for o componente raiz dentro do <BrowserRouter>, isso funciona.
   const navigate = useNavigate();
 
   useEffect(() => {
     checkUser();
 
-    // Ouve mudanças na autenticação (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setUser(session.user);
@@ -54,21 +52,17 @@ export default function App() {
 
   async function fetchUserType(userId) {
     try {
-      // Busca o tipo do usuário na tabela pública
       const { data, error } = await supabase
         .from('users')
         .select('type')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Erro ao buscar tipo:', error);
-      }
+      if (error) console.error('Erro ao buscar tipo:', error);
 
       if (data) {
         setUserType(data.type);
       } else {
-        // Se não achar, assume cliente por segurança
         setUserType('client');
       }
     } catch (err) {
@@ -95,6 +89,12 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Rota Principal (Landing Page) */}
+      <Route 
+        path="/" 
+        element={<Home user={user} userType={userType} onLogout={handleLogout} />} 
+      />
+
       {/* Rotas Públicas */}
       <Route 
         path="/login" 
@@ -130,8 +130,8 @@ export default function App() {
         } 
       />
 
-      {/* Qualquer outra rota vai para login */}
-      <Route path="*" element={<Navigate to="/login" />} />
+      {/* Redirecionamento padrão para Home se não achar nada */}
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }
