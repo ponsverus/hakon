@@ -37,6 +37,17 @@ export default function App() {
     }
   }, []);
 
+  const hardLogout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('❌ Erro no signOut:', e);
+    } finally {
+      setUser(null);
+      setUserType(null);
+    }
+  }, []);
+
   const applySession = useCallback(async (session) => {
     try {
       if (!session?.user) {
@@ -46,19 +57,25 @@ export default function App() {
       }
 
       const u = session.user;
+
+      // setUser primeiro pra não “piscar”
       setUser(u);
 
       const type = await getUserType(u.id);
 
-      // ✅ IMPORTANTÍSSIMO: NÃO “chutar client”
-      // Se não achou tipo, deixa null e força login (rotas protegem)
+      // ✅ Se não existe perfil/tipo, NÃO deixa o app “meio logado”
+      if (!type) {
+        console.warn('⚠️ Usuário sem perfil em public.users. Deslogando para evitar estado inconsistente.');
+        await hardLogout();
+        return;
+      }
+
       setUserType(type);
     } catch (err) {
       console.error('❌ Erro no applySession:', err);
-      setUser(null);
-      setUserType(null);
+      await hardLogout();
     }
-  }, [getUserType]);
+  }, [getUserType, hardLogout]);
 
   useEffect(() => {
     let mounted = true;
@@ -66,7 +83,6 @@ export default function App() {
     const init = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-
         if (error) console.error('❌ getSession error:', error);
 
         if (!mounted) return;
@@ -74,8 +90,7 @@ export default function App() {
       } catch (err) {
         console.error('❌ init error:', err);
         if (!mounted) return;
-        setUser(null);
-        setUserType(null);
+        await hardLogout();
       } finally {
         if (mounted) setLoading(false);
       }
@@ -87,7 +102,6 @@ export default function App() {
       async (event, session) => {
         console.log('🔐 Auth event:', event);
 
-        // ✅ Se o app ainda tá carregando, garante que vai destravar
         if (mounted && loading) setLoading(false);
 
         if (event === 'SIGNED_OUT') {
@@ -104,18 +118,15 @@ export default function App() {
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [applySession, loading]);
+  }, [applySession, hardLogout, loading]);
 
   const handleLogin = async (userData, type) => {
-    // Mantém o que você já fazia
     setUser(userData);
     setUserType(type);
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setUserType(null);
+    await hardLogout();
   };
 
   if (loading) {
@@ -129,6 +140,8 @@ export default function App() {
     );
   }
 
+  const isLogged = !!user && !!userType;
+
   return (
     <Router>
       <Routes>
@@ -137,7 +150,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            user && userType
+            isLogged
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <Login onLogin={handleLogin} />
           }
@@ -146,7 +159,7 @@ export default function App() {
         <Route
           path="/cadastro"
           element={
-            user && userType
+            isLogged
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <SignupChoice />
           }
@@ -154,18 +167,18 @@ export default function App() {
 
         <Route
           path="/cadastro/cliente"
-          element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
+          element={isLogged ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
         />
 
         <Route
           path="/cadastro/profissional"
-          element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
+          element={isLogged ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
         />
 
         <Route
           path="/dashboard"
           element={
-            user && userType === 'professional'
+            isLogged && userType === 'professional'
               ? <Dashboard user={user} onLogout={handleLogout} />
               : <Navigate to="/login" />
           }
@@ -174,7 +187,7 @@ export default function App() {
         <Route
           path="/minha-area"
           element={
-            user && userType === 'client'
+            isLogged && userType === 'client'
               ? <ClientArea user={user} onLogout={handleLogout} />
               : <Navigate to="/login" />
           }
