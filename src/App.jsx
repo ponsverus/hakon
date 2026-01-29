@@ -22,93 +22,117 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
-    // ✅ Fallback: nunca ficar preso no loading infinito
-    const hardStop = setTimeout(() => {
-      if (!mounted) return;
-      console.warn('⚠️ hardStop: forçando fim do loading para evitar loop infinito');
-      setLoading(false);
-    }, 8000);
+    const getUserType = async (userId, retries = 10) => {
+      // ✅ AUMENTADO: 10 tentativas com intervalo maior
+      for (let i = 0; i < retries; i++) {
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('type')
+            .eq('id', userId)
+            .maybeSingle();
 
-    const getUserType = async (userId) => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('type')
-          .eq('id', userId)
-          .maybeSingle();
+          if (error) {
+            console.error(`❌ Tentativa ${i + 1}/${retries} - Erro ao buscar tipo:`, error);
+          }
 
-        if (error) {
-          console.error('❌ Erro ao buscar tipo:', error);
-          return null;
+          if (data && isValidType(data.type)) {
+            console.log(`✅ Tipo encontrado na tentativa ${i + 1}:`, data.type);
+            return data.type;
+          }
+
+          // ✅ Aguardar mais tempo entre tentativas (500ms)
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (e) {
+          console.error(`❌ Tentativa ${i + 1}/${retries} - Exceção:`, e);
         }
-
-        return isValidType(data?.type) ? data.type : null;
-      } catch (e) {
-        console.error('❌ Erro ao buscar tipo (catch):', e);
-        return null;
       }
+
+      console.error('❌ Tipo não encontrado após todas as tentativas');
+      return null;
     };
 
-    const safeInit = async () => {
+    const initSession = async () => {
       try {
-        // ✅ Timeout do getSession (evita travar se algo ficar pendente)
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('getSession timeout')), 5000)
-        );
+        console.log('🔄 Iniciando verificação de sessão...');
+        
+        // ✅ Buscar sessão atual
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-        const { data } = await Promise.race([sessionPromise, timeoutPromise]);
-        const session = data?.session;
+        if (error) {
+          console.error('❌ Erro ao buscar sessão:', error);
+          if (mounted) {
+            setUser(null);
+            setUserType(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (!session?.user) {
+          console.log('ℹ️ Nenhuma sessão ativa');
+          if (mounted) {
+            setUser(null);
+            setUserType(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        console.log('✅ Sessão encontrada:', session.user.email);
+
+        // ✅ Buscar tipo do usuário (com retry aprimorado)
+        const type = await getUserType(session.user.id);
 
         if (!mounted) return;
 
-        if (session?.user) {
-          const type = await getUserType(session.user.id);
-
-          // ✅ Se existe sessão mas não existe perfil em public.users, desloga para não bugar UI
-          if (!type) {
-            console.warn('⚠️ Sessão existe, mas perfil users não encontrado. Fazendo signOut()');
-            await supabase.auth.signOut();
-            if (!mounted) return;
-            setUser(null);
-            setUserType(null);
-          } else {
-            setUser(session.user);
-            setUserType(type);
-          }
+        if (!type) {
+          // ⚠️ IMPORTANTE: NÃO deslogar automaticamente
+          // Apenas avisar no console e deixar o usuário na Home
+          console.warn('⚠️ Sessão existe mas perfil não foi encontrado ainda.');
+          console.warn('⚠️ Isso pode acontecer logo após o cadastro. Aguarde alguns segundos e recarregue.');
+          
+          // Manter sessão mas sem definir tipo (usuário ficará na Home)
+          setUser(session.user);
+          setUserType(null);
         } else {
+          console.log('✅ Login completo:', type);
+          setUser(session.user);
+          setUserType(type);
+        }
+
+      } catch (e) {
+        console.error('❌ Erro na inicialização:', e);
+        if (mounted) {
           setUser(null);
           setUserType(null);
         }
-      } catch (e) {
-        console.error('❌ safeInit erro:', e);
-        // Em erro, libera a Home deslogada (melhor do que travar)
-        if (!mounted) return;
-        setUser(null);
-        setUserType(null);
       } finally {
-        if (!mounted) return;
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    safeInit();
+    initSession();
 
-    // ✅ Listener de Auth
+    // ✅ Listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔐 Auth event:', event);
 
       if (!mounted) return;
 
       if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ SIGNED_IN detectado');
+        
+        // Buscar tipo com retry
         const type = await getUserType(session.user.id);
 
-        // Se logou mas não tem perfil, desloga pra não ficar “meio logado”
         if (!type) {
-          console.warn('⚠️ SIGNED_IN mas perfil users não encontrado. Fazendo signOut()');
-          await supabase.auth.signOut();
-          if (!mounted) return;
-          setUser(null);
+          console.warn('⚠️ SIGNED_IN mas perfil não encontrado. Mantendo sessão...');
+          setUser(session.user);
           setUserType(null);
           return;
         }
@@ -119,25 +143,31 @@ export default function App() {
       }
 
       if (event === 'SIGNED_OUT') {
+        console.log('🚪 SIGNED_OUT detectado');
         setUser(null);
         setUserType(null);
         return;
+      }
+
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('🔄 Token renovado');
       }
     });
 
     return () => {
       mounted = false;
-      clearTimeout(hardStop);
       subscription?.unsubscribe();
     };
   }, []);
 
   const handleLogin = async (userData, type) => {
+    console.log('📝 handleLogin chamado:', type);
     setUser(userData);
     setUserType(type);
   };
 
   const handleLogout = async () => {
+    console.log('🚪 Logout iniciado');
     await supabase.auth.signOut();
     setUser(null);
     setUserType(null);
@@ -162,7 +192,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            user
+            user && userType
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <Login onLogin={handleLogin} />
           }
@@ -171,7 +201,7 @@ export default function App() {
         <Route
           path="/cadastro"
           element={
-            user
+            user && userType
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <SignupChoice />
           }
@@ -179,12 +209,20 @@ export default function App() {
 
         <Route
           path="/cadastro/cliente"
-          element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
+          element={
+            user && userType === 'client'
+              ? <Navigate to="/minha-area" />
+              : <SignupClient onLogin={handleLogin} />
+          }
         />
 
         <Route
           path="/cadastro/profissional"
-          element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
+          element={
+            user && userType === 'professional'
+              ? <Navigate to="/dashboard" />
+              : <SignupProfessional onLogin={handleLogin} />
+          }
         />
 
         <Route
