@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
@@ -12,113 +12,82 @@ import Dashboard from './pages/Dashboard';
 import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
+const isValidType = (t) => t === 'client' || t === 'professional';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const getUserType = useCallback(async (userId) => {
+  useEffect(() => {
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth event:', event);
+
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        const type = await getUserTypeWithRetry(session.user.id);
+
+        // ❌ Se não existe perfil no public.users, não pode manter sessão
+        if (!isValidType(type)) {
+          console.error('❌ Perfil public.users não encontrado. Deslogando...');
+          await supabase.auth.signOut();
+          setUser(null);
+          setUserType(null);
+          return;
+        }
+
+        setUser(session.user);
+        setUserType(type);
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserType(null);
+      }
+    });
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  const checkUser = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        const type = await getUserTypeWithRetry(session.user.id);
+
+        if (!isValidType(type)) {
+          console.error('❌ Sessão existe, mas perfil não. Deslogando...');
+          await supabase.auth.signOut();
+          setUser(null);
+          setUserType(null);
+        } else {
+          setUser(session.user);
+          setUserType(type);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar usuário:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getUserTypeWithRetry = async (userId) => {
+    for (let i = 0; i < 6; i++) {
       const { data, error } = await supabase
         .from('users')
         .select('type')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('❌ Erro ao buscar tipo:', error);
-        return null;
-      }
-
-      return data?.type || null;
-    } catch (err) {
-      console.error('❌ Erro inesperado ao buscar tipo:', err);
-      return null;
+      if (!error && isValidType(data?.type)) return data.type;
+      await sleep(250);
     }
-  }, []);
-
-  const hardLogout = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error('❌ Erro no signOut:', e);
-    } finally {
-      setUser(null);
-      setUserType(null);
-    }
-  }, []);
-
-  const applySession = useCallback(async (session) => {
-    try {
-      if (!session?.user) {
-        setUser(null);
-        setUserType(null);
-        return;
-      }
-
-      const u = session.user;
-
-      // setUser primeiro pra não “piscar”
-      setUser(u);
-
-      const type = await getUserType(u.id);
-
-      // ✅ Se não existe perfil/tipo, NÃO deixa o app “meio logado”
-      if (!type) {
-        console.warn('⚠️ Usuário sem perfil em public.users. Deslogando para evitar estado inconsistente.');
-        await hardLogout();
-        return;
-      }
-
-      setUserType(type);
-    } catch (err) {
-      console.error('❌ Erro no applySession:', err);
-      await hardLogout();
-    }
-  }, [getUserType, hardLogout]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) console.error('❌ getSession error:', error);
-
-        if (!mounted) return;
-        await applySession(session);
-      } catch (err) {
-        console.error('❌ init error:', err);
-        if (!mounted) return;
-        await hardLogout();
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth event:', event);
-
-        if (mounted && loading) setLoading(false);
-
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setUserType(null);
-          return;
-        }
-
-        await applySession(session);
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, [applySession, hardLogout, loading]);
+    return null;
+  };
 
   const handleLogin = async (userData, type) => {
     setUser(userData);
@@ -126,7 +95,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await hardLogout();
+    await supabase.auth.signOut();
+    setUser(null);
+    setUserType(null);
   };
 
   if (loading) {
@@ -140,8 +111,6 @@ export default function App() {
     );
   }
 
-  const isLogged = !!user && !!userType;
-
   return (
     <Router>
       <Routes>
@@ -149,47 +118,36 @@ export default function App() {
 
         <Route
           path="/login"
-          element={
-            isLogged
-              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
-              : <Login onLogin={handleLogin} />
+          element={user
+            ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+            : <Login onLogin={handleLogin} />
           }
         />
 
         <Route
           path="/cadastro"
-          element={
-            isLogged
-              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
-              : <SignupChoice />
+          element={user
+            ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+            : <SignupChoice />
           }
         />
 
-        <Route
-          path="/cadastro/cliente"
-          element={isLogged ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
-        />
-
-        <Route
-          path="/cadastro/profissional"
-          element={isLogged ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
-        />
+        <Route path="/cadastro/cliente" element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />} />
+        <Route path="/cadastro/profissional" element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />} />
 
         <Route
           path="/dashboard"
-          element={
-            isLogged && userType === 'professional'
-              ? <Dashboard user={user} onLogout={handleLogout} />
-              : <Navigate to="/login" />
+          element={user && userType === 'professional'
+            ? <Dashboard user={user} onLogout={handleLogout} />
+            : <Navigate to="/login" />
           }
         />
 
         <Route
           path="/minha-area"
-          element={
-            isLogged && userType === 'client'
-              ? <ClientArea user={user} onLogout={handleLogout} />
-              : <Navigate to="/login" />
+          element={user && userType === 'client'
+            ? <ClientArea user={user} onLogout={handleLogout} />
+            : <Navigate to="/login" />
           }
         />
 
