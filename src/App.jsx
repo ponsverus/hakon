@@ -1,69 +1,60 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
-// Páginas
-import Home from './pages/Home';
+// Importação das páginas
 import Login from './pages/Login';
-import SignupChoice from './pages/SignupChoice';
 import SignupClient from './pages/SignupClient';
 import SignupProfessional from './pages/SignupProfessional';
 import Dashboard from './pages/Dashboard';
-import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
+import Vitrine from './pages/Vitrine';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // O useNavigate deve estar dentro do contexto do Router. 
+  // Se o App.jsx for o componente raiz dentro do <BrowserRouter>, isso funciona.
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // ✅ CORREÇÃO 1: Verificar sessão inicial
     checkUser();
 
-    // ✅ CORREÇÃO 2: Escutar mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔐 Auth event:', event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Usuário logou
-        const type = await getUserType(session.user.id);
+    // Ouve mudanças na autenticação (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
         setUser(session.user);
-        setUserType(type);
-      } else if (event === 'SIGNED_OUT') {
-        // Usuário deslogou
+        await fetchUserType(session.user.id);
+      } else {
         setUser(null);
         setUserType(null);
-      } else if (event === 'TOKEN_REFRESHED') {
-        // Token atualizado (mantém sessão)
-        console.log('✅ Token renovado');
+        setLoading(false);
       }
     });
 
-    // Cleanup: remover listener ao desmontar
-    return () => {
-      subscription?.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkUser = async () => {
+  async function checkUser() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const type = await getUserType(session.user.id);
+      if (session) {
         setUser(session.user);
-        setUserType(type);
+        await fetchUserType(session.user.id);
+      } else {
+        setLoading(false);
       }
     } catch (error) {
-      console.error('❌ Erro ao verificar usuário:', error);
-    } finally {
+      console.error('Erro ao verificar sessão:', error);
       setLoading(false);
     }
-  };
+  }
 
-  const getUserType = async (userId) => {
+  async function fetchUserType(userId) {
     try {
+      // Busca o tipo do usuário na tabela pública
       const { data, error } = await supabase
         .from('users')
         .select('type')
@@ -71,68 +62,76 @@ export default function App() {
         .maybeSingle();
 
       if (error) {
-        console.error('❌ Erro ao buscar tipo:', error);
-        return 'client';
+        console.error('Erro ao buscar tipo:', error);
       }
 
-      return data?.type || 'client';
-    } catch (error) {
-      console.error('❌ Erro ao buscar tipo:', error);
-      return 'client';
+      if (data) {
+        setUserType(data.type);
+      } else {
+        // Se não achar, assume cliente por segurança
+        setUserType('client');
+      }
+    } catch (err) {
+      console.error("Erro geral:", err);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const handleLogin = async (userData, type) => {
-    setUser(userData);
-    setUserType(type);
-  };
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setUserType(null);
+    navigate('/login');
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-primary text-xl font-bold">Carregando...</div>
-        </div>
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home user={user} userType={userType} onLogout={handleLogout} />} />
-        <Route path="/login" element={user ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} /> : <Login onLogin={handleLogin} />} />
-        <Route path="/cadastro" element={user ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} /> : <SignupChoice />} />
-        <Route path="/cadastro/cliente" element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />} />
-        <Route path="/cadastro/profissional" element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />} />
-        
-        <Route 
-          path="/dashboard" 
-          element={
-            user && userType === 'professional' 
-              ? <Dashboard user={user} onLogout={handleLogout} /> 
-              : <Navigate to="/login" />
-          } 
-        />
-        
-        <Route 
-          path="/minha-area" 
-          element={
-            user && userType === 'client' 
-              ? <ClientArea user={user} onLogout={handleLogout} /> 
-              : <Navigate to="/login" />
-          } 
-        />
-        
-        <Route path="/v/:slug" element={<Vitrine user={user} userType={userType} />} />
-      </Routes>
-    </Router>
+    <Routes>
+      {/* Rotas Públicas */}
+      <Route 
+        path="/login" 
+        element={!user ? <Login /> : <Navigate to={userType === 'professional' ? "/dashboard" : "/minha-area"} />} 
+      />
+      <Route path="/signup" element={<SignupClient />} />
+      <Route path="/signup-pro" element={<SignupProfessional />} />
+      
+      {/* Rota da Vitrine (Pública) */}
+      <Route path="/v/:slug" element={<Vitrine />} />
+
+      {/* Rota Protegida: Dashboard (Profissional) */}
+      <Route 
+        path="/dashboard" 
+        element={
+          user && userType === 'professional' ? (
+            <Dashboard user={user} onLogout={handleLogout} />
+          ) : (
+            user ? <Navigate to="/minha-area" /> : <Navigate to="/login" />
+          )
+        } 
+      />
+
+      {/* Rota Protegida: Área do Cliente */}
+      <Route 
+        path="/minha-area" 
+        element={
+          user && userType === 'client' ? (
+            <ClientArea user={user} onLogout={handleLogout} />
+          ) : (
+            user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
+          )
+        } 
+      />
+
+      {/* Qualquer outra rota vai para login */}
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
   );
 }
