@@ -1,55 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabase';
 
-export default function Home({ user, userType, onLogout }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [resultadosBusca, setResultadosBusca] = useState([]);
-  const [buscando, setBuscando] = useState(false);
-
-  // ✅ CORREÇÃO DE FLUXO: só considera logado se tiver user E userType
-  const isLogged = !!user && !!userType;
-
-  // ✅ BUSCA FUNCIONAL
-  useEffect(() => {
-    const buscar = async () => {
-      if (searchTerm.length < 3) {
-        setResultadosBusca([]);
-        return;
-      }
-
-      setBuscando(true);
-      try {
-        const { data: barbearias } = await supabase
-          .from('barbearias')
-          .select('nome, slug')
-          .ilike('nome', `%${searchTerm}%`)
-          .limit(5);
-
-        const { data: profissionais } = await supabase
-          .from('profissionais')
-          .select('nome, barbearias(slug)')
-          .ilike('nome', `%${searchTerm}%`)
-          .limit(5);
-
-        setResultadosBusca([
-          ...(barbearias || []).map(b => ({ ...b, tipo: 'barbearia' })),
-          ...(profissionais || []).map(p => ({ ...p, tipo: 'profissional' }))
-        ]);
-      } catch (error) {
-        console.error('Erro na busca:', error);
-      } finally {
-        setBuscando(false);
-      }
-    };
-
-    const timer = setTimeout(buscar, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const SearchBox = ({ mobile }) => (
+/**
+ * ✅ IMPORTANTE:
+ * SearchBox fora do Home evita “remount” a cada render,
+ * resolvendo o bug de digitar 1 caractere e perder o foco.
+ */
+function SearchBox({
+  searchTerm,
+  setSearchTerm,
+  resultadosBusca,
+  setResultadosBusca,
+  buscando,
+  setMobileMenuOpen,
+  mobile,
+}) {
+  return (
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
       <input
@@ -87,14 +55,52 @@ export default function Home({ user, userType, onLogout }) {
       )}
     </div>
   );
+}
 
-  const handleLogoutClick = async () => {
-    try {
-      await onLogout?.();
-    } finally {
-      setMobileMenuOpen(false);
-    }
-  };
+export default function Home({ user, userType, onLogout }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [resultadosBusca, setResultadosBusca] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+
+  // ✅ BUSCA FUNCIONAL
+  useEffect(() => {
+    const buscar = async () => {
+      if (searchTerm.length < 3) {
+        setResultadosBusca([]);
+        return;
+      }
+
+      setBuscando(true);
+      try {
+        const { data: barbearias } = await supabase
+          .from('barbearias')
+          .select('nome, slug')
+          .ilike('nome', `%${searchTerm}%`)
+          .limit(5);
+
+        const { data: profissionais } = await supabase
+          .from('profissionais')
+          .select('nome, barbearias(slug)')
+          .ilike('nome', `%${searchTerm}%`)
+          .limit(5);
+
+        setResultadosBusca([
+          ...(barbearias || []).map((b) => ({ ...b, tipo: 'barbearia' })),
+          ...(profissionais || []).map((p) => ({ ...p, tipo: 'profissional' })),
+        ]);
+      } catch (error) {
+        console.error('Erro na busca:', error);
+      } finally {
+        setBuscando(false);
+      }
+    };
+
+    const timer = setTimeout(buscar, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const stats = useMemo(() => ['+58%', '24/7', '0%'], []);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -112,46 +118,54 @@ export default function Home({ user, userType, onLogout }) {
             </Link>
 
             <div className="hidden md:flex flex-1 max-w-md mx-8">
-              <SearchBox mobile={false} />
+              <SearchBox
+                mobile={false}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                resultadosBusca={resultadosBusca}
+                setResultadosBusca={setResultadosBusca}
+                buscando={buscando}
+                setMobileMenuOpen={setMobileMenuOpen}
+              />
             </div>
 
             <nav className="hidden lg:flex items-center gap-4">
-              {isLogged ? (
+              {user ? (
                 <>
                   <Link
                     to={userType === 'professional' ? '/dashboard' : '/minha-area'}
-                    className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors"
+                    className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors uppercase"
                   >
-                    {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
+                    {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
                   </Link>
                   <button
-                    type="button"
-                    onClick={handleLogoutClick}
-                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button"
+                    onClick={onLogout}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button uppercase"
                   >
-                    Sair
+                    SAIR
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">
-                    Entrar
+                  {/* ✅ ENTRAR: outline, arredondado, uppercase */}
+                  <Link
+                    to="/login"
+                    className="px-6 py-2.5 text-sm font-black text-white rounded-button border border-white/25 hover:border-primary hover:text-primary transition-all uppercase"
+                  >
+                    ENTRAR
                   </Link>
+
                   <Link
                     to="/cadastro"
-                    className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
+                    className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 uppercase"
                   >
-                    Cadastrar Grátis
+                    CADASTRAR GRÁTIS
                   </Link>
                 </>
               )}
             </nav>
 
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-white"
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 text-white">
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -159,44 +173,54 @@ export default function Home({ user, userType, onLogout }) {
           {mobileMenuOpen && (
             <div className="lg:hidden py-4 border-t border-gray-800">
               <div className="mb-4">
-                <SearchBox mobile={true} />
+                <SearchBox
+                  mobile={true}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  resultadosBusca={resultadosBusca}
+                  setResultadosBusca={setResultadosBusca}
+                  buscando={buscando}
+                  setMobileMenuOpen={setMobileMenuOpen}
+                />
               </div>
 
-              <nav className="flex flex-col gap-2">
-                {isLogged ? (
+              <nav className="flex flex-col gap-3">
+                {user ? (
                   <>
                     <Link
                       to={userType === 'professional' ? '/dashboard' : '/minha-area'}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
+                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-black uppercase"
                     >
-                      {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
+                      {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
                     </Link>
-
                     <button
-                      type="button"
-                      onClick={handleLogoutClick}
-                      className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom font-bold text-left"
+                      onClick={() => {
+                        onLogout();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom font-black text-left uppercase"
                     >
-                      Sair
+                      SAIR
                     </button>
                   </>
                 ) : (
                   <>
+                    {/* ✅ ENTRAR no mobile: outline + arredondado + uppercase */}
                     <Link
                       to="/login"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
+                      className="mx-4 py-3 rounded-button border border-white/25 text-white font-black text-center hover:border-primary hover:text-primary transition-all uppercase"
                     >
-                      Entrar
+                      ENTRAR
                     </Link>
 
                     <Link
                       to="/cadastro"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center"
+                      className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center hover:shadow-lg hover:shadow-primary/50 transition-all uppercase"
                     >
-                      Cadastrar Grátis
+                      CADASTRAR GRÁTIS
                     </Link>
                   </>
                 )}
@@ -219,9 +243,7 @@ export default function Home({ user, userType, onLogout }) {
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 leading-tight">
             TRANSFORME SUA<br />
-            <span className="bg-gradient-to-r from-primary to-yellow-600 bg-clip-text text-transparent">
-              BARBEARIA EM OURO
-            </span>
+            <span className="bg-gradient-to-r from-primary to-yellow-600 bg-clip-text text-transparent">BARBEARIA EM OURO</span>
           </h1>
 
           <p className="text-lg md:text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
@@ -231,25 +253,27 @@ export default function Home({ user, userType, onLogout }) {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Link
               to="/cadastro"
-              className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3"
+              className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3 uppercase"
             >
               CRIAR VITRINE GRÁTIS <Zap className="w-5 h-5" />
             </Link>
-
             <button
-              type="button"
               onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20"
+              className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20 uppercase"
             >
-              Ver Como Funciona
+              VER COMO FUNCIONA
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto">
-            {['+58%', '24/7', '0%'].map((stat, i) => (
-              <div key={i} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
-                <div className="text-4xl font-black text-primary mb-2">{stat}</div>
-                <div className="text-sm text-gray-500 uppercase font-bold">
+          {/* ✅ Ajuste: centralizar stats no mobile */}
+          <div className="grid grid-cols-3 gap-4 sm:gap-6 max-w-3xl mx-auto">
+            {stats.map((stat, i) => (
+              <div
+                key={i}
+                className="bg-dark-100 border border-gray-800 rounded-custom p-4 sm:p-6 hover:border-primary/50 transition-all flex flex-col items-center justify-center text-center"
+              >
+                <div className="text-3xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">{stat}</div>
+                <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold">
                   {['Faturamento', 'Disponível', 'Comissão'][i]}
                 </div>
               </div>
@@ -275,9 +299,11 @@ export default function Home({ user, userType, onLogout }) {
               { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só confirma e atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
-                <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                {/* ✅ Ajuste: afastar o círculo da borda no mobile */}
+                <div className="absolute -top-4 left-4 sm:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
                   {num}
                 </div>
+
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-10">
                   <h3 className="text-2xl font-black mb-3 text-white">{title}</h3>
                   <p className="text-gray-400 leading-relaxed">{text}</p>
@@ -343,7 +369,7 @@ export default function Home({ user, userType, onLogout }) {
           <p className="text-2xl text-black/80 mb-8 font-bold">Crie sua vitrine em menos de 3 minutos</p>
           <Link
             to="/cadastro"
-            className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105"
+            className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105 uppercase"
           >
             COMEÇAR AGORA GRÁTIS <Zap className="w-6 h-6" />
           </Link>
@@ -364,7 +390,7 @@ export default function Home({ user, userType, onLogout }) {
               <div key={title}>
                 <h4 className="text-white font-black mb-4">{title}</h4>
                 <ul className="space-y-2">
-                  {links.map(link => (
+                  {links.map((link) => (
                     <li key={link}>
                       <a href="#" className="text-gray-500 hover:text-primary transition-colors text-sm font-bold">
                         {link}
