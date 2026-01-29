@@ -117,8 +117,7 @@ export default function Home({ user, userType, onLogout }) {
               ) : (
                 <>
                   <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">Entrar</Link>
-                  {/* Corrigido para signup-pro pois a home vende o sistema */}
-                  <Link to="/signup-pro" className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105">Cadastrar Barbearia</Link>
+                  <Link to="/cadastro" className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105">Cadastrar Grátis</Link>
                 </>
               )}
             </nav>
@@ -142,7 +141,7 @@ export default function Home({ user, userType, onLogout }) {
                 ) : (
                   <>
                     <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold">Entrar</Link>
-                    <Link to="/signup-pro" onClick={() => setMobileMenuOpen(false)} className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center">Cadastrar Barbearia</Link>
+                    <Link to="/cadastro" onClick={() => setMobileMenuOpen(false)} className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center">Cadastrar Grátis</Link>
                   </>
                 )}
               </nav>
@@ -172,8 +171,7 @@ export default function Home({ user, userType, onLogout }) {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            {/* CTA Principal leva ao cadastro profissional */}
-            <Link to="/signup-pro" className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3">
+            <Link to="/cadastro" className="px-10 py-5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-lg hover:shadow-2xl hover:shadow-primary/50 transition-all hover:scale-105 flex items-center justify-center gap-3">
               CRIAR VITRINE GRÁTIS <Zap className="w-5 h-5" />
             </Link>
             <button onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })} className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20">
@@ -266,7 +264,7 @@ export default function Home({ user, userType, onLogout }) {
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-5xl font-black text-black mb-6">PRONTO PARA FATURAR MAIS?</h2>
           <p className="text-2xl text-black/80 mb-8 font-bold">Crie sua vitrine em menos de 3 minutos</p>
-          <Link to="/signup-pro" className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105">
+          <Link to="/cadastro" className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105">
             COMEÇAR AGORA GRÁTIS <Zap className="w-6 h-6" />
           </Link>
           <p className="text-black/60 text-sm mt-6 font-bold">Sem cartão • Sem compromisso • 100% seguro</p>
