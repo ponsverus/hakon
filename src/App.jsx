@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
+// Páginas
 import Home from './pages/Home';
 import Login from './pages/Login';
 import SignupChoice from './pages/SignupChoice';
@@ -11,91 +12,102 @@ import Dashboard from './pages/Dashboard';
 import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
-const isValidType = (t) => t === 'client' || t === 'professional';
-
-const withTimeout = (promise, ms = 8000) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout no Supabase')), ms)),
-  ]);
-
-async function getUserType(userId, sessionUser) {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('type')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (!error && isValidType(data?.type)) return data.type;
-
-    const metaType = sessionUser?.user_metadata?.type;
-    if (isValidType(metaType)) return metaType;
-
-    return null;
-  } catch (e) {
-    console.error('❌ Erro ao buscar tipo:', e);
-    return null;
-  }
-}
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const getUserType = useCallback(async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('type')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Erro ao buscar tipo:', error);
+        return null;
+      }
+
+      return data?.type || null;
+    } catch (err) {
+      console.error('❌ Erro inesperado ao buscar tipo:', err);
+      return null;
+    }
+  }, []);
+
+  const applySession = useCallback(async (session) => {
+    try {
+      if (!session?.user) {
+        setUser(null);
+        setUserType(null);
+        return;
+      }
+
+      const u = session.user;
+      setUser(u);
+
+      const type = await getUserType(u.id);
+
+      // ✅ IMPORTANTÍSSIMO: NÃO “chutar client”
+      // Se não achou tipo, deixa null e força login (rotas protegem)
+      setUserType(type);
+    } catch (err) {
+      console.error('❌ Erro no applySession:', err);
+      setUser(null);
+      setUserType(null);
+    }
+  }, [getUserType]);
+
   useEffect(() => {
-    checkUser();
+    let mounted = true;
 
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔐 Auth event:', event, 'session?', !!session);
-
+    const init = async () => {
       try {
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          const type = await getUserType(session.user.id, session.user);
-          setUser(session.user);
-          setUserType(type);
-        }
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) console.error('❌ getSession error:', error);
+
+        if (!mounted) return;
+        await applySession(session);
+      } catch (err) {
+        console.error('❌ init error:', err);
+        if (!mounted) return;
+        setUser(null);
+        setUserType(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔐 Auth event:', event);
+
+        // ✅ Se o app ainda tá carregando, garante que vai destravar
+        if (mounted && loading) setLoading(false);
 
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setUserType(null);
+          return;
         }
-      } catch (e) {
-        console.error('❌ onAuthStateChange crash:', e);
+
+        await applySession(session);
       }
-    });
+    );
 
-    return () => data?.subscription?.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [applySession, loading]);
 
-  const checkUser = async () => {
-    console.log('🟡 checkUser() start');
-    try {
-      const { data } = await withTimeout(supabase.auth.getSession(), 8000);
-      const session = data?.session;
-
-      console.log('🟢 getSession ok | has session?', !!session);
-
-      if (session?.user) {
-        const type = await getUserType(session.user.id, session.user);
-        setUser(session.user);
-        setUserType(type);
-      } else {
-        setUser(null);
-        setUserType(null);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao verificar usuário:', error);
-      setUser(null);
-      setUserType(null);
-    } finally {
-      console.log('✅ checkUser() end -> loading false');
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = (userData, type) => {
+  const handleLogin = async (userData, type) => {
+    // Mantém o que você já fazia
     setUser(userData);
     setUserType(type);
   };
@@ -117,8 +129,6 @@ export default function App() {
     );
   }
 
-  const loggedAndTyped = !!user && isValidType(userType);
-
   return (
     <Router>
       <Routes>
@@ -127,24 +137,47 @@ export default function App() {
         <Route
           path="/login"
           element={
-            loggedAndTyped
+            user && userType
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <Login onLogin={handleLogin} />
           }
         />
 
-        <Route path="/cadastro" element={loggedAndTyped ? <Navigate to="/" /> : <SignupChoice />} />
-        <Route path="/cadastro/cliente" element={loggedAndTyped ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />} />
-        <Route path="/cadastro/profissional" element={loggedAndTyped ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />} />
+        <Route
+          path="/cadastro"
+          element={
+            user && userType
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+              : <SignupChoice />
+          }
+        />
+
+        <Route
+          path="/cadastro/cliente"
+          element={user ? <Navigate to="/minha-area" /> : <SignupClient onLogin={handleLogin} />}
+        />
+
+        <Route
+          path="/cadastro/profissional"
+          element={user ? <Navigate to="/dashboard" /> : <SignupProfessional onLogin={handleLogin} />}
+        />
 
         <Route
           path="/dashboard"
-          element={loggedAndTyped && userType === 'professional' ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          element={
+            user && userType === 'professional'
+              ? <Dashboard user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
+          }
         />
 
         <Route
           path="/minha-area"
-          element={loggedAndTyped && userType === 'client' ? <ClientArea user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          element={
+            user && userType === 'client'
+              ? <ClientArea user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" />
+          }
         />
 
         <Route path="/v/:slug" element={<Vitrine user={user} userType={userType} />} />
