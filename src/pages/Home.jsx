@@ -366,7 +366,7 @@ export default function Home({ user, userType, onLogout }) {
                 <ul className="space-y-2">
                   {links.map(link => (
                     <li key={link}>
-                      <a href="#" className="text-gray-500 hover:text-primary transition-colors text-sm font-bold">
+                      <a href="#" className="text-gray-500 hover:text-primary transition-colors text-sm">
                         {link}
                       </a>
                     </li>
