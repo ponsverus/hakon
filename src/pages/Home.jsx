@@ -241,7 +241,7 @@ export default function Home({ user, userType, onLogout }) {
               onClick={() => document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })}
               className="px-10 py-5 bg-white/10 border border-white/20 text-white rounded-button font-bold text-lg hover:bg-white/20"
             >
-              Ver Como Funciona
+              VER COMO FUNCIONA
             </button>
           </div>
 
@@ -347,7 +347,7 @@ export default function Home({ user, userType, onLogout }) {
           >
             COMEÇAR AGORA GRÁTIS <Zap className="w-6 h-6" />
           </Link>
-          <p className="text-black/60 text-sm mt-6 font-bold">Sem cartão • Sem compromisso • 100% seguro</p>
+          <p className="text-black/60 text-sm mt-6 font-bold">Sem compromisso • 100% seguro</p>
         </div>
       </section>
 
@@ -382,8 +382,7 @@ export default function Home({ user, userType, onLogout }) {
                 <span className="text-black font-black text-xl">H</span>
               </div>
               <div>
-                <div className="text-white font-black text-sm">HAKON</div>
-                <div className="text-gray-600 text-[10px] font-bold">Barbearia Elite</div>
+                <div className="text-white font-black text-sm">HAKON</div>                
               </div>
             </div>
             <div className="text-gray-600 text-sm font-bold">© 2026 HAKON. Todos os direitos reservados.</div>
