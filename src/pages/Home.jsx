@@ -188,7 +188,7 @@ export default function Home({ user, userType, onLogout }) {
                       onClick={() => setMobileMenuOpen(false)}
                       className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
                     >
-                      Entrar
+                      ENTRAR
                     </Link>
 
                     <Link
@@ -196,7 +196,7 @@ export default function Home({ user, userType, onLogout }) {
                       onClick={() => setMobileMenuOpen(false)}
                       className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center"
                     >
-                      Cadastrar Grátis
+                      CADASTRAR GRÁTIS
                     </Link>
                   </>
                 )}
