@@ -122,12 +122,12 @@ export default function Home({ user, userType, onLogout }) {
                     to={userType === 'professional' ? '/dashboard' : '/minha-area'}
                     className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors"
                   >
-                    {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
+                    {userType === 'professional' ? 'DashboarD' : 'Minha Área'}
                   </Link>
                   <button
                     type="button"
                     onClick={handleLogoutClick}
-                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button"
+                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-button"
                   >
                     SAIR
                   </button>
