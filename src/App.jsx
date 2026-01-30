@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabase';
 
 import Home from './pages/Home';
@@ -12,6 +12,10 @@ import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function FullScreenLoading({ text = 'Carregando...' }) {
   return (
@@ -29,103 +33,83 @@ function FullScreenError({ message, onRetry }) {
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
         <h1 className="text-2xl font-black text-white mb-2">Algo deu errado</h1>
-        <p className="text-gray-400 mb-6">{message}</p>
-
+        <p className="text-gray-400 mb-6 whitespace-pre-wrap">{message}</p>
         <button
           onClick={onRetry}
           className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
         >
           Tentar novamente
         </button>
-
-        <button
-          onClick={() => window.location.href = '/login'}
-          className="w-full mt-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-button font-bold"
-        >
-          Ir para Login
-        </button>
       </div>
     </div>
   );
 }
 
-/**
- * getSession robusto:
- * - tenta 2 vezes
- * - timeout maior
- * - se falhar, não derruba tudo, só volta como "sem sessão"
- */
-async function safeGetSession() {
-  const attempt = async (ms) => {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try {
-      // supabase-js não aceita AbortController diretamente aqui,
-      // então usamos apenas timeout lógico por Promise.race:
-      const p = supabase.auth.getSession();
-      const r = await Promise.race([
-        p,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('getSession_timeout')), ms)),
-      ]);
-      return r;
-    } finally {
-      clearTimeout(t);
-    }
-  };
+// --- BUSCA TIPO COM RETRY + CACHE ---
+async function fetchTypeFromDB(userId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('type')
+    .eq('id', userId)
+    .maybeSingle();
 
-  try {
-    return await attempt(12000);
-  } catch {
-    // segunda tentativa curta
-    try {
-      return await attempt(6000);
-    } catch {
-      return { data: { session: null }, error: null };
-    }
-  }
-}
-
-async function fetchUserType(userId) {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('type')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) return null;
-    return isValidType(data?.type) ? data.type : null;
-  } catch {
-    return null;
-  }
+  if (error) throw error;
+  const t = data?.type;
+  return isValidType(t) ? t : null;
 }
 
 async function ensureProfileRow(authUser) {
-  try {
-    const userId = authUser.id;
-    const email = authUser.email || '';
-    const meta = authUser.user_metadata || {};
-    const type = isValidType(meta.type) ? meta.type : 'client';
-    const nome = meta.nome || null;
+  const userId = authUser.id;
+  const email = authUser.email || null;
+  const meta = authUser.user_metadata || {};
+  const type = isValidType(meta.type) ? meta.type : 'client';
+  const nome = meta.nome || null;
 
-    await supabase
-      .from('users')
-      .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
-  } catch {
-    // silencioso: não derruba o app
-  }
+  // Observação: email pode ser null em alguns provedores. Se seu schema exige NOT NULL,
+  // mantenha como string vazia NÃO, melhor manter o schema aceitando null ou garantir email.
+  await supabase
+    .from('users')
+    .upsert([{ id: userId, email: email || '', type, nome }], { onConflict: 'id' });
 }
 
-async function getUserTypeSafe(authUser) {
-  const t1 = await fetchUserType(authUser.id);
-  if (t1) return t1;
+async function getUserTypeRobust(authUser) {
+  const cacheKey = `hakon:type:${authUser.id}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (isValidType(cached)) return cached;
 
-  await ensureProfileRow(authUser);
+  // tenta 3 vezes buscar do banco
+  let lastErr = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const t = await fetchTypeFromDB(authUser.id);
+      if (t) {
+        localStorage.setItem(cacheKey, t);
+        return t;
+      }
+      // se não achou, tenta criar linha e buscar de novo
+      await ensureProfileRow(authUser);
+      const t2 = await fetchTypeFromDB(authUser.id);
+      if (t2) {
+        localStorage.setItem(cacheKey, t2);
+        return t2;
+      }
+      return null;
+    } catch (e) {
+      lastErr = e;
+      // espera um pouco e tenta de novo (evita instabilidade / rede / RLS cache)
+      await sleep(400 * (i + 1));
+    }
+  }
 
-  const t2 = await fetchUserType(authUser.id);
-  if (t2) return t2;
+  // se falhar tudo, não desloga, só retorna null e deixa UI decidir
+  throw lastErr || new Error('Falha ao obter tipo do usuário.');
+}
 
-  // se não achou, devolve null (mas não dá signOut automático aqui)
+function ScrollToTopOnRouteChange() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
@@ -133,20 +117,17 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
 
-  const [loading, setLoading] = useState(true);
+  const [booting, setBooting] = useState(true);
   const [fatalError, setFatalError] = useState(null);
 
-  const hydratingRef = useRef(false);
+  const isLoggedIn = !!user;
 
   const hydrate = async () => {
-    if (hydratingRef.current) return;
-    hydratingRef.current = true;
-
-    setLoading(true);
+    setBooting(true);
     setFatalError(null);
 
     try {
-      const { data, error } = await safeGetSession();
+      const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
 
       const sessionUser = data?.session?.user || null;
@@ -154,51 +135,86 @@ export default function App() {
       if (!sessionUser) {
         setUser(null);
         setUserType(null);
-        setLoading(false);
-        hydratingRef.current = false;
+        setBooting(false);
         return;
       }
 
       setUser(sessionUser);
 
-      const type = await getUserTypeSafe(sessionUser);
+      // Aqui é a diferença: NÃO fazemos signOut se falhar.
+      // Se falhar, mostramos erro e mantemos a sessão.
+      try {
+        const type = await getUserTypeRobust(sessionUser);
+        setUserType(type);
+      } catch (e) {
+        setUserType(null);
+        setFatalError(
+          'Sua sessão existe, mas falhou ao carregar seu perfil (type).\n' +
+          'Isso geralmente é instabilidade de rede/RLS/timeout.\n\n' +
+          `Detalhe: ${e?.message || 'erro desconhecido'}`
+        );
+      }
 
-      // Se não achou type, ainda assim mantém logado, mas manda pro login quando tentar rotas privadas
-      setUserType(type);
-      setLoading(false);
+      setBooting(false);
     } catch (e) {
       setUser(null);
       setUserType(null);
-      setLoading(false);
-      setFatalError(e?.message || 'Timeout ao iniciar sessão.');
-    } finally {
-      hydratingRef.current = false;
+      setBooting(false);
+      setFatalError(e?.message || 'Falha ao iniciar sessão.');
     }
   };
 
   useEffect(() => {
-    hydrate();
+    let alive = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const start = async () => {
+      await hydrate();
+    };
+
+    start();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!alive) return;
+
       const sessionUser = session?.user || null;
 
       if (!sessionUser) {
         setUser(null);
         setUserType(null);
+        setFatalError(null);
         return;
       }
 
       setUser(sessionUser);
-      const type = await getUserTypeSafe(sessionUser);
-      setUserType(type);
+
+      // Em SIGNED_IN / TOKEN_REFRESHED, tenta pegar type sem derrubar
+      try {
+        const type = await getUserTypeRobust(sessionUser);
+        setUserType(type);
+        setFatalError(null);
+      } catch (e) {
+        setUserType(null);
+        setFatalError(
+          'Logado, mas não consegui carregar seu tipo (client/professional).\n\n' +
+          `Detalhe: ${e?.message || ''}`
+        );
+      }
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      alive = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleLogin = (userData, type) => {
     setUser(userData);
     setUserType(isValidType(type) ? type : null);
+
+    // cache imediato ajuda no F5
+    if (userData?.id && isValidType(type)) {
+      localStorage.setItem(`hakon:type:${userData.id}`, type);
+    }
   };
 
   const handleLogout = async () => {
@@ -207,12 +223,11 @@ export default function App() {
     } finally {
       setUser(null);
       setUserType(null);
+      setFatalError(null);
     }
   };
 
-  const isLoggedIn = !!user;
-
-  if (loading) return <FullScreenLoading />;
+  if (booting) return <FullScreenLoading />;
 
   if (fatalError) {
     return <FullScreenError message={fatalError} onRetry={hydrate} />;
@@ -220,6 +235,7 @@ export default function App() {
 
   return (
     <Router>
+      <ScrollToTopOnRouteChange />
       <Routes>
         <Route
           path="/"
