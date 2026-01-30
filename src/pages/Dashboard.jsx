@@ -144,13 +144,14 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       // Recarrega agendamentos
-      const { data: ags2 } = await supabase
+      const { data: ags2, error: ag2Err } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
         .in('profissional_id', ids)
         .order('data', { ascending: false })
         .limit(100);
 
+      if (ag2Err) throw ag2Err;
       setAgendamentos(ags2 || []);
     } catch (e) {
       console.error('Erro ao carregar:', e);
@@ -178,8 +179,7 @@ export default function Dashboard({ user, onLogout }) {
         profissional_id: formServico.profissional_id,
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
         preco: toNumberOrNull(formServico.preco),
-        ativo: true,
-        // ✅ REMOVIDO: barbearia_id (tabela servicos não tem essa coluna)
+        ativo: true
       };
 
       if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
@@ -194,9 +194,9 @@ export default function Dashboard({ user, onLogout }) {
       setShowNovoServico(false);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       await loadData();
-    } catch (e) {
-      console.error('createServico error:', e);
-      alert('❌ Erro ao criar serviço: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('createServico error:', e2);
+      alert('❌ Erro ao criar serviço: ' + (e2?.message || ''));
     }
   };
 
@@ -226,9 +226,9 @@ export default function Dashboard({ user, onLogout }) {
       setEditingServicoId(null);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       await loadData();
-    } catch (e) {
-      console.error('updateServico error:', e);
-      alert('❌ Erro ao atualizar serviço: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('updateServico error:', e2);
+      alert('❌ Erro ao atualizar serviço: ' + (e2?.message || ''));
     }
   };
 
@@ -239,9 +239,9 @@ export default function Dashboard({ user, onLogout }) {
       if (error) throw error;
       alert('✅ Serviço excluído!');
       await loadData();
-    } catch (e) {
-      console.error('deleteServico error:', e);
-      alert('❌ Erro ao excluir serviço: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('deleteServico error:', e2);
+      alert('❌ Erro ao excluir serviço: ' + (e2?.message || ''));
     }
   };
 
@@ -268,9 +268,9 @@ export default function Dashboard({ user, onLogout }) {
       setShowNovoProfissional(false);
       setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00' });
       await loadData();
-    } catch (e) {
-      console.error('createProfissional error:', e);
-      alert('❌ Erro ao adicionar profissional: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('createProfissional error:', e2);
+      alert('❌ Erro ao adicionar profissional: ' + (e2?.message || ''));
     }
   };
 
@@ -296,9 +296,9 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Profissional atualizado!');
       setEditingProfissional(null);
       await loadData();
-    } catch (e) {
-      console.error('updateProfissional error:', e);
-      alert('❌ Erro ao atualizar profissional: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('updateProfissional error:', e2);
+      alert('❌ Erro ao atualizar profissional: ' + (e2?.message || ''));
     }
   };
 
@@ -314,9 +314,9 @@ export default function Dashboard({ user, onLogout }) {
 
       alert('✅ Atendimento confirmado!');
       await loadData();
-    } catch (e) {
-      console.error('confirmarAtendimento error:', e);
-      alert('❌ Erro: ' + (e?.message || ''));
+    } catch (e2) {
+      console.error('confirmarAtendimento error:', e2);
+      alert('❌ Erro: ' + (e2?.message || ''));
     }
   };
 
@@ -400,7 +400,7 @@ export default function Dashboard({ user, onLogout }) {
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
             <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
-            <div className="text-sm text-gray-400 font-bold">Serviços Ativos</div>
+            <div className="text-sm text-gray-400 font-bold">Serviços</div>
           </div>
         </div>
 
@@ -461,7 +461,9 @@ export default function Dashboard({ user, onLogout }) {
                             <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
                             <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                           </div>
-                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                            a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
                             {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
                           </div>
                         </div>
@@ -476,7 +478,10 @@ export default function Dashboard({ user, onLogout }) {
                           </div>
                         </div>
                         {a.status !== 'concluido' && (
-                          <button onClick={() => confirmarAtendimento(a.id)} className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm">
+                          <button
+                            onClick={() => confirmarAtendimento(a.id)}
+                            className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
+                          >
                             ✓ Confirmar Atendimento
                           </button>
                         )}
@@ -495,33 +500,35 @@ export default function Dashboard({ user, onLogout }) {
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados</h2>
                 {agendamentos.filter(a => String(a.status || '').includes('cancelado')).length > 0 ? (
                   <div className="space-y-4">
-                    {agendamentos.filter(a => String(a.status || '').includes('cancelado')).map(a => (
-                      <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
-                            <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
+                    {agendamentos
+                      .filter(a => String(a.status || '').includes('cancelado'))
+                      .map(a => (
+                        <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
+                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
+                            </div>
+                            <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
+                              Cancelado
+                            </div>
                           </div>
-                          <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
-                            Cancelado
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Data</div>
+                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Horário</div>
+                              <div className="text-white font-bold">{a.hora_inicio}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Valor</div>
+                              <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
+                            </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold">Data</div>
-                            <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold">Horário</div>
-                            <div className="text-white font-bold">{a.hora_inicio}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold">Valor</div>
-                            <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center py-12">Nenhum cancelamento</p>
@@ -534,7 +541,10 @@ export default function Dashboard({ user, onLogout }) {
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-black">Serviços</h2>
-                  <button onClick={() => setShowNovoServico(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold">
+                  <button
+                    onClick={() => setShowNovoServico(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                  >
                     <Plus className="w-5 h-5" />Novo Serviço
                   </button>
                 </div>
@@ -569,7 +579,10 @@ export default function Dashboard({ user, onLogout }) {
                             Editar
                           </button>
 
-                          <button onClick={() => deleteServico(s.id)} className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm">
+                          <button
+                            onClick={() => deleteServico(s.id)}
+                            className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                          >
                             <Trash2 className="w-4 h-4 inline mr-1" />
                             Excluir
                           </button>
@@ -580,7 +593,10 @@ export default function Dashboard({ user, onLogout }) {
                 ) : (
                   <div className="text-center py-12">
                     <p className="text-gray-500 mb-4">Nenhum serviço cadastrado</p>
-                    <button onClick={() => setShowNovoServico(true)} className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold">
+                    <button
+                      onClick={() => setShowNovoServico(true)}
+                      className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    >
                       Adicionar Primeiro Serviço
                     </button>
                   </div>
@@ -593,7 +609,10 @@ export default function Dashboard({ user, onLogout }) {
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-black">Profissionais</h2>
-                  <button onClick={() => setShowNovoProfissional(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold">
+                  <button
+                    onClick={() => setShowNovoProfissional(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                  >
                     <Plus className="w-5 h-5" />Adicionar
                   </button>
                 </div>
@@ -607,7 +626,9 @@ export default function Dashboard({ user, onLogout }) {
                         </div>
                         <div>
                           <h3 className="font-black">{p.nome}</h3>
-                          {p.anos_experiencia != null && <p className="text-xs text-gray-500 font-bold">{p.anos_experiencia} anos</p>}
+                          {p.anos_experiencia != null && (
+                            <p className="text-xs text-gray-500 font-bold">{p.anos_experiencia} anos</p>
+                          )}
                         </div>
                       </div>
 
