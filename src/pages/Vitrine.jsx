@@ -74,14 +74,12 @@ export default function Vitrine({ user, userType }) {
     setLoading(true);
     setError(null);
 
-    // watchdog extra: se algo bugar, nunca fica infinito
     const watchdog = setTimeout(() => {
       setLoading(false);
       setError('Demorou demais para carregar. Tente novamente.');
     }, 12000);
 
     try {
-      // Barbearia
       const { data: barbeariaData, error: barbeariaError } = await withTimeout(
         supabase.from('barbearias').select('*').eq('slug', slug).maybeSingle(),
         7000,
@@ -99,7 +97,6 @@ export default function Vitrine({ user, userType }) {
 
       setBarbearia(barbeariaData);
 
-      // Profissionais
       const { data: profissionaisData, error: profErr } = await withTimeout(
         supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
         7000,
@@ -110,7 +107,6 @@ export default function Vitrine({ user, userType }) {
       const profs = profissionaisData || [];
       setProfissionais(profs);
 
-      // Serviços (por profissional_id)
       const profissionalIds = profs.map(p => p.id);
       if (profissionalIds.length > 0) {
         const { data: servicosData, error: servErr } = await withTimeout(
@@ -125,7 +121,6 @@ export default function Vitrine({ user, userType }) {
         setServicos([]);
       }
 
-      // Avaliações
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
@@ -150,7 +145,6 @@ export default function Vitrine({ user, userType }) {
   };
 
   const checkFavorito = async () => {
-    // ✅ favorito é recurso de CLIENTE. Profissional não deve usar.
     if (!user || userType !== 'client' || !barbearia?.id) {
       setIsFavorito(false);
       return;
@@ -257,16 +251,15 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
+      // ✅ ROBUSTO: busy slots via RPC (não faz SELECT direto em agendamentos)
       const { data: ags, error: agErr } = await withTimeout(
-        supabase
-          .from('agendamentos')
-          .select('hora_inicio, hora_fim, status')
-          .eq('profissional_id', flow.profissional.id)
-          .eq('data', flow.data),
+        supabase.rpc('get_agendamentos_dia', {
+          p_profissional_id: flow.profissional.id,
+          p_data: flow.data
+        }),
         7000,
-        'agendamentos-dia'
+        'rpc-busy-slots'
       );
-
       if (agErr) throw agErr;
 
       const { data: slots, error: slotErr } = await withTimeout(
@@ -410,7 +403,6 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
-  // ====== UI STATES ======
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -467,7 +459,6 @@ export default function Vitrine({ user, userType }) {
             </button>
 
             <div className="flex items-center gap-2">
-              {/* Avaliar */}
               <button
                 onClick={abrirAvaliar}
                 disabled={!!isProfessional}
@@ -479,7 +470,6 @@ export default function Vitrine({ user, userType }) {
                 <span className="hidden sm:inline">Avaliar</span>
               </button>
 
-              {/* Favorito */}
               <button
                 onClick={toggleFavorito}
                 disabled={!!isProfessional}
