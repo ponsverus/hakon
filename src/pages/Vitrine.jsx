@@ -19,6 +19,14 @@ function addMinutes(time, delta) {
   return minutesToTime(timeToMinutes(time) + delta);
 }
 
+const withTimeout = (promise, ms, label = 'timeout') => {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`Timeout (${label}) em ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+};
+
 export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -28,16 +36,18 @@ export default function Vitrine({ user, userType }) {
   const [servicos, setServicos] = useState([]);
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [isFavorito, setIsFavorito] = useState(false);
 
-  // Agendamento (flow state único pra não quebrar ao voltar)
+  // Agendamento
   const [showAgendamento, setShowAgendamento] = useState(false);
   const [flow, setFlow] = useState({
-    step: 1, // 1 servico, 2 data, 3 horario, 4 confirmar
+    step: 1,
     profissional: null,
     servico: null,
     data: '',
-    horario: null, // {hora, tipo, slot...}
+    horario: null,
   });
 
   // Avaliar
@@ -46,43 +56,68 @@ export default function Vitrine({ user, userType }) {
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
 
+  const isProfessional = user && userType === 'professional';
+  const isClient = user && userType === 'client';
+
   useEffect(() => {
     loadVitrine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   useEffect(() => {
-    if (user && barbearia) checkFavorito();
+    if (user && barbearia?.id) checkFavorito();
+    else setIsFavorito(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, barbearia?.id]);
+  }, [user?.id, userType, barbearia?.id]);
 
   const loadVitrine = async () => {
     setLoading(true);
+    setError(null);
+
+    // watchdog extra: se algo bugar, nunca fica infinito
+    const watchdog = setTimeout(() => {
+      setLoading(false);
+      setError('Demorou demais para carregar. Tente novamente.');
+    }, 12000);
+
     try {
-      const { data: barbeariaData, error: barbeariaError } = await supabase
-        .from('barbearias')
-        .select('*')
-        .eq('slug', slug)
-        .single();
+      // Barbearia
+      const { data: barbeariaData, error: barbeariaError } = await withTimeout(
+        supabase.from('barbearias').select('*').eq('slug', slug).maybeSingle(),
+        7000,
+        'barbearia'
+      );
 
       if (barbeariaError) throw barbeariaError;
+      if (!barbeariaData) {
+        setBarbearia(null);
+        setProfissionais([]);
+        setServicos([]);
+        setAvaliacoes([]);
+        return;
+      }
+
       setBarbearia(barbeariaData);
 
-      const { data: profissionaisData, error: profErr } = await supabase
-        .from('profissionais')
-        .select('*')
-        .eq('barbearia_id', barbeariaData.id);
+      // Profissionais
+      const { data: profissionaisData, error: profErr } = await withTimeout(
+        supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
+        7000,
+        'profissionais'
+      );
 
       if (profErr) throw profErr;
-      setProfissionais(profissionaisData || []);
+      const profs = profissionaisData || [];
+      setProfissionais(profs);
 
-      const profissionalIds = (profissionaisData || []).map(p => p.id);
+      // Serviços (por profissional_id)
+      const profissionalIds = profs.map(p => p.id);
       if (profissionalIds.length > 0) {
-        const { data: servicosData, error: servErr } = await supabase
-          .from('servicos')
-          .select('*')
-          .in('profissional_id', profissionalIds)
-          .eq('ativo', true);
+        const { data: servicosData, error: servErr } = await withTimeout(
+          supabase.from('servicos').select('*').in('profissional_id', profissionalIds).eq('ativo', true),
+          7000,
+          'servicos'
+        );
 
         if (servErr) throw servErr;
         setServicos(servicosData || []);
@@ -90,33 +125,51 @@ export default function Vitrine({ user, userType }) {
         setServicos([]);
       }
 
-      const { data: avaliacoesData, error: avalErr } = await supabase
-        .from('avaliacoes')
-        .select(`*, users (nome)`)
-        .eq('barbearia_id', barbeariaData.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      // Avaliações
+      const { data: avaliacoesData, error: avalErr } = await withTimeout(
+        supabase
+          .from('avaliacoes')
+          .select(`*, users (nome)`)
+          .eq('barbearia_id', barbeariaData.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        7000,
+        'avaliacoes'
+      );
 
       if (avalErr) throw avalErr;
       setAvaliacoes(avaliacoesData || []);
-    } catch (error) {
-      console.error('Erro ao carregar vitrine:', error);
+    } catch (e) {
+      console.error('Erro ao carregar vitrine:', e);
+      setError(e?.message || 'Erro ao carregar a vitrine.');
       setBarbearia(null);
     } finally {
+      clearTimeout(watchdog);
       setLoading(false);
     }
   };
 
   const checkFavorito = async () => {
-    try {
-      const { data } = await supabase
-        .from('favoritos')
-        .select('id')
-        .eq('cliente_id', user.id)
-        .eq('barbearia_id', barbearia.id)
-        .eq('tipo', 'barbearia')
-        .single();
+    // ✅ favorito é recurso de CLIENTE. Profissional não deve usar.
+    if (!user || userType !== 'client' || !barbearia?.id) {
+      setIsFavorito(false);
+      return;
+    }
 
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('favoritos')
+          .select('id')
+          .eq('cliente_id', user.id)
+          .eq('barbearia_id', barbearia.id)
+          .eq('tipo', 'barbearia')
+          .maybeSingle(),
+        6000,
+        'favorito'
+      );
+
+      if (error) throw error;
       setIsFavorito(!!data);
     } catch {
       setIsFavorito(false);
@@ -128,27 +181,37 @@ export default function Vitrine({ user, userType }) {
       alert('Faça login para favoritar');
       return;
     }
+
+    if (userType !== 'client') {
+      alert('Apenas CLIENTE pode favoritar barbearias.');
+      return;
+    }
+
     try {
       if (isFavorito) {
-        await supabase
+        const { error } = await supabase
           .from('favoritos')
           .delete()
           .eq('cliente_id', user.id)
           .eq('barbearia_id', barbearia.id)
           .eq('tipo', 'barbearia');
+
+        if (error) throw error;
         setIsFavorito(false);
       } else {
-        await supabase
+        const { error } = await supabase
           .from('favoritos')
           .insert({
             cliente_id: user.id,
             tipo: 'barbearia',
             barbearia_id: barbearia.id
           });
+
+        if (error) throw error;
         setIsFavorito(true);
       }
-    } catch (error) {
-      console.error('Erro ao favoritar:', error);
+    } catch (e) {
+      console.error('Erro ao favoritar:', e);
       alert('Erro ao favoritar. Tente novamente.');
     }
   };
@@ -159,8 +222,7 @@ export default function Vitrine({ user, userType }) {
       return;
     }
 
-    // ✅ BLOQUEIO: profissional não agenda
-    if (userType === 'professional') {
+    if (userType !== 'client') {
       alert('Você está logado como PROFISSIONAL. Para agendar, entre como CLIENTE.');
       return;
     }
@@ -180,11 +242,6 @@ export default function Vitrine({ user, userType }) {
     return servicos.filter(s => s.profissional_id === flow.profissional.id);
   }, [servicos, flow.profissional]);
 
-  // ✅ Horários calculados de forma correta:
-  // - base no horario_inicio/fim do profissional
-  // - slots de 30 min como início (padrão)
-  // - mas só mostra se o serviço cabe sem ultrapassar o fim
-  // - e se não conflita com agendamentos existentes
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
   const calcularHorariosDisponiveis = async () => {
@@ -200,25 +257,30 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
-      // agendamentos do dia
-      const { data: ags, error: agErr } = await supabase
-        .from('agendamentos')
-        .select('hora_inicio, hora_fim, status')
-        .eq('profissional_id', flow.profissional.id)
-        .eq('data', flow.data);
+      const { data: ags, error: agErr } = await withTimeout(
+        supabase
+          .from('agendamentos')
+          .select('hora_inicio, hora_fim, status')
+          .eq('profissional_id', flow.profissional.id)
+          .eq('data', flow.data),
+        7000,
+        'agendamentos-dia'
+      );
 
       if (agErr) throw agErr;
 
-      // slots temporários (cancelados reaproveitáveis)
-      const { data: slots, error: slotErr } = await supabase
-        .from('slots_temporarios')
-        .select('*')
-        .eq('profissional_id', flow.profissional.id)
-        .eq('data', flow.data)
-        .eq('ativo', true);
+      const { data: slots, error: slotErr } = await withTimeout(
+        supabase
+          .from('slots_temporarios')
+          .select('*')
+          .eq('profissional_id', flow.profissional.id)
+          .eq('data', flow.data)
+          .eq('ativo', true),
+        7000,
+        'slots'
+      );
 
       if (slotErr) {
-        // não derruba; apenas ignora slots temporários se tabela/policy falhar
         console.warn('slots_temporarios indisponível:', slotErr.message);
       }
 
@@ -237,7 +299,6 @@ export default function Vitrine({ user, userType }) {
           const af = timeToMinutes(a.hora_fim);
           const ni = timeToMinutes(hora);
           const nf = timeToMinutes(horaFim);
-          // overlap
           return ni < af && nf > ai;
         });
 
@@ -245,37 +306,31 @@ export default function Vitrine({ user, userType }) {
           const slot = (slots || []).find(s => s.hora_inicio === hora);
 
           if (slot) {
-            // regra do slot: só aceita se o serviço cabe dentro do slot.hora_fim
             const slotFimMin = timeToMinutes(slot.hora_fim);
             const cabeNoSlot = (cur + duracao) <= slotFimMin;
-
-            if (cabeNoSlot) {
-              horarios.push({ hora, tipo: 'slot', slot });
-            }
+            if (cabeNoSlot) horarios.push({ hora, tipo: 'slot', slot });
           } else {
             horarios.push({ hora, tipo: 'normal' });
           }
         }
 
-        cur += 30; // padrão 30min como “grade” de início
+        cur += 30;
       }
 
       setHorariosDisponiveis(horarios);
-    } catch (error) {
-      console.error('Erro ao calcular horários:', error);
+    } catch (e) {
+      console.error('Erro ao calcular horários:', e);
       setHorariosDisponiveis([]);
     }
   };
 
   useEffect(() => {
-    if (showAgendamento && flow.step === 3) {
-      calcularHorariosDisponiveis();
-    }
+    if (showAgendamento && flow.step === 3) calcularHorariosDisponiveis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAgendamento, flow.profissional?.id, flow.data, flow.servico?.id, flow.step]);
 
   const confirmarAgendamento = async () => {
-    if (!user || userType === 'professional') {
+    if (!user || userType !== 'client') {
       alert('Você precisa estar logado como CLIENTE para agendar.');
       return;
     }
@@ -284,9 +339,8 @@ export default function Vitrine({ user, userType }) {
       const horaInicio = flow.horario.hora;
       const horaFim = addMinutes(horaInicio, Number(flow.servico.duracao_minutos || 0));
 
-      const { error } = await supabase
-        .from('agendamentos')
-        .insert({
+      const { error } = await withTimeout(
+        supabase.from('agendamentos').insert({
           profissional_id: flow.profissional.id,
           cliente_id: user.id,
           servico_id: flow.servico.id,
@@ -294,16 +348,19 @@ export default function Vitrine({ user, userType }) {
           hora_inicio: horaInicio,
           hora_fim: horaFim,
           status: 'agendado'
-        });
+        }),
+        7000,
+        'criar-agendamento'
+      );
 
       if (error) throw error;
 
       alert('✅ Agendamento confirmado!');
       setShowAgendamento(false);
       navigate('/minha-area');
-    } catch (error) {
-      console.error('Erro ao agendar:', error);
-      alert('❌ Erro ao criar agendamento: ' + (error.message || ''));
+    } catch (e) {
+      console.error('Erro ao agendar:', e);
+      alert('❌ Erro ao criar agendamento: ' + (e.message || ''));
     }
   };
 
@@ -312,8 +369,8 @@ export default function Vitrine({ user, userType }) {
       if (confirm('Você precisa fazer login para avaliar. Deseja fazer login agora?')) navigate('/login');
       return;
     }
-    if (userType === 'professional') {
-      alert('Você está logado como PROFISSIONAL. Avaliação é só para CLIENTE.');
+    if (userType !== 'client') {
+      alert('Apenas CLIENTE pode avaliar.');
       return;
     }
     setAvaliarNota(5);
@@ -322,7 +379,7 @@ export default function Vitrine({ user, userType }) {
   };
 
   const enviarAvaliacao = async () => {
-    if (!user || userType === 'professional') return;
+    if (!user || userType !== 'client') return;
 
     try {
       setAvaliarLoading(true);
@@ -334,24 +391,48 @@ export default function Vitrine({ user, userType }) {
         comentario: avaliarTexto || null
       };
 
-      const { error } = await supabase.from('avaliacoes').insert(payload);
+      const { error } = await withTimeout(
+        supabase.from('avaliacoes').insert(payload),
+        7000,
+        'enviar-avaliacao'
+      );
+
       if (error) throw error;
 
       setShowAvaliar(false);
       await loadVitrine();
       alert('✅ Avaliação enviada!');
-    } catch (error) {
-      console.error('Erro ao avaliar:', error);
-      alert('❌ Erro ao enviar avaliação: ' + (error.message || ''));
+    } catch (e) {
+      console.error('Erro ao avaliar:', e);
+      alert('❌ Erro ao enviar avaliação: ' + (e.message || ''));
     } finally {
       setAvaliarLoading(false);
     }
   };
 
+  // ====== UI STATES ======
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-primary text-2xl font-bold animate-pulse">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
+          <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
+          <h1 className="text-2xl font-black text-white mb-2">Não foi possível carregar</h1>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <button
+            onClick={loadVitrine}
+            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
+          >
+            Tentar novamente
+          </button>
+        </div>
       </div>
     );
   }
@@ -389,7 +470,10 @@ export default function Vitrine({ user, userType }) {
               {/* Avaliar */}
               <button
                 onClick={abrirAvaliar}
-                className="flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all bg-dark-200 border border-gray-800 text-gray-300 hover:border-primary"
+                disabled={!!isProfessional}
+                className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all bg-dark-200 border ${
+                  isProfessional ? 'border-gray-900 text-gray-600 cursor-not-allowed' : 'border-gray-800 text-gray-300 hover:border-primary'
+                }`}
               >
                 <Star className="w-5 h-5 text-primary" />
                 <span className="hidden sm:inline">Avaliar</span>
@@ -398,22 +482,26 @@ export default function Vitrine({ user, userType }) {
               {/* Favorito */}
               <button
                 onClick={toggleFavorito}
+                disabled={!!isProfessional}
                 className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all ${
-                  isFavorito
-                    ? 'bg-red-500/20 border border-red-500/50 text-red-400'
-                    : 'bg-dark-200 border border-gray-800 text-gray-400 hover:text-red-400'
+                  isProfessional
+                    ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
+                    : isFavorito
+                      ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+                      : 'bg-dark-200 border border-gray-800 text-gray-400 hover:text-red-400'
                 }`}
               >
                 <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
-                <span className="hidden sm:inline">{isFavorito ? 'Favoritado' : 'Favoritar'}</span>
+                <span className="hidden sm:inline">
+                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'Favoritado' : 'Favoritar')}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* aviso se profissional */}
-          {user && userType === 'professional' && (
+          {isProfessional && (
             <div className="mt-3 bg-yellow-600/10 border border-yellow-600/30 rounded-custom p-3 text-yellow-300 text-sm font-bold">
-              Você está logado como <b>PROFISSIONAL</b>. Nesta vitrine, o agendamento fica desativado para evitar marcações indevidas.
+              Você está logado como <b>PROFISSIONAL</b>. Você pode ver a vitrine, mas não pode agendar, favoritar ou avaliar.
             </div>
           )}
         </div>
@@ -424,7 +512,7 @@ export default function Vitrine({ user, userType }) {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start gap-6">
             <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
-              {barbearia.nome[0]}
+              {barbearia.nome?.[0] || 'B'}
             </div>
 
             <div className="flex-1">
@@ -504,11 +592,11 @@ export default function Vitrine({ user, userType }) {
                   <button
                     onClick={() => iniciarAgendamento(prof)}
                     className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
-                      user && userType === 'professional'
+                      isProfessional
                         ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
                     }`}
-                    disabled={!!(user && userType === 'professional')}
+                    disabled={!!isProfessional}
                   >
                     <Calendar className="w-5 h-5" />
                     AGENDAR
@@ -527,7 +615,12 @@ export default function Vitrine({ user, userType }) {
             <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
             <button
               onClick={abrirAvaliar}
-              className="px-5 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-black text-sm transition-all"
+              disabled={!!isProfessional}
+              className={`px-5 py-2 border rounded-button font-black text-sm transition-all ${
+                isProfessional
+                  ? 'bg-dark-200 border-gray-900 text-gray-600 cursor-not-allowed'
+                  : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
+              }`}
             >
               + Avaliar
             </button>
@@ -572,7 +665,6 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="p-6">
-              {/* Step 1: Serviço */}
               {flow.step === 1 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Escolha o Serviço</h3>
@@ -602,7 +694,6 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* Step 2: Data */}
               {flow.step === 2 && (
                 <div>
                   <button
@@ -631,7 +722,6 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* Step 3: Horário */}
               {flow.step === 3 && (
                 <div>
                   <button
@@ -674,7 +764,6 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* Step 4: Confirmar */}
               {flow.step === 4 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
