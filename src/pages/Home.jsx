@@ -135,13 +135,13 @@ export default function Home({ user, userType, onLogout }) {
               ) : (
                 <>
                   <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">
-                    Entrar
+                    ENTRAR
                   </Link>
                   <Link
                     to="/cadastro"
                     className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
                   >
-                    Cadastrar Grátis
+                    CADASTRAR GRÁTIS
                   </Link>
                 </>
               )}
@@ -245,13 +245,21 @@ export default function Home({ user, userType, onLogout }) {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto">
-            {['+58%', '24/7', '0%'].map((stat, i) => (
-              <div key={i} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
-                <div className="text-4xl font-black text-primary mb-2">{stat}</div>
-                <div className="text-sm text-gray-500 uppercase font-bold">
-                  {['Faturamento', 'Disponível', 'Comissão'][i]}
-                </div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-6 max-w-3xl mx-auto px-2">
+  {['+58%', '24/7', '0%'].map((stat, i) => (
+    <div 
+      key={i} 
+      className="bg-dark-100 border border-gray-800 rounded-custom p-2 sm:p-6 flex flex-col items-center text-center hover:border-primary/50 transition-all"
+    >
+      <div className="text-2xl sm:text-4xl font-black text-primary mb-1 sm:mb-2">
+        {stat}
+      </div>
+      <div className="text-[10px] sm:text-sm text-gray-500 uppercase font-bold leading-tight">
+        {['Faturamento', 'Disponível', 'Comissão'][i]}
+      </div>
+    </div>
+  ))}
+</div>
               </div>
             ))}
           </div>
