@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
@@ -12,58 +12,6 @@ import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
-
-const withTimeout = (promise, ms, label = 'timeout') => {
-  let t;
-  const timeout = new Promise((_, reject) => {
-    t = setTimeout(() => reject(new Error(`Timeout (${label}) em ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
-};
-
-async function fetchType(userId) {
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('users').select('type').eq('id', userId).maybeSingle(),
-      12000,
-      'fetchType'
-    );
-    if (error) return null;
-    return isValidType(data?.type) ? data.type : null;
-  } catch {
-    return null;
-  }
-}
-
-async function ensureProfileRow(authUser) {
-  try {
-    const userId = authUser.id;
-    const email = authUser.email || '';
-    const meta = authUser.user_metadata || {};
-    const type = isValidType(meta.type) ? meta.type : 'client';
-    const nome = meta.nome || null;
-
-    await withTimeout(
-      supabase.from('users').upsert([{ id: userId, email, type, nome }], { onConflict: 'id' }),
-      12000,
-      'ensureProfileRow'
-    );
-  } catch {
-    // não derruba o app
-  }
-}
-
-async function getUserTypeSafe(authUser) {
-  const t1 = await fetchType(authUser.id);
-  if (t1) return t1;
-
-  await ensureProfileRow(authUser);
-
-  const t2 = await fetchType(authUser.id);
-  if (t2) return t2;
-
-  return null;
-}
 
 function FullScreenLoading({ text = 'Carregando...' }) {
   return (
@@ -82,15 +30,103 @@ function FullScreenError({ message, onRetry }) {
       <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
         <h1 className="text-2xl font-black text-white mb-2">Algo deu errado</h1>
         <p className="text-gray-400 mb-6">{message}</p>
+
         <button
           onClick={onRetry}
           className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
         >
           Tentar novamente
         </button>
+
+        <button
+          onClick={() => window.location.href = '/login'}
+          className="w-full mt-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-button font-bold"
+        >
+          Ir para Login
+        </button>
       </div>
     </div>
   );
+}
+
+/**
+ * getSession robusto:
+ * - tenta 2 vezes
+ * - timeout maior
+ * - se falhar, não derruba tudo, só volta como "sem sessão"
+ */
+async function safeGetSession() {
+  const attempt = async (ms) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+      // supabase-js não aceita AbortController diretamente aqui,
+      // então usamos apenas timeout lógico por Promise.race:
+      const p = supabase.auth.getSession();
+      const r = await Promise.race([
+        p,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('getSession_timeout')), ms)),
+      ]);
+      return r;
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
+  try {
+    return await attempt(12000);
+  } catch {
+    // segunda tentativa curta
+    try {
+      return await attempt(6000);
+    } catch {
+      return { data: { session: null }, error: null };
+    }
+  }
+}
+
+async function fetchUserType(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('type')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) return null;
+    return isValidType(data?.type) ? data.type : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureProfileRow(authUser) {
+  try {
+    const userId = authUser.id;
+    const email = authUser.email || '';
+    const meta = authUser.user_metadata || {};
+    const type = isValidType(meta.type) ? meta.type : 'client';
+    const nome = meta.nome || null;
+
+    await supabase
+      .from('users')
+      .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
+  } catch {
+    // silencioso: não derruba o app
+  }
+}
+
+async function getUserTypeSafe(authUser) {
+  const t1 = await fetchUserType(authUser.id);
+  if (t1) return t1;
+
+  await ensureProfileRow(authUser);
+
+  const t2 = await fetchUserType(authUser.id);
+  if (t2) return t2;
+
+  // se não achou, devolve null (mas não dá signOut automático aqui)
+  return null;
 }
 
 export default function App() {
@@ -100,18 +136,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState(null);
 
+  const hydratingRef = useRef(false);
+
   const hydrate = async () => {
+    if (hydratingRef.current) return;
+    hydratingRef.current = true;
+
     setLoading(true);
     setFatalError(null);
 
     try {
-      // ✅ Aumentei o timeout e coloquei mensagem melhor
-      const { data, error } = await withTimeout(
-        supabase.auth.getSession(),
-        20000,
-        'getSession'
-      );
-
+      const { data, error } = await safeGetSession();
       if (error) throw error;
 
       const sessionUser = data?.session?.user || null;
@@ -120,58 +155,31 @@ export default function App() {
         setUser(null);
         setUserType(null);
         setLoading(false);
+        hydratingRef.current = false;
         return;
       }
 
       setUser(sessionUser);
 
       const type = await getUserTypeSafe(sessionUser);
-      if (!type) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setUserType(null);
-        setLoading(false);
-        setFatalError(
-          'Não consegui ler seu tipo (client/professional) na tabela users.\n' +
-          'Confirme se as ENV do Supabase estão configuradas na Vercel e se a tabela users tem RLS/policies corretas.'
-        );
-        return;
-      }
 
+      // Se não achou type, ainda assim mantém logado, mas manda pro login quando tentar rotas privadas
       setUserType(type);
       setLoading(false);
     } catch (e) {
       setUser(null);
       setUserType(null);
       setLoading(false);
-
-      const msg = String(e?.message || '');
-
-      // ✅ diagnóstico direto pra você não ficar no escuro
-      if (msg.includes('getSession')) {
-        setFatalError(
-          'Timeout ao iniciar sessão.\n\n' +
-          'Causa mais comum: Vercel sem as ENV do Supabase.\n' +
-          'Verifique em: Vercel → Settings → Environment Variables:\n' +
-          '- VITE_SUPABASE_URL\n' +
-          '- VITE_SUPABASE_ANON_KEY\n\n' +
-          'Depois redeploy.'
-        );
-        return;
-      }
-
-      setFatalError(e?.message || 'Falha ao iniciar sessão.');
+      setFatalError(e?.message || 'Timeout ao iniciar sessão.');
+    } finally {
+      hydratingRef.current = false;
     }
   };
 
   useEffect(() => {
-    let mounted = true;
-
     hydrate();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
-
       const sessionUser = session?.user || null;
 
       if (!sessionUser) {
@@ -181,26 +189,11 @@ export default function App() {
       }
 
       setUser(sessionUser);
-
       const type = await getUserTypeSafe(sessionUser);
-      if (!type) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setUserType(null);
-        setFatalError(
-          'Seu perfil não foi encontrado no banco após login.\n' +
-          'Confirme ENV do Supabase + policies da tabela users.'
-        );
-        return;
-      }
-
       setUserType(type);
     });
 
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
+    return () => subscription?.unsubscribe();
   }, []);
 
   const handleLogin = (userData, type) => {
@@ -209,9 +202,12 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setUserType(null);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setUser(null);
+      setUserType(null);
+    }
   };
 
   const isLoggedIn = !!user;
