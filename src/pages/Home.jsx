@@ -292,9 +292,9 @@ export default function Home({ user, userType, onLogout }) {
                 <Zap className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h3 className="text-2xl font-black mb-2 text-white">:O Agendamento Inteligente</h3>
+                <h3 className="text-2xl font-black mb-2 text-white">Agendamento Inteligente</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Cliente cancelou um corte de 50 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento do pezinho de cabelo 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
+                  Cliente cancelou um corte de 30 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento do pezinho de cabelo 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
                 </p>
               </div>
             </div>
@@ -356,10 +356,10 @@ export default function Home({ user, userType, onLogout }) {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             {[
-              { title: 'Produto', links: ['Como Funciona', 'Preços'] },
-              { title: 'Para Você', links: ['Criar Vitrine', 'Suporte'] },
-              { title: 'Empresa', links: ['Sobre', 'Blog'] },
-              { title: 'Legal', links: ['Privacidade', 'Termos'] }
+              { title: 'PRODUTO', links: ['Como Funciona', 'Preços'] },
+              { title: 'PARA VOCÊ', links: ['Criar Vitrine', 'Suporte'] },
+              { title: 'EMPRESA', links: ['Sobre', 'Blog'] },
+              { title: 'LEGAL', links: ['Privacidade', 'Termos'] }
             ].map(({ title, links }) => (
               <div key={title}>
                 <h4 className="text-white font-black mb-4">{title}</h4>
