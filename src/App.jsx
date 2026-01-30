@@ -43,7 +43,6 @@ async function ensureProfileRow(authUser) {
     const type = isValidType(meta.type) ? meta.type : 'client';
     const nome = meta.nome || null;
 
-    // upsert com timeout e ignorando falha (não pode travar o app)
     await withTimeout(
       supabase.from('users').upsert([{ id: userId, email, type, nome }], { onConflict: 'id' }),
       6000,
@@ -55,18 +54,14 @@ async function ensureProfileRow(authUser) {
 }
 
 async function getUserTypeSafe(authUser) {
-  // Tenta buscar poucas vezes, não pode ficar “rodando pra sempre”
   const t1 = await fetchType(authUser.id);
   if (t1) return t1;
 
-  // tenta “curar” criando linha
   await ensureProfileRow(authUser);
 
-  // tenta de novo
   const t2 = await fetchType(authUser.id);
   if (t2) return t2;
 
-  // falhou: devolve null (app não trava)
   return null;
 }
 
@@ -110,10 +105,7 @@ export default function App() {
     setFatalError(null);
 
     try {
-      // Watchdog anti-loading infinito (se passar disso, mostra erro)
-      const sessionPromise = withTimeout(supabase.auth.getSession(), 8000, 'getSession');
-
-      const { data, error } = await sessionPromise;
+      const { data, error } = await withTimeout(supabase.auth.getSession(), 8000, 'getSession');
       if (error) throw error;
 
       const sessionUser = data?.session?.user || null;
@@ -125,16 +117,24 @@ export default function App() {
         return;
       }
 
-      // Sempre mantém user válido se existe sessão.
       setUser(sessionUser);
 
-      // userType pode falhar, mas não pode travar.
       const type = await getUserTypeSafe(sessionUser);
-      setUserType(type || 'client'); // fallback seguro
+      if (!type) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setUserType(null);
+        setLoading(false);
+        setFatalError(
+          'Seu perfil não foi encontrado no banco. ' +
+          'Execute o SQL PATCH (users policies + trigger) e tente novamente.'
+        );
+        return;
+      }
 
+      setUserType(type);
       setLoading(false);
     } catch (e) {
-      // Nunca fica infinito: ou resolve, ou mostra erro.
       setUser(null);
       setUserType(null);
       setLoading(false);
@@ -148,7 +148,6 @@ export default function App() {
     const start = async () => {
       if (!mounted) return;
 
-      // watchdog: se por algum bug loading não cair, força erro
       const watchdog = setTimeout(() => {
         if (mounted) {
           setLoading(false);
@@ -165,8 +164,8 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
 
-      // Reidrata na mudança de login
       const sessionUser = session?.user || null;
+
       if (!sessionUser) {
         setUser(null);
         setUserType(null);
@@ -174,8 +173,20 @@ export default function App() {
       }
 
       setUser(sessionUser);
+
       const type = await getUserTypeSafe(sessionUser);
-      setUserType(type || 'client');
+      if (!type) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setUserType(null);
+        setFatalError(
+          'Seu perfil não foi encontrado no banco após login. ' +
+          'Execute o SQL PATCH e tente novamente.'
+        );
+        return;
+      }
+
+      setUserType(type);
     });
 
     return () => {
@@ -186,7 +197,7 @@ export default function App() {
 
   const handleLogin = (userData, type) => {
     setUser(userData);
-    setUserType(isValidType(type) ? type : 'client');
+    setUserType(isValidType(type) ? type : null);
   };
 
   const handleLogout = async () => {
@@ -197,7 +208,6 @@ export default function App() {
 
   const isLoggedIn = !!user;
 
-  // Nunca “carregamento infinito”
   if (loading) return <FullScreenLoading />;
 
   if (fatalError) {
@@ -215,7 +225,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            isLoggedIn
+            isLoggedIn && userType
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <Login onLogin={handleLogin} />
           }
@@ -224,7 +234,7 @@ export default function App() {
         <Route
           path="/cadastro"
           element={
-            isLoggedIn
+            isLoggedIn && userType
               ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <SignupChoice />
           }
@@ -266,8 +276,10 @@ export default function App() {
           }
         />
 
-        {/* Vitrine é pública: logado ou não */}
-        <Route path="/v/:slug" element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />} />
+        <Route
+          path="/v/:slug"
+          element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />}
+        />
       </Routes>
     </Router>
   );
