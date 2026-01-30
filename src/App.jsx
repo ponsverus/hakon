@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
@@ -22,17 +22,20 @@ const withTimeout = (promise, ms, label = 'timeout') => {
 };
 
 async function fetchType(userId) {
-  const { data, error } = await withTimeout(
-    supabase.from('users').select('type').eq('id', userId).maybeSingle(),
-    6000,
-    'fetchType'
-  );
-  if (error) return null;
-  return isValidType(data?.type) ? data.type : null;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('users').select('type').eq('id', userId).maybeSingle(),
+      6000,
+      'fetchType'
+    );
+    if (error) return null;
+    return isValidType(data?.type) ? data.type : null;
+  } catch {
+    return null;
+  }
 }
 
 async function ensureProfileRow(authUser) {
-  // se o trigger já cria, isso só “garante”
   try {
     const userId = authUser.id;
     const email = authUser.email || '';
@@ -97,13 +100,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState(null);
 
-  // evita reentrância em DEV (especialmente se você esquecer o StrictMode)
-  const hydratingRef = useRef(false);
-
   const hydrate = async () => {
-    if (hydratingRef.current) return;
-    hydratingRef.current = true;
-
     setLoading(true);
     setFatalError(null);
 
@@ -116,6 +113,7 @@ export default function App() {
       if (!sessionUser) {
         setUser(null);
         setUserType(null);
+        setLoading(false);
         return;
       }
 
@@ -123,24 +121,24 @@ export default function App() {
 
       const type = await getUserTypeSafe(sessionUser);
       if (!type) {
-        // NÃO faz signOut aqui (isso cria loop). Só mostra erro e deixa tentar de novo.
-        setUser(sessionUser);
+        await supabase.auth.signOut();
+        setUser(null);
         setUserType(null);
+        setLoading(false);
         setFatalError(
-          'Seu perfil não foi encontrado no banco (public.users.type). ' +
-          'Verifique trigger/policies e tente novamente.'
+          'Seu perfil não foi encontrado no banco. ' +
+          'Verifique as policies da tabela public.users e o trigger handle_new_user.'
         );
         return;
       }
 
       setUserType(type);
+      setLoading(false);
     } catch (e) {
       setUser(null);
       setUserType(null);
-      setFatalError(e?.message || 'Falha ao iniciar sessão.');
-    } finally {
       setLoading(false);
-      hydratingRef.current = false;
+      setFatalError(e?.message || 'Falha ao iniciar sessão.');
     }
   };
 
@@ -149,13 +147,25 @@ export default function App() {
 
     const start = async () => {
       if (!mounted) return;
+
+      const watchdog = setTimeout(() => {
+        if (mounted) {
+          setLoading(false);
+          setFatalError('O app demorou demais para responder. Verifique sua internet e tente novamente.');
+        }
+      }, 12000);
+
       await hydrate();
+      clearTimeout(watchdog);
     };
 
     start();
 
-    const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      // ✅ Evita duplicar hidratação (muito comum causar loading infinito)
+      if (event === 'INITIAL_SESSION') return;
 
       const sessionUser = session?.user || null;
 
@@ -169,10 +179,12 @@ export default function App() {
 
       const type = await getUserTypeSafe(sessionUser);
       if (!type) {
+        await supabase.auth.signOut();
+        setUser(null);
         setUserType(null);
         setFatalError(
           'Seu perfil não foi encontrado no banco após login. ' +
-          'Verifique trigger/policies (public.users) e tente novamente.'
+          'Verifique as policies/trigger e tente novamente.'
         );
         return;
       }
@@ -182,8 +194,9 @@ export default function App() {
 
     return () => {
       mounted = false;
-      data?.subscription?.unsubscribe?.();
+      subscription?.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogin = (userData, type) => {
@@ -197,8 +210,7 @@ export default function App() {
     setUserType(null);
   };
 
-  // ✅ aqui é CRÍTICO:
-  const isLoggedIn = !!user && !!userType;
+  const isLoggedIn = !!user;
 
   if (loading) return <FullScreenLoading />;
 
@@ -217,8 +229,8 @@ export default function App() {
         <Route
           path="/login"
           element={
-            isLoggedIn
-              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} replace />
+            isLoggedIn && userType
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <Login onLogin={handleLogin} />
           }
         />
@@ -226,8 +238,8 @@ export default function App() {
         <Route
           path="/cadastro"
           element={
-            isLoggedIn
-              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} replace />
+            isLoggedIn && userType
+              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
               : <SignupChoice />
           }
         />
@@ -236,7 +248,7 @@ export default function App() {
           path="/cadastro/cliente"
           element={
             isLoggedIn && userType === 'client'
-              ? <Navigate to="/minha-area" replace />
+              ? <Navigate to="/minha-area" />
               : <SignupClient onLogin={handleLogin} />
           }
         />
@@ -245,7 +257,7 @@ export default function App() {
           path="/cadastro/profissional"
           element={
             isLoggedIn && userType === 'professional'
-              ? <Navigate to="/dashboard" replace />
+              ? <Navigate to="/dashboard" />
               : <SignupProfessional onLogin={handleLogin} />
           }
         />
@@ -255,7 +267,7 @@ export default function App() {
           element={
             isLoggedIn && userType === 'professional'
               ? <Dashboard user={user} onLogout={handleLogout} />
-              : <Navigate to="/login" replace />
+              : <Navigate to="/login" />
           }
         />
 
@@ -264,17 +276,14 @@ export default function App() {
           element={
             isLoggedIn && userType === 'client'
               ? <ClientArea user={user} onLogout={handleLogout} />
-              : <Navigate to="/login" replace />
+              : <Navigate to="/login" />
           }
         />
 
-        {/* VITRINE SEMPRE PÚBLICA */}
         <Route
           path="/v/:slug"
           element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />}
         />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
