@@ -129,7 +129,7 @@ export default function Home({ user, userType, onLogout }) {
                     onClick={handleLogoutClick}
                     className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-button"
                   >
-                    Sair
+                    SAIR
                   </button>
                 </>
               ) : (
