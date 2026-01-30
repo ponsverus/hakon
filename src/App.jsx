@@ -25,7 +25,7 @@ async function fetchType(userId) {
   try {
     const { data, error } = await withTimeout(
       supabase.from('users').select('type').eq('id', userId).maybeSingle(),
-      6000,
+      12000,
       'fetchType'
     );
     if (error) return null;
@@ -45,7 +45,7 @@ async function ensureProfileRow(authUser) {
 
     await withTimeout(
       supabase.from('users').upsert([{ id: userId, email, type, nome }], { onConflict: 'id' }),
-      6000,
+      12000,
       'ensureProfileRow'
     );
   } catch {
@@ -105,7 +105,13 @@ export default function App() {
     setFatalError(null);
 
     try {
-      const { data, error } = await withTimeout(supabase.auth.getSession(), 8000, 'getSession');
+      // ✅ Aumentei o timeout e coloquei mensagem melhor
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        20000,
+        'getSession'
+      );
+
       if (error) throw error;
 
       const sessionUser = data?.session?.user || null;
@@ -126,8 +132,8 @@ export default function App() {
         setUserType(null);
         setLoading(false);
         setFatalError(
-          'Seu perfil não foi encontrado no banco. ' +
-          'Verifique as policies da tabela public.users e o trigger handle_new_user.'
+          'Não consegui ler seu tipo (client/professional) na tabela users.\n' +
+          'Confirme se as ENV do Supabase estão configuradas na Vercel e se a tabela users tem RLS/policies corretas.'
         );
         return;
       }
@@ -138,6 +144,22 @@ export default function App() {
       setUser(null);
       setUserType(null);
       setLoading(false);
+
+      const msg = String(e?.message || '');
+
+      // ✅ diagnóstico direto pra você não ficar no escuro
+      if (msg.includes('getSession')) {
+        setFatalError(
+          'Timeout ao iniciar sessão.\n\n' +
+          'Causa mais comum: Vercel sem as ENV do Supabase.\n' +
+          'Verifique em: Vercel → Settings → Environment Variables:\n' +
+          '- VITE_SUPABASE_URL\n' +
+          '- VITE_SUPABASE_ANON_KEY\n\n' +
+          'Depois redeploy.'
+        );
+        return;
+      }
+
       setFatalError(e?.message || 'Falha ao iniciar sessão.');
     }
   };
@@ -145,27 +167,10 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
-    const start = async () => {
+    hydrate();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-
-      const watchdog = setTimeout(() => {
-        if (mounted) {
-          setLoading(false);
-          setFatalError('O app demorou demais para responder. Verifique sua internet e tente novamente.');
-        }
-      }, 12000);
-
-      await hydrate();
-      clearTimeout(watchdog);
-    };
-
-    start();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      // ✅ Evita duplicar hidratação (muito comum causar loading infinito)
-      if (event === 'INITIAL_SESSION') return;
 
       const sessionUser = session?.user || null;
 
@@ -183,8 +188,8 @@ export default function App() {
         setUser(null);
         setUserType(null);
         setFatalError(
-          'Seu perfil não foi encontrado no banco após login. ' +
-          'Verifique as policies/trigger e tente novamente.'
+          'Seu perfil não foi encontrado no banco após login.\n' +
+          'Confirme ENV do Supabase + policies da tabela users.'
         );
         return;
       }
@@ -196,7 +201,6 @@ export default function App() {
       mounted = false;
       subscription?.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogin = (userData, type) => {
