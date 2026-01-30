@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -49,54 +49,44 @@ export default function Home({ user, userType, onLogout }) {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  /**
-   * ✅ FIX DEFINITIVO DO BUG "1 caractere por vez"
-   * O SearchBox estava sendo recriado a cada render (porque era uma função inline),
-   * isso pode desmontar/remontar o input e fazer perder foco.
-   * Aqui garantimos que o componente tenha identidade estável.
-   */
-  const SearchBox = useMemo(() => {
-    return function SearchBox({ mobile }) {
-      return (
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar profissional ou barbearia..."
-            className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
-          />
+  const SearchBox = ({ mobile }) => (
+    <div className="relative w-full">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Buscar profissional ou barbearia..."
+        className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+      />
 
-          {resultadosBusca.length > 0 && (
-            <div className="absolute top-full mt-2 w-full bg-dark-100 border border-gray-800 rounded-custom shadow-2xl z-50 max-h-96 overflow-y-auto">
-              {resultadosBusca.map((r, i) => (
-                <Link
-                  key={i}
-                  to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
-                  onClick={() => {
-                    setSearchTerm('');
-                    setResultadosBusca([]);
-                    if (mobile) setMobileMenuOpen(false);
-                  }}
-                  className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
-                >
-                  <div className="font-bold text-white">{r.nome}</div>
-                  <div className="text-xs text-gray-500 uppercase">{r.tipo}</div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {buscando && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
+      {resultadosBusca.length > 0 && (
+        <div className="absolute top-full mt-2 w-full bg-dark-100 border border-gray-800 rounded-custom shadow-2xl z-50 max-h-96 overflow-y-auto">
+          {resultadosBusca.map((r, i) => (
+            <Link
+              key={i}
+              to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
+              onClick={() => {
+                setSearchTerm('');
+                setResultadosBusca([]);
+                if (mobile) setMobileMenuOpen(false);
+              }}
+              className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
+            >
+              <div className="font-bold text-white">{r.nome}</div>
+              <div className="text-xs text-gray-500 uppercase">{r.tipo}</div>
+            </Link>
+          ))}
         </div>
-      );
-    };
-  }, []); // <-- identidade estável
+      )}
+
+      {buscando && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+    </div>
+  );
 
   const handleLogoutClick = async () => {
     try {
