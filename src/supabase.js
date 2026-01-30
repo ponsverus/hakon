@@ -1,10 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://rgzkcrqqjolkxmlevlnf.supabase.co';
-const supabaseKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJnemtjcnFxam9sa3htbGV2bG5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MTcxNjEsImV4cCI6MjA4NTA5MzE2MX0.rL03O-nDWiNU3kSPC3u_kiyfuj1B95arVEx4_O5LNxQ';
+// Variáveis de ambiente (Vite)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+// Validação defensiva (evita build quebrado silencioso)
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Supabase ENV não configurada corretamente.\n' +
+    'Verifique na Vercel:\n' +
+    '- VITE_SUPABASE_URL\n' +
+    '- VITE_SUPABASE_ANON_KEY'
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
