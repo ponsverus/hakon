@@ -56,7 +56,7 @@ export default function Home({ user, userType, onLogout }) {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Buscar profissional ou barbearia..."
+        placeholder="PESQUISAR..."
         className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
       />
 
@@ -246,11 +246,11 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto">
-            {['+58%', '24/7', '0%'].map((stat, i) => (
+            {['+58%', '24/7'].map((stat, i) => (
               <div key={i} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                 <div className="text-4xl font-black text-primary mb-2">{stat}</div>
                 <div className="text-sm text-gray-500 uppercase font-bold">
-                  {['Faturamento', 'Disponível', 'Comissão'][i]}
+                  {['Faturamento', 'Disponível'][i]}
                 </div>
               </div>
             ))}
