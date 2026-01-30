@@ -12,68 +12,90 @@ import Vitrine from './pages/Vitrine';
 import ClientArea from './pages/ClientArea';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function withTimeout(promise, ms, label = 'timeout') {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
-  ]);
-}
+const withTimeout = (promise, ms, label = 'timeout') => {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`Timeout (${label}) em ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+};
 
 async function fetchType(userId) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('type')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) return null;
-  return isValidType(data?.type) ? data.type : null;
-}
-
-/**
- * IMPORTANTE:
- * Se sua RLS em public.users NÃO permite insert/upsert pelo cliente,
- * este "heal" pode falhar (e tudo bem).
- * O ideal é o trigger do auth.users criar a linha.
- */
-async function ensureProfileRow(authUser) {
-  const userId = authUser.id;
-  const email = authUser.email || '';
-  const meta = authUser.user_metadata || {};
-  const type = isValidType(meta.type) ? meta.type : 'client';
-  const nome = meta.nome || null;
-
-  // tentamos, mas se RLS bloquear, não trava o app
   try {
-    await supabase
-      .from('users')
-      .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
+    const { data, error } = await withTimeout(
+      supabase.from('users').select('type').eq('id', userId).maybeSingle(),
+      6000,
+      'fetchType'
+    );
+    if (error) return null;
+    return isValidType(data?.type) ? data.type : null;
   } catch {
-    // ignora
+    return null;
   }
 }
 
-async function getUserTypeWithRetryAndHeal(authUser) {
-  // 1) tenta achar type por alguns ciclos
-  for (let i = 0; i < 6; i++) {
-    const t = await fetchType(authUser.id);
-    if (t) return t;
-    await sleep(250);
-  }
+async function ensureProfileRow(authUser) {
+  try {
+    const userId = authUser.id;
+    const email = authUser.email || '';
+    const meta = authUser.user_metadata || {};
+    const type = isValidType(meta.type) ? meta.type : 'client';
+    const nome = meta.nome || null;
 
-  // 2) tenta “curar” criando linha (pode falhar por RLS)
+    // upsert com timeout e ignorando falha (não pode travar o app)
+    await withTimeout(
+      supabase.from('users').upsert([{ id: userId, email, type, nome }], { onConflict: 'id' }),
+      6000,
+      'ensureProfileRow'
+    );
+  } catch {
+    // não derruba o app
+  }
+}
+
+async function getUserTypeSafe(authUser) {
+  // Tenta buscar poucas vezes, não pode ficar “rodando pra sempre”
+  const t1 = await fetchType(authUser.id);
+  if (t1) return t1;
+
+  // tenta “curar” criando linha
   await ensureProfileRow(authUser);
 
-  // 3) tenta novamente
-  for (let i = 0; i < 10; i++) {
-    const t = await fetchType(authUser.id);
-    if (t) return t;
-    await sleep(350);
-  }
+  // tenta de novo
+  const t2 = await fetchType(authUser.id);
+  if (t2) return t2;
 
+  // falhou: devolve null (app não trava)
   return null;
+}
+
+function FullScreenLoading({ text = 'Carregando...' }) {
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-primary text-xl font-bold">{text}</div>
+      </div>
+    </div>
+  );
+}
+
+function FullScreenError({ message, onRetry }) {
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
+        <h1 className="text-2xl font-black text-white mb-2">Algo deu errado</h1>
+        <p className="text-gray-400 mb-6">{message}</p>
+        <button
+          onClick={onRetry}
+          className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -81,95 +103,79 @@ export default function App() {
   const [userType, setUserType] = useState(null);
 
   const [loading, setLoading] = useState(true);
-  const [bootError, setBootError] = useState(null);
+  const [fatalError, setFatalError] = useState(null);
+
+  const hydrate = async () => {
+    setLoading(true);
+    setFatalError(null);
+
+    try {
+      // Watchdog anti-loading infinito (se passar disso, mostra erro)
+      const sessionPromise = withTimeout(supabase.auth.getSession(), 8000, 'getSession');
+
+      const { data, error } = await sessionPromise;
+      if (error) throw error;
+
+      const sessionUser = data?.session?.user || null;
+
+      if (!sessionUser) {
+        setUser(null);
+        setUserType(null);
+        setLoading(false);
+        return;
+      }
+
+      // Sempre mantém user válido se existe sessão.
+      setUser(sessionUser);
+
+      // userType pode falhar, mas não pode travar.
+      const type = await getUserTypeSafe(sessionUser);
+      setUserType(type || 'client'); // fallback seguro
+
+      setLoading(false);
+    } catch (e) {
+      // Nunca fica infinito: ou resolve, ou mostra erro.
+      setUser(null);
+      setUserType(null);
+      setLoading(false);
+      setFatalError(e?.message || 'Falha ao iniciar sessão.');
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      setLoading(true);
-      setBootError(null);
-
-      try {
-        // ✅ Watchdog: se auth travar, cai fora
-        const { data, error } = await withTimeout(
-          supabase.auth.getSession(),
-          8000,
-          'Falha ao carregar sessão (timeout)'
-        );
-
-        if (error) throw error;
-
-        const session = data?.session;
-
-        if (!session?.user) {
-          if (!mounted) return;
-          setUser(null);
-          setUserType(null);
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Watchdog: se buscar type travar, cai fora
-        const type = await withTimeout(
-          getUserTypeWithRetryAndHeal(session.user),
-          8000,
-          'Falha ao carregar tipo do usuário (timeout)'
-        );
-
-        if (!mounted) return;
-
-        // Se não achou type, não deixa “meio logado”
-        if (!type) {
-          setUser(null);
-          setUserType(null);
-        } else {
-          setUser(session.user);
-          setUserType(type);
-        }
-      } catch (e) {
-        if (!mounted) return;
-        setUser(null);
-        setUserType(null);
-        setBootError(e?.message || 'Erro ao iniciar o app');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const start = async () => {
       if (!mounted) return;
 
-      try {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const type = await withTimeout(
-            getUserTypeWithRetryAndHeal(session.user),
-            8000,
-            'Falha ao carregar tipo após login (timeout)'
-          );
-
-          if (!type) {
-            setUser(null);
-            setUserType(null);
-            return;
-          }
-
-          setUser(session.user);
-          setUserType(type);
-          return;
+      // watchdog: se por algum bug loading não cair, força erro
+      const watchdog = setTimeout(() => {
+        if (mounted) {
+          setLoading(false);
+          setFatalError('O app demorou demais para responder. Verifique sua internet e tente novamente.');
         }
+      }, 12000);
 
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setUserType(null);
-        }
-      } catch (e) {
+      await hydrate();
+      clearTimeout(watchdog);
+    };
+
+    start();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+
+      // Reidrata na mudança de login
+      const sessionUser = session?.user || null;
+      if (!sessionUser) {
         setUser(null);
         setUserType(null);
-        setBootError(e?.message || 'Erro no estado de autenticação');
+        return;
       }
+
+      setUser(sessionUser);
+      const type = await getUserTypeSafe(sessionUser);
+      setUserType(type || 'client');
     });
 
     return () => {
@@ -180,7 +186,7 @@ export default function App() {
 
   const handleLogin = (userData, type) => {
     setUser(userData);
-    setUserType(type);
+    setUserType(isValidType(type) ? type : 'client');
   };
 
   const handleLogout = async () => {
@@ -189,36 +195,13 @@ export default function App() {
     setUserType(null);
   };
 
-  const isLoggedIn = !!user && !!userType;
+  const isLoggedIn = !!user;
 
-  // ✅ Nunca trava: ou mostra carregando, ou mostra erro, ou mostra app
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-primary text-xl font-bold">Carregando...</div>
-          <div className="text-gray-500 text-sm mt-2">Se demorar, vai aparecer erro automaticamente.</div>
-        </div>
-      </div>
-    );
-  }
+  // Nunca “carregamento infinito”
+  if (loading) return <FullScreenLoading />;
 
-  if (bootError) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-6 text-center">
-          <h1 className="text-2xl font-black text-white mb-2">Erro ao iniciar</h1>
-          <p className="text-gray-400 mb-4">{bootError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      </div>
-    );
+  if (fatalError) {
+    return <FullScreenError message={fatalError} onRetry={hydrate} />;
   }
 
   return (
@@ -226,13 +209,7 @@ export default function App() {
       <Routes>
         <Route
           path="/"
-          element={
-            <Home
-              user={isLoggedIn ? user : null}
-              userType={isLoggedIn ? userType : null}
-              onLogout={handleLogout}
-            />
-          }
+          element={<Home user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} onLogout={handleLogout} />}
         />
 
         <Route
@@ -289,14 +266,8 @@ export default function App() {
           }
         />
 
-        {/* Vitrine é pública: logado ou não, entra */}
-        <Route
-          path="/v/:slug"
-          element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />}
-        />
-
-        {/* fallback */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Vitrine é pública: logado ou não */}
+        <Route path="/v/:slug" element={<Vitrine user={isLoggedIn ? user : null} userType={isLoggedIn ? userType : null} />} />
       </Routes>
     </Router>
   );
