@@ -120,9 +120,9 @@ export default function Home({ user, userType, onLogout }) {
                 <>
                   <Link
                     to={userType === 'professional' ? '/dashboard' : '/minha-area'}
-                    className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors"
+                    className="px-5 py-2 text-sm text-white hover:text-primary transition-colors"
                   >
-                    {userType === 'professional' ? 'DashboarD' : 'Minha Área'}
+                    {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
                   </Link>
                   <button
                     type="button"
