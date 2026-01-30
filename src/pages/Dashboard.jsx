@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, X, ExternalLink, Eye, Copy, Check, Calendar, DollarSign,
@@ -6,22 +6,23 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
-export default function Dashboard({ user: userProp, onLogout }) {
+function withTimeout(promise, ms, label = 'timeout') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+  ]);
+}
+
+export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
-
-  // Auth/user
-  const [authUser, setAuthUser] = useState(userProp || null);
-  const [authLoading, setAuthLoading] = useState(!userProp);
-
-  // Data
   const [barbearia, setBarbearia] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [agendamentos, setAgendamentos] = useState([]);
 
-  // UI state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [copied, setCopied] = useState(false);
 
   // Modais
@@ -45,235 +46,164 @@ export default function Dashboard({ user: userProp, onLogout }) {
     horario_fim: '18:00'
   });
 
-  // 1) Garantir que ao dar refresh o Dashboard recupere o usuário autenticado
   useEffect(() => {
-    let mounted = true;
-
-    async function initAuth() {
-      try {
-        if (userProp?.id) {
-          if (mounted) {
-            setAuthUser(userProp);
-            setAuthLoading(false);
-          }
-          return;
-        }
-
-        setAuthLoading(true);
-        const { data, error: userErr } = await supabase.auth.getUser();
-        if (userErr) throw userErr;
-
-        const u = data?.user || null;
-        if (mounted) {
-          // padrão: u.id é o UUID do auth.users
-          setAuthUser(u ? { id: u.id, email: u.email } : null);
-          setAuthLoading(false);
-        }
-      } catch (e) {
-        console.error('Erro ao recuperar sessão:', e);
-        if (mounted) {
-          setAuthUser(null);
-          setAuthLoading(false);
-        }
-      }
-    }
-
-    initAuth();
-
-    // também reage a mudanças de auth (login/logout)
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user || null;
-      setAuthUser(u ? { id: u.id, email: u.email } : null);
-    });
-
-    return () => {
-      mounted = false;
-      sub?.subscription?.unsubscribe?.();
-    };
-  }, [userProp]);
-
-  // 2) Carregar dados quando authUser existir
-  useEffect(() => {
-    if (!authLoading && authUser?.id) {
-      loadData();
-    }
-    // Se não tem user, para e mostra erro (em vez de ficar infinito)
-    if (!authLoading && !authUser?.id) {
-      setLoading(false);
-      setError('Você não está autenticado. Faça login novamente.');
-    }
+    if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, authUser?.id]);
+  }, [user?.id]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      if (!authUser?.id) {
+      if (!user?.id) {
         setError('Sessão inválida. Faça login novamente.');
         setLoading(false);
         return;
       }
 
-      // Buscar barbearia do dono logado
-      const { data: barbeariaData, error: barbeariaError } = await supabase
-        .from('barbearias')
-        .select('*')
-        .eq('owner_id', authUser.id)
-        .maybeSingle();
+      const { data: barbeariaData, error: barbeariaError } = await withTimeout(
+        supabase
+          .from('barbearias')
+          .select('*')
+          .eq('owner_id', user.id)
+          .maybeSingle(),
+        8000,
+        'Timeout carregando barbearia'
+      );
 
       if (barbeariaError) throw barbeariaError;
 
       if (!barbeariaData) {
+        setError('Nenhuma barbearia cadastrada.');
         setBarbearia(null);
         setProfissionais([]);
         setServicos([]);
         setAgendamentos([]);
-        setError('Nenhuma barbearia cadastrada para esta conta.');
         setLoading(false);
         return;
       }
 
       setBarbearia(barbeariaData);
 
-      // Buscar profissionais
-      const { data: profissionaisData, error: profErr } = await supabase
-        .from('profissionais')
-        .select('*')
-        .eq('barbearia_id', barbeariaData.id)
-        .order('created_at', { ascending: true });
+      // Profissionais
+      const { data: profissionaisData, error: profErr } = await withTimeout(
+        supabase
+          .from('profissionais')
+          .select('*')
+          .eq('barbearia_id', barbeariaData.id),
+        8000,
+        'Timeout carregando profissionais'
+      );
 
       if (profErr) throw profErr;
 
       const profs = profissionaisData || [];
       setProfissionais(profs);
 
-      if (profs.length === 0) {
-        setServicos([]);
-        setAgendamentos([]);
-        setLoading(false);
-        return;
-      }
+      // Serviços + agendamentos
+      if (profs.length > 0) {
+        const profissionalIds = profs.map(p => p.id);
 
-      const profissionalIds = profs.map(p => p.id);
-
-      // Buscar serviços
-      const { data: servicosData, error: servErr } = await supabase
-        .from('servicos')
-        .select('*, profissionais (nome)')
-        .in('profissional_id', profissionalIds)
-        .order('created_at', { ascending: false });
-
-      if (servErr) throw servErr;
-      setServicos(servicosData || []);
-
-      // Buscar agendamentos
-      const { data: agData, error: agErr } = await supabase
-        .from('agendamentos')
-        .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
-        .in('profissional_id', profissionalIds)
-        .order('data', { ascending: false })
-        .limit(100);
-
-      if (agErr) throw agErr;
-
-      // Auto-concluir (com segurança: só atualiza o necessário)
-      const agora = new Date();
-      const pendentesPassados = (agData || []).filter(a => {
-        if (!(a.status === 'agendado' || a.status === 'confirmado')) return false;
-        const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
-        return dataHoraFim < agora;
-      });
-
-      if (pendentesPassados.length > 0) {
-        // Atualiza em lote (Promise.all)
-        await Promise.all(
-          pendentesPassados.map(a =>
-            supabase
-              .from('agendamentos')
-              .update({ status: 'concluido', concluido_em: new Date().toISOString() })
-              .eq('id', a.id)
-          )
+        const { data: servicosData, error: servErr } = await withTimeout(
+          supabase
+            .from('servicos')
+            .select('*, profissionais (nome)')
+            .in('profissional_id', profissionalIds),
+          8000,
+          'Timeout carregando serviços'
         );
 
-        // Recarrega agendamentos após atualização
-        const { data: agAtualizados, error: ag2Err } = await supabase
-          .from('agendamentos')
-          .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
-          .in('profissional_id', profissionalIds)
-          .order('data', { ascending: false })
-          .limit(100);
+        if (servErr) throw servErr;
+        setServicos(servicosData || []);
 
-        if (ag2Err) throw ag2Err;
-        setAgendamentos(agAtualizados || []);
+        const { data: agendamentosData, error: agErr } = await withTimeout(
+          supabase
+            .from('agendamentos')
+            .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+            .in('profissional_id', profissionalIds)
+            .order('data', { ascending: false })
+            .limit(100),
+          8000,
+          'Timeout carregando agendamentos'
+        );
+
+        if (agErr) throw agErr;
+        setAgendamentos(agendamentosData || []);
       } else {
-        setAgendamentos(agData || []);
+        setServicos([]);
+        setAgendamentos([]);
       }
     } catch (e) {
-      console.error('Erro ao carregar:', e);
-      setError(e?.message || 'Erro desconhecido ao carregar dados.');
+      console.error('Erro ao carregar dashboard:', e);
+      setError(e?.message || 'Erro ao carregar dados.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error('Erro ao deslogar:', e);
-    } finally {
-      onLogout?.();
-    }
+  const copyLink = () => {
+    if (!barbearia) return;
+    navigator.clipboard.writeText(`${window.location.origin}/v/${barbearia.slug}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const copyLink = () => {
-    if (barbearia) {
-      navigator.clipboard.writeText(`${window.location.origin}/v/${barbearia.slug}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  // ✅ Normaliza payload (evita falhas por tipo string)
+  const buildServicoPayload = () => {
+    const dur = Number(formServico.duracao_minutos);
+    const preco = Number(formServico.preco);
+
+    return {
+      nome: String(formServico.nome || '').trim(),
+      duracao_minutos: Number.isFinite(dur) ? dur : null,
+      preco: Number.isFinite(preco) ? preco : null,
+      profissional_id: formServico.profissional_id || null,
+      ativo: true
+    };
   };
 
   const createServico = async (e) => {
     e.preventDefault();
     try {
-      if (!formServico.profissional_id) throw new Error('Selecione um profissional.');
-      const payload = {
-        nome: formServico.nome,
-        duracao_minutos: Number(formServico.duracao_minutos),
-        preco: Number(formServico.preco),
-        profissional_id: formServico.profissional_id,
-        ativo: true
-      };
+      const payload = buildServicoPayload();
 
-      const { error } = await supabase.from('servicos').insert([payload]);
+      if (!payload.profissional_id) throw new Error('Selecione um profissional.');
+      if (!payload.nome) throw new Error('Informe o nome do serviço.');
+      if (!payload.duracao_minutos) throw new Error('Informe a duração.');
+      if (payload.preco == null) throw new Error('Informe o preço.');
+
+      const { error } = await withTimeout(
+        supabase.from('servicos').insert([payload]),
+        8000,
+        'Timeout ao criar serviço'
+      );
+
       if (error) throw error;
 
       alert('✅ Serviço criado!');
       setShowNovoServico(false);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao criar serviço'));
+    } catch (err) {
+      console.error(err);
+      alert('❌ Erro ao criar serviço: ' + (err?.message || ''));
     }
   };
 
   const updateServico = async (e) => {
     e.preventDefault();
     try {
-      const payload = {
-        nome: formServico.nome,
-        duracao_minutos: Number(formServico.duracao_minutos),
-        preco: Number(formServico.preco),
-        profissional_id: formServico.profissional_id
-      };
+      if (!editingServico) throw new Error('Serviço inválido.');
 
-      const { error } = await supabase
-        .from('servicos')
-        .update(payload)
-        .eq('id', editingServico);
+      const payload = buildServicoPayload();
+      delete payload.ativo; // não precisa mexer aqui se você não quiser
+
+      const { error } = await withTimeout(
+        supabase.from('servicos').update(payload).eq('id', editingServico),
+        8000,
+        'Timeout ao atualizar serviço'
+      );
 
       if (error) throw error;
 
@@ -281,20 +211,24 @@ export default function Dashboard({ user: userProp, onLogout }) {
       setEditingServico(null);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao atualizar serviço'));
+    } catch (err) {
+      alert('❌ Erro: ' + (err?.message || ''));
     }
   };
 
   const deleteServico = async (id) => {
-    if (!window.confirm('Excluir serviço?')) return;
+    if (!confirm('Excluir serviço?')) return;
     try {
-      const { error } = await supabase.from('servicos').delete().eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('servicos').delete().eq('id', id),
+        8000,
+        'Timeout ao excluir serviço'
+      );
       if (error) throw error;
       alert('✅ Excluído!');
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao excluir serviço'));
+    } catch (err) {
+      alert('❌ Erro: ' + (err?.message || ''));
     }
   };
 
@@ -302,92 +236,90 @@ export default function Dashboard({ user: userProp, onLogout }) {
     e.preventDefault();
     try {
       if (!barbearia?.id) throw new Error('Barbearia inválida.');
-      const payload = {
-        barbearia_id: barbearia.id,
-        nome: formProfissional.nome,
-        anos_experiencia: formProfissional.anos_experiencia ? Number(formProfissional.anos_experiencia) : 0,
-        horario_inicio: formProfissional.horario_inicio,
-        horario_fim: formProfissional.horario_fim,
 
-        // ✅ regra: profissional adicionado pelo dono é secundário
-        cargo: 'employee',
-        user_id: null
+      const payload = {
+        nome: String(formProfissional.nome || '').trim(),
+        anos_experiencia: formProfissional.anos_experiencia === '' ? 0 : Number(formProfissional.anos_experiencia),
+        horario_inicio: formProfissional.horario_inicio || '08:00',
+        horario_fim: formProfissional.horario_fim || '18:00',
+        barbearia_id: barbearia.id
       };
 
-      const { error } = await supabase.from('profissionais').insert([payload]);
+      if (!payload.nome) throw new Error('Informe o nome do profissional.');
+
+      const { error } = await withTimeout(
+        supabase.from('profissionais').insert([payload]),
+        8000,
+        'Timeout ao adicionar profissional'
+      );
+
       if (error) throw error;
 
       alert('✅ Profissional adicionado!');
       setShowNovoProfissional(false);
       setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00' });
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao adicionar profissional'));
+    } catch (err) {
+      console.error(err);
+      alert('❌ Erro: ' + (err?.message || ''));
     }
   };
 
   const updateProfissional = async (e) => {
     e.preventDefault();
     try {
+      if (!editingProfissional?.id) throw new Error('Profissional inválido.');
+
       const payload = {
-        nome: formProfissional.nome,
-        anos_experiencia: formProfissional.anos_experiencia ? Number(formProfissional.anos_experiencia) : 0,
-        horario_inicio: formProfissional.horario_inicio,
-        horario_fim: formProfissional.horario_fim
+        nome: String(formProfissional.nome || '').trim(),
+        anos_experiencia: formProfissional.anos_experiencia === '' ? 0 : Number(formProfissional.anos_experiencia),
+        horario_inicio: formProfissional.horario_inicio || '08:00',
+        horario_fim: formProfissional.horario_fim || '18:00'
       };
 
-      const { error } = await supabase
-        .from('profissionais')
-        .update(payload)
-        .eq('id', editingProfissional.id);
+      const { error } = await withTimeout(
+        supabase.from('profissionais').update(payload).eq('id', editingProfissional.id),
+        8000,
+        'Timeout ao atualizar profissional'
+      );
 
       if (error) throw error;
 
       alert('✅ Horários atualizados!');
       setEditingProfissional(null);
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao atualizar profissional'));
+    } catch (err) {
+      alert('❌ Erro: ' + (err?.message || ''));
     }
   };
 
   const confirmarAtendimento = async (id) => {
     try {
-      const { error } = await supabase
-        .from('agendamentos')
-        .update({ status: 'concluido', concluido_em: new Date().toISOString() })
-        .eq('id', id);
+      const { error } = await withTimeout(
+        supabase
+          .from('agendamentos')
+          .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+          .eq('id', id),
+        8000,
+        'Timeout ao confirmar atendimento'
+      );
 
       if (error) throw error;
+
       alert('✅ Confirmado!');
       loadData();
-    } catch (e2) {
-      alert('❌ Erro: ' + (e2?.message || 'Erro ao confirmar atendimento'));
+    } catch (err) {
+      alert('❌ Erro: ' + (err?.message || ''));
     }
   };
 
-  // ---------------- UI DERIVADOS ----------------
-  const hoje = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const agendamentosHoje = useMemo(
-    () => agendamentos.filter(a => a.data === hoje && !String(a.status || '').includes('cancelado')),
-    [agendamentos, hoje]
-  );
-  const concluidos = useMemo(
-    () => agendamentosHoje.filter(a => a.status === 'concluido'),
-    [agendamentosHoje]
-  );
-  const faturamentoHoje = useMemo(
-    () => concluidos.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
-    [concluidos]
-  );
-
-  // ---------------- RENDER ----------------
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <div className="text-primary text-xl font-bold">Carregando...</div>
+          <div className="text-gray-500 text-sm mt-2">Se demorar, vai aparecer erro automaticamente.</div>
         </div>
       </div>
     );
@@ -407,7 +339,7 @@ export default function Dashboard({ user: userProp, onLogout }) {
             Tentar Novamente
           </button>
           <button
-            onClick={handleLogout}
+            onClick={onLogout}
             className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold"
           >
             Sair
@@ -416,6 +348,11 @@ export default function Dashboard({ user: userProp, onLogout }) {
       </div>
     );
   }
+
+  const hoje = new Date().toISOString().split('T')[0];
+  const agendamentosHoje = agendamentos.filter(a => a.data === hoje && !String(a.status || '').includes('cancelado'));
+  const concluidos = agendamentosHoje.filter(a => a.status === 'concluido');
+  const faturamentoHoje = concluidos.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -442,7 +379,7 @@ export default function Dashboard({ user: userProp, onLogout }) {
                 <Eye className="w-4 h-4" />Ver Vitrine
               </Link>
               <button
-                onClick={handleLogout}
+                onClick={onLogout}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
               >
                 <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Sair</span>
@@ -518,7 +455,6 @@ export default function Dashboard({ user: userProp, onLogout }) {
           </div>
 
           <div className="p-6">
-            {/* Visão Geral */}
             {activeTab === 'visao-geral' && (
               <div className="text-center py-12">
                 <p className="text-gray-400 mb-4">Bem-vindo ao seu dashboard!</p>
@@ -526,7 +462,6 @@ export default function Dashboard({ user: userProp, onLogout }) {
               </div>
             )}
 
-            {/* Agendamentos */}
             {activeTab === 'agendamentos' && (
               <div>
                 <h2 className="text-2xl font-black mb-6">Agendamentos de Hoje</h2>
@@ -576,7 +511,6 @@ export default function Dashboard({ user: userProp, onLogout }) {
               </div>
             )}
 
-            {/* Cancelados */}
             {activeTab === 'cancelados' && (
               <div>
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados</h2>
@@ -616,7 +550,6 @@ export default function Dashboard({ user: userProp, onLogout }) {
               </div>
             )}
 
-            {/* Serviços */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -630,295 +563,4 @@ export default function Dashboard({ user: userProp, onLogout }) {
                 </div>
 
                 {servicos.length > 0 ? (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {servicos.map(s => (
-                      <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="text-lg font-black">{s.nome}</h3>
-                            <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
-                          </div>
-                          <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
-                        </div>
-                        <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setEditingServico(s.id); setFormServico({ ...s }); }}
-                            className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => deleteServico(s.id)}
-                            className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500 mb-4">Nenhum serviço cadastrado</p>
-                    <button
-                      onClick={() => setShowNovoServico(true)}
-                      className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
-                    >
-                      Adicionar Primeiro Serviço
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Profissionais */}
-            {activeTab === 'profissionais' && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-black">Profissionais</h2>
-                  <button
-                    onClick={() => setShowNovoProfissional(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
-                  >
-                    <Plus className="w-5 h-5" />Adicionar
-                  </button>
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {profissionais.map(p => (
-                    <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-black text-xl">
-                          {p.nome?.[0] || '?'}
-                        </div>
-                        <div>
-                          <h3 className="font-black">{p.nome}</h3>
-                          {p.anos_experiencia ? <p className="text-xs text-gray-500 font-bold">{p.anos_experiencia} anos</p> : null}
-                        </div>
-                      </div>
-
-                      <div className="text-sm text-gray-400 mb-3">
-                        {servicos.filter(s => s.profissional_id === p.id).length} serviços
-                      </div>
-
-                      <div className="text-xs text-gray-500 mb-3">
-                        <Clock className="w-4 h-4 inline mr-1" />
-                        {p.horario_inicio} - {p.horario_fim}
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setEditingProfissional(p);
-                          setFormProfissional({
-                            nome: p.nome || '',
-                            anos_experiencia: p.anos_experiencia || '',
-                            horario_inicio: p.horario_inicio || '08:00',
-                            horario_fim: p.horario_fim || '18:00'
-                          });
-                        }}
-                        className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
-                      >
-                        Editar Horários
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal Novo Serviço */}
-      {showNovoServico && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">Novo Serviço</h3>
-              <button onClick={() => setShowNovoServico(false)}><X className="w-6 h-6" /></button>
-            </div>
-
-            <form onSubmit={createServico} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold mb-2">Profissional</label>
-                <select
-                  value={formServico.profissional_id}
-                  onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                >
-                  <option value="">Selecione</option>
-                  {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Nome</label>
-                <input
-                  type="text"
-                  value={formServico.nome}
-                  onChange={(e) => setFormServico({ ...formServico, nome: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Duração (min)</label>
-                <input
-                  type="number"
-                  value={formServico.duracao_minutos}
-                  onChange={(e) => setFormServico({ ...formServico, duracao_minutos: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Preço (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formServico.preco}
-                  onChange={(e) => setFormServico({ ...formServico, preco: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
-                CRIAR SERVIÇO
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Novo Profissional */}
-      {showNovoProfissional && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">Novo Profissional</h3>
-              <button onClick={() => setShowNovoProfissional(false)}><X className="w-6 h-6" /></button>
-            </div>
-
-            <form onSubmit={createProfissional} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold mb-2">Nome</label>
-                <input
-                  type="text"
-                  value={formProfissional.nome}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Anos de Experiência</label>
-                <input
-                  type="number"
-                  value={formProfissional.anos_experiencia}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, anos_experiencia: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">Início</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_inicio}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold mb-2">Fim</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_fim}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
-                ADICIONAR
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar Profissional */}
-      {editingProfissional && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">Editar Horários</h3>
-              <button onClick={() => setEditingProfissional(null)}><X className="w-6 h-6" /></button>
-            </div>
-
-            <form onSubmit={updateProfissional} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold mb-2">Nome</label>
-                <input
-                  type="text"
-                  value={formProfissional.nome}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Anos de Experiência</label>
-                <input
-                  type="number"
-                  value={formProfissional.anos_experiencia}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, anos_experiencia: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold mb-2">Horário Início</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_inicio}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2">Horário Fim</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_fim}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
-                SALVAR HORÁRIOS
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                  <div className="grid
