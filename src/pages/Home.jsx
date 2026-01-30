@@ -272,7 +272,7 @@ export default function Home({ user, userType, onLogout }) {
             {[
               { num: 1, title: 'Cadastre sua Barbearia', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
               { num: 2, title: 'Compartilhe sua Vitrine', text: 'Receba um link único (ex: hakon.app/v/sua-barbearia). Compartilhe no Instagram, WhatsApp e redes sociais.' },
-              { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só confirma e atende.' }
+              { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
                 <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
@@ -292,9 +292,9 @@ export default function Home({ user, userType, onLogout }) {
                 <Zap className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h3 className="text-2xl font-black mb-2 text-white">🔥 Agendamento Inteligente</h3>
+                <h3 className="text-2xl font-black mb-2 text-white">:O Agendamento Inteligente</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Cliente cancelou um corte de 50 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: barba de 30min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
+                  Cliente cancelou um corte de 50 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento do pezinho de cabelo 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
                 </p>
               </div>
             </div>
@@ -340,7 +340,7 @@ export default function Home({ user, userType, onLogout }) {
       <section className="py-24 px-4 bg-gradient-to-r from-primary via-yellow-500 to-yellow-600">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-5xl font-black text-black mb-6">PRONTO PARA FATURAR MAIS?</h2>
-          <p className="text-2xl text-black/80 mb-8 font-bold">Crie sua vitrine em menos de 3 minutos</p>
+          <p className="text-2xl text-black/80 mb-8">Crie sua vitrine em menos de 3 minutos</p>
           <Link
             to="/cadastro"
             className="inline-flex items-center gap-3 px-12 py-6 bg-black text-primary rounded-button font-black text-xl hover:shadow-2xl transition-all hover:scale-105"
