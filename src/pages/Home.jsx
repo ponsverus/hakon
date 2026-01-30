@@ -347,7 +347,7 @@ export default function Home({ user, userType, onLogout }) {
           >
             COMEÇAR AGORA GRÁTIS <Zap className="w-6 h-6" />
           </Link>
-          <p className="text-black/60 text-sm mt-6 font-bold">Sem compromisso • 100% seguro</p>
+          <p className="text-black/60 text-sm mt-6">Sem compromisso e 100% seguro</p>
         </div>
       </section>
 
