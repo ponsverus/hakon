@@ -179,10 +179,7 @@ export default function Dashboard({ user, onLogout }) {
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
         preco: toNumberOrNull(formServico.preco),
         ativo: true,
-
-        // ✅ MUITO IMPORTANTE:
-        // se sua tabela/policy exigir barbearia_id em servicos, isso resolve.
-        barbearia_id: barbearia.id
+        // ✅ REMOVIDO: barbearia_id (tabela servicos não tem essa coluna)
       };
 
       if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
