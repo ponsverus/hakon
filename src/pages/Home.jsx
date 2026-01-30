@@ -246,11 +246,11 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <div className="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
-            {['+58%', '24/7'].map((stat, i) => (
+            {['+8%', '24/7'].map((stat, i) => (
               <div key={i} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                 <div className="text-4xl font-normal text-primary mb-2">{stat}</div>
                 <div className="text-sm text-gray-500 uppercase">
-                  {['Faturamento', 'Disponível'][i]}
+                  {['Faturamento em média', 'Disponível'][i]}
                 </div>
               </div>
             ))}
