@@ -107,7 +107,7 @@ export default function Home({ user, userType, onLogout }) {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl sm:text-2xl font-black">HAKON</h1>
-                <p className="text-xs text-primary font-bold -mt-1">BARBEARIA ELITE</p>
+                <p className="text-xs text-primary -mt-1">BARBEARIA ELITE</p>
               </div>
             </Link>
 
@@ -362,7 +362,7 @@ export default function Home({ user, userType, onLogout }) {
               { title: 'LEGAL', links: ['Privacidade', 'Termos'] }
             ].map(({ title, links }) => (
               <div key={title}>
-                <h4 className="text-white font-black mb-4">{title}</h4>
+                <h4 className="text-white font-normal mb-4">{title}</h4>
                 <ul className="space-y-2">
                   {links.map(link => (
                     <li key={link}>
