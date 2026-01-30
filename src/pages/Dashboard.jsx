@@ -127,32 +127,43 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
-      // Auto-concluir passados (sem travar UI)
+      // ✅ Auto-concluir passados (sem travar UI)
       if (ags?.length) {
         const agora = new Date();
+        const toUpdate = [];
+
         for (const a of ags) {
-          if ((a.status === 'agendado' || a.status === 'confirmado')) {
+          if (a?.status === 'agendado' || a?.status === 'confirmado') {
             const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
             if (dataHoraFim < agora) {
-              await supabase
-                .from('agendamentos')
-                .update({ status: 'concluido', concluido_em: new Date().toISOString() })
-                .eq('id', a.id);
+              toUpdate.push(a.id);
             }
           }
         }
+
+        if (toUpdate.length) {
+          // roda em background
+          Promise.allSettled(
+            toUpdate.map(id =>
+              supabase
+                .from('agendamentos')
+                .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+                .eq('id', id)
+            )
+          ).then(() => {
+            // recarrega agendamentos depois (sem travar)
+            supabase
+              .from('agendamentos')
+              .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+              .in('profissional_id', ids)
+              .order('data', { ascending: false })
+              .limit(100)
+              .then(({ data }) => setAgendamentos(data || []));
+          });
+        }
       }
 
-      // Recarrega agendamentos
-      const { data: ags2, error: ag2Err } = await supabase
-        .from('agendamentos')
-        .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
-        .in('profissional_id', ids)
-        .order('data', { ascending: false })
-        .limit(100);
-
-      if (ag2Err) throw ag2Err;
-      setAgendamentos(ags2 || []);
+      setAgendamentos(ags || []);
     } catch (e) {
       console.error('Erro ao carregar:', e);
       setError(e?.message || 'Erro inesperado.');
@@ -179,7 +190,8 @@ export default function Dashboard({ user, onLogout }) {
         profissional_id: formServico.profissional_id,
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
         preco: toNumberOrNull(formServico.preco),
-        ativo: true
+        ativo: true,
+        barbearia_id: barbearia.id,
       };
 
       if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
@@ -400,7 +412,7 @@ export default function Dashboard({ user, onLogout }) {
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
             <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
-            <div className="text-sm text-gray-400 font-bold">Serviços</div>
+            <div className="text-sm text-gray-400 font-bold">Serviços Ativos</div>
           </div>
         </div>
 
@@ -461,12 +473,11 @@ export default function Dashboard({ user, onLogout }) {
                             <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
                             <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                           </div>
-                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${
-                            a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                          }`}>
+                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
                             {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
                           </div>
                         </div>
+
                         <div className="grid grid-cols-3 gap-4 mb-4">
                           <div>
                             <div className="text-xs text-gray-500 font-bold">Horário</div>
@@ -477,11 +488,9 @@ export default function Dashboard({ user, onLogout }) {
                             <div className="text-sm font-bold">R$ {a.servicos?.preco}</div>
                           </div>
                         </div>
+
                         {a.status !== 'concluido' && (
-                          <button
-                            onClick={() => confirmarAtendimento(a.id)}
-                            className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
-                          >
+                          <button onClick={() => confirmarAtendimento(a.id)} className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm">
                             ✓ Confirmar Atendimento
                           </button>
                         )}
@@ -500,35 +509,34 @@ export default function Dashboard({ user, onLogout }) {
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados</h2>
                 {agendamentos.filter(a => String(a.status || '').includes('cancelado')).length > 0 ? (
                   <div className="space-y-4">
-                    {agendamentos
-                      .filter(a => String(a.status || '').includes('cancelado'))
-                      .map(a => (
-                        <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
-                            </div>
-                            <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
-                              Cancelado
-                            </div>
+                    {agendamentos.filter(a => String(a.status || '').includes('cancelado')).map(a => (
+                      <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
+                            <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                           </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Horário</div>
-                              <div className="text-white font-bold">{a.hora_inicio}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Valor</div>
-                              <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
-                            </div>
+                          <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
+                            Cancelado
                           </div>
                         </div>
-                      ))}
+
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Data</div>
+                            <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Horário</div>
+                            <div className="text-white font-bold">{a.hora_inicio}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Valor</div>
+                            <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center py-12">Nenhum cancelamento</p>
@@ -541,10 +549,7 @@ export default function Dashboard({ user, onLogout }) {
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-black">Serviços</h2>
-                  <button
-                    onClick={() => setShowNovoServico(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
-                  >
+                  <button onClick={() => setShowNovoServico(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold">
                     <Plus className="w-5 h-5" />Novo Serviço
                   </button>
                 </div>
