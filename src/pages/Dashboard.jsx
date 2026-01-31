@@ -565,8 +565,8 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="text-sm text-gray-500 font-bold">
-                  Dica: essa visão geral agora “reflete movimento real” e ajuda você a bater o olho e entender o dia.
+                <div className="text-sm text-gray-500">
+                  Info: essa visão geral agora “reflete movimento real” e ajuda você a bater o olho e entender o dia.
                 </div>
               </div>
             )}
