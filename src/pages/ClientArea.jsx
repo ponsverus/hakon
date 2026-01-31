@@ -179,8 +179,8 @@ export default function ClientArea({ user, onLogout }) {
             className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all text-left"
           >
             <History className="w-8 h-8 text-blue-400 mb-3" />
-            <h3 className="text-lg font-black mb-1">{agendamentos.length} Agendamentos</h3>
-            <p className="text-gray-400 text-sm font-bold">Ver histórico completo</p>
+            <h3 className="text-lg font-normal mb-1">{agendamentos.length} AGENDAMENTOS</h3>
+            <p className="text-gray-400 text-sm">Ver histórico completo</p>
           </button>
         </div>
 
@@ -189,23 +189,23 @@ export default function ClientArea({ user, onLogout }) {
           <div className="flex border-b border-gray-800">
             <button
               onClick={() => setActiveTab('agendamentos')}
-              className={`flex-1 py-4 px-6 font-black transition-all text-sm sm:text-base ${
+              className={`flex-1 py-4 px-6 font-normal transition-all text-sm sm:text-base ${
                 activeTab === 'agendamentos'
                   ? 'bg-primary/20 text-primary border-b-2 border-primary'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Agendamentos
+              AGENDAMENTOS
             </button>
             <button
               onClick={() => setActiveTab('favoritos')}
-              className={`flex-1 py-4 px-6 font-black transition-all text-sm sm:text-base ${
+              className={`flex-1 py-4 px-6 font-normal transition-all text-sm sm:text-base ${
                 activeTab === 'favoritos'
                   ? 'bg-primary/20 text-primary border-b-2 border-primary'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Favoritos
+              FAVORITOS
             </button>
           </div>
 
@@ -262,9 +262,9 @@ export default function ClientArea({ user, onLogout }) {
                         {(agendamento.status === 'agendado' || agendamento.status === 'confirmado') && (
                           <button
                             onClick={() => cancelarAgendamento(agendamento.id)}
-                            className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm transition-all"
+                            className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-custom text-sm transition-all"
                           >
-                            Cancelar Agendamento
+                            CANCELAR AGENDAMENTO
                           </button>
                         )}
                       </div>
