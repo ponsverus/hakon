@@ -131,17 +131,17 @@ export default function ClientArea({ user, onLogout }) {
                 <User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-xl sm:text-2xl font-black">Minha Área</h1>
-                <p className="text-xs text-blue-400 font-bold -mt-1">CLIENTE</p>
+                <h1 className="text-xl sm:text-2xl font-normal">MINHA ÁREA</h1>
+                <p className="text-xs text-blue-400 -mt-1">CLIENTE</p>
               </div>
             </Link>
 
             <button
               onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold text-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-button text-sm transition-all"
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Sair</span>
+              <span className="hidden sm:inline">SAIR</span>
             </button>
           </div>
         </div>
@@ -150,7 +150,7 @@ export default function ClientArea({ user, onLogout }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-3xl sm:text-4xl font-black mb-2">Olá, {user.user_metadata?.nome || 'Cliente'}! 👋</h2>
+          <h2 className="text-3xl sm:text-4xl font-normal mb-2">Olá, {user.user_metadata?.nome || 'Cliente'} :)</h2>
           <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
         </div>
 
@@ -161,8 +161,8 @@ export default function ClientArea({ user, onLogout }) {
             className="bg-gradient-to-r from-primary to-yellow-600 rounded-custom p-6 hover:shadow-lg hover:shadow-primary/50 transition-all group"
           >
             <Calendar className="w-8 h-8 text-black mb-3" />
-            <h3 className="text-lg font-black text-black mb-1">Novo Agendamento</h3>
-            <p className="text-black/80 text-sm font-bold">Buscar profissionais</p>
+            <h3 className="text-lg font-normal text-black mb-1">NOVO AGENDAMENTO</h3>
+            <p className="text-black/80 text-sm">Buscar profissionais</p>
           </Link>
 
           <button
@@ -170,8 +170,8 @@ export default function ClientArea({ user, onLogout }) {
             className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all text-left"
           >
             <Heart className="w-8 h-8 text-red-400 mb-3" />
-            <h3 className="text-lg font-black mb-1">{favoritos.length} Favoritos</h3>
-            <p className="text-gray-400 text-sm font-bold">Suas barbearias preferidas</p>
+            <h3 className="text-lg font-normal mb-1">{favoritos.length} FAVORITOS</h3>
+            <p className="text-gray-400 text-sm">Suas barbearias preferidas</p>
           </button>
 
           <button
