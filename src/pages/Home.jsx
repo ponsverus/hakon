@@ -314,10 +314,10 @@ export default function Home({ user, userType, onLogout }) {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
-              { icon: TrendingUp, title: 'Agendamento Inteligente', text: 'Cancelou? Reaproveitamos automaticamente com serviços menores. Sem desperdício.' },
+              { icon: TrendingUp, title: 'agendamento inteligente', text: 'Cancelou? Reaproveitamos automaticamente com serviços menores. Sem desperdício.' },
               { icon: Shield, title: 'Sua Vitrine, Suas Regras', text: 'URL personalizada, múltiplos profissionais, controle total. Zero marketplace, zero comissão.' },
               { icon: Users, title: 'Multiprofissional', text: 'Adicione quantos profissionais quiser. Cada um com agenda independente.' },
-              { icon: Clock, title: 'Tempo Real', text: 'Sistema calcula disponibilidade a cada segundo. Cliente vê só o que realmente cabe.' },
+              { icon: Clock, title: 'TEMPO REAL', text: 'Sistema calcula disponibilidade a cada segundo. Cliente vê só o que realmente cabe.' },
               { icon: Star, title: 'Avaliações Reais', text: 'Clientes avaliam barbearia E profissionais. Credibilidade que converte.' },
               { icon: CheckCircle, title: 'Controle Total', text: 'Histórico completo, faturamento separado, seus dados são seus.' }
             ].map(({ icon: Icon, title, text }, i) => (
@@ -328,7 +328,7 @@ export default function Home({ user, userType, onLogout }) {
                 <div className="w-16 h-16 bg-primary/20 rounded-custom flex items-center justify-center mb-6">
                   <Icon className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-2xl font-black mb-3 text-white">{title}</h3>
+                <h3 className="text-2xl font-normal mb-3 text-white">{title}</h3>
                 <p className="text-gray-400 leading-relaxed">{text}</p>
               </div>
             ))}
