@@ -23,27 +23,34 @@ function addMinutes(time, delta) {
 }
 
 function getNowSP() {
-  // Pega data/hora em America/Sao_Paulo sem depender do fuso do usuário
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
   }).formatToParts(new Date());
 
   const get = (type) => parts.find(p => p.type === type)?.value;
+
   const y = get('year');
   const mo = get('month');
   const d = get('day');
   const hh = get('hour');
   const mm = get('minute');
+  const weekday = (get('weekday') || '').toLowerCase();
+
+  // en-US short: mon,tue,wed,thu,fri,sat,sun
+  const map = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
+  const wd = map[weekday.slice(0, 3)] || 0;
 
   return {
     date: `${y}-${mo}-${d}`,
-    minutes: (Number(hh) * 60) + Number(mm)
+    minutes: (Number(hh) * 60) + Number(mm),
+    weekday: wd
   };
 }
 
@@ -59,6 +66,42 @@ const withTimeout = (promise, ms, label = 'timeout') => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 };
 
+function renderStars(nota, size = 14) {
+  const n = Number(nota || 0);
+  return (
+    <div className="flex items-center gap-1">
+      {[1,2,3,4,5].map(i => (
+        <Star
+          key={i}
+          style={{ width: size, height: size }}
+          className={
+            i <= n
+              ? 'text-primary fill-current'
+              : 'text-gray-700'
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function resolveLogoUrl(barbearia) {
+  const raw = String(barbearia?.logo_url || '').trim();
+  if (!raw) return null;
+
+  // Se já veio URL completa
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+
+  // Se veio apenas o path no bucket "logos"
+  // Ex: "barbearias/<id>/logo-....png"
+  try {
+    const { data } = supabase.storage.from('logos').getPublicUrl(raw);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -72,14 +115,15 @@ export default function Vitrine({ user, userType }) {
 
   const [isFavorito, setIsFavorito] = useState(false);
 
-  // Agendamento (NOVO FLUXO)
-  // step 1 = data, step 2 = horario, step 3 = servico filtrado, step 4 = confirmar
+  const [activeTab, setActiveTab] = useState('profissionais'); // profissionais | servicos | avaliacoes
+
+  // Agendamento
   const [showAgendamento, setShowAgendamento] = useState(false);
   const [flow, setFlow] = useState({
     step: 1,
     profissional: null,
     data: '',
-    horario: null, // { hora, tipo, slot?, maxMinutos }
+    horario: null,
     servico: null,
   });
 
@@ -131,7 +175,7 @@ export default function Vitrine({ user, userType }) {
 
       setBarbearia(barbeariaData);
 
-      // Profissionais (RLS já garante que público vê só ativo)
+      // Profissionais (RLS pode filtrar; aqui só buscamos)
       const { data: profissionaisData, error: profErr } = await withTimeout(
         supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
         7000,
@@ -266,13 +310,11 @@ export default function Vitrine({ user, userType }) {
     setShowAgendamento(true);
   };
 
-  // Lista de serviços do profissional selecionado
   const servicosDoProf = useMemo(() => {
     if (!flow.profissional) return [];
     return servicos.filter(s => s.profissional_id === flow.profissional.id);
   }, [servicos, flow.profissional]);
 
-  // Horários disponíveis agora dependem apenas de (profissional + data)
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
   const calcularHorariosDisponiveis = async () => {
@@ -285,12 +327,10 @@ export default function Vitrine({ user, userType }) {
       const startDay = timeToMinutes(inicio);
       const endDay = timeToMinutes(fim);
 
-      // Hora atual SP (pra bloquear passado quando data=hoje)
       const nowSP = getNowSP();
       const isHoje = flow.data === nowSP.date;
       const minNow = isHoje ? roundUpToNextStep(nowSP.minutes, 30) : -Infinity;
 
-      // Busy slots via RPC
       const { data: ags, error: agErr } = await withTimeout(
         supabase.rpc('get_agendamentos_dia', {
           p_profissional_id: flow.profissional.id,
@@ -301,7 +341,6 @@ export default function Vitrine({ user, userType }) {
       );
       if (agErr) throw agErr;
 
-      // Slots temporários (cancelamentos)
       const { data: slots, error: slotErr } = await withTimeout(
         supabase
           .from('slots_temporarios')
@@ -331,12 +370,10 @@ export default function Vitrine({ user, userType }) {
         raw: s
       }));
 
-      // Gera horários em intervalos de 30min
       const horarios = [];
       let cur = startDay;
 
       while (cur < endDay) {
-        // bloqueia passado
         if (cur < minNow) {
           cur += 30;
           continue;
@@ -344,14 +381,12 @@ export default function Vitrine({ user, userType }) {
 
         const hora = minutesToTime(cur);
 
-        // Se começar dentro de um agendamento existente, pula
         const conflitaAgora = agendamentosValidos.some(a => cur >= a.ini && cur < a.fim);
         if (conflitaAgora) {
           cur += 30;
           continue;
         }
 
-        // Qual o próximo início de agendamento após "cur"?
         const nextBusyStart = agendamentosValidos
           .filter(a => a.ini > cur)
           .map(a => a.ini)
@@ -359,15 +394,11 @@ export default function Vitrine({ user, userType }) {
 
         let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
 
-        // Se existir um slot temporário exatamente começando nesse horário, ele vira limite
         const slotExato = slotsList.find(s => s.ini === cur);
-        if (slotExato) {
-          freeEnd = Math.min(freeEnd, slotExato.fim);
-        }
+        if (slotExato) freeEnd = Math.min(freeEnd, slotExato.fim);
 
         const maxMinutos = freeEnd - cur;
 
-        // Só considera horário se tiver pelo menos 15min? (aqui deixo >= 1 minuto)
         if (maxMinutos > 0) {
           horarios.push({
             hora,
@@ -392,7 +423,6 @@ export default function Vitrine({ user, userType }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAgendamento, flow.profissional?.id, flow.data, flow.step]);
 
-  // Serviços filtrados pelo tempo do horário escolhido
   const servicosFiltrados = useMemo(() => {
     if (!flow.horario) return [];
     const max = Number(flow.horario.maxMinutos || 0);
@@ -486,6 +516,23 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
+  // ===== status (ABERTO/FECHADO) por profissional =====
+  const nowSP = useMemo(() => getNowSP(), []);
+  const isProfAbertoAgora = (p) => {
+    const dias = Array.isArray(p?.dias_semana) ? p.dias_semana : null;
+    const diaHoje = getNowSP().weekday; // 1..7
+    if (dias && dias.length && !dias.includes(diaHoje)) return false;
+
+    const ini = timeToMinutes(p?.horario_inicio || '08:00');
+    const fim = timeToMinutes(p?.horario_fim || '18:00');
+    const cur = getNowSP().minutes;
+
+    if (fim <= ini) return false; // caso inválido
+    return cur >= ini && cur <= fim;
+  };
+
+  const logoUrl = useMemo(() => resolveLogoUrl(barbearia), [barbearia]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -526,6 +573,21 @@ export default function Vitrine({ user, userType }) {
   const mediaAvaliacoes = avaliacoes.length > 0
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '5.0';
+
+  // serviços agrupados por profissional
+  const servicosPorProfissional = useMemo(() => {
+    const map = new Map();
+    for (const p of profissionais) map.set(p.id, []);
+    for (const s of servicos) {
+      if (!map.has(s.profissional_id)) map.set(s.profissional_id, []);
+      map.get(s.profissional_id).push(s);
+    }
+    for (const [k, arr] of map.entries()) {
+      arr.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+      map.set(k, arr);
+    }
+    return map;
+  }, [servicos, profissionais]);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -584,17 +646,28 @@ export default function Vitrine({ user, userType }) {
       <section className="relative bg-gradient-to-br from-primary/20 via-black to-yellow-600/20 py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start gap-6">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
-              {barbearia.nome?.[0] || 'B'}
-            </div>
+            {/* LOGO OU LETRA */}
+            {logoUrl ? (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-primary/30 bg-dark-100">
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
+                {barbearia.nome?.[0] || 'B'}
+              </div>
+            )}
 
             <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
               <p className="text-base sm:text-lg text-gray-400 mb-4">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 text-primary fill-current" />
+                <div className="flex items-center gap-3">
+                  {renderStars(Math.round(Number(mediaAvaliacoes || 0)), 18)}
                   <span className="text-xl font-black text-primary">{mediaAvaliacoes}</span>
                   <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
                 </div>
@@ -618,111 +691,187 @@ export default function Vitrine({ user, userType }) {
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Profissionais */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {profissionais.map(prof => {
-              const servicosProf = servicos.filter(s => s.profissional_id === prof.id);
-
-              return (
-                <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
-                      {prof.nome?.[0] || 'P'}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
-                      {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-bold">{prof.anos_experiencia} anos de experiência</p>
-                      )}
-                      <p className="text-xs text-gray-500 font-bold mt-2">
-                        Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="text-xs text-gray-500 font-bold mb-2">{servicosProf.length} SERVIÇOS</p>
-                    <div className="space-y-1">
-                      {servicosProf.slice(0, 3).map(s => (
-                        <div key={s.id} className="flex justify-between text-sm">
-                          <span className="text-gray-400">{s.nome}</span>
-                          <span className="text-primary font-bold">R$ {s.preco}</span>
-                        </div>
-                      ))}
-                      {servicosProf.length > 3 && (
-                        <p className="text-xs text-gray-600 font-bold">+{servicosProf.length - 3} mais</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => iniciarAgendamento(prof)}
-                    className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
-                      isProfessional
-                        ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
-                    }`}
-                    disabled={!!isProfessional}
-                  >
-                    <Calendar className="w-5 h-5" />
-                    AGENDAR
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Avaliações */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
-            <button
-              onClick={abrirAvaliar}
-              disabled={!!isProfessional}
-              className={`px-5 py-2 border rounded-button font-black text-sm transition-all ${
-                isProfessional
-                  ? 'bg-dark-200 border-gray-900 text-gray-600 cursor-not-allowed'
-                  : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
-              }`}
-            >
-              + Avaliar
-            </button>
-          </div>
-
-          {avaliacoes.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {avaliacoes.map(av => (
-                <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {av.users?.nome?.[0] || 'A'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">{av.users?.nome || 'Cliente'}</p>
-                      <div className="flex items-center gap-1">
-                        {[...Array(av.nota)].map((_, i) => (
-                          <Star key={i} className="w-3 h-3 text-primary fill-current" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {av.comentario && <p className="text-sm text-gray-400">{av.comentario}</p>}
-                </div>
+          {/* Abas */}
+          <div className="mt-8 bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
+            <div className="flex">
+              {[
+                { id: 'profissionais', label: 'PROFISSIONAIS' },
+                { id: 'servicos', label: 'SERVIÇOS' },
+                { id: 'avaliacoes', label: 'AVALIAÇÕES' },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex-1 py-4 font-black text-sm transition-all ${
+                    activeTab === t.id
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
               ))}
             </div>
-          ) : (
-            <p className="text-gray-500">Nenhuma avaliação ainda</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Conteúdo das Abas */}
+      <section className="py-10 px-4 sm:px-6 lg:px-8 bg-dark-200">
+        <div className="max-w-7xl mx-auto">
+
+          {/* PROFISSIONAIS */}
+          {activeTab === 'profissionais' && (
+            <>
+              <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {profissionais.map(prof => {
+                  const aberto = isProfAbertoAgora(prof);
+
+                  return (
+                    <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
+                          {prof.nome?.[0] || 'P'}
+                        </div>
+
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-lg font-black">{prof.nome}</h3>
+                            <div className={`text-[11px] font-black px-2 py-1 rounded ${
+                              aberto
+                                ? 'bg-green-500/10 border border-green-500/30 text-green-300'
+                                : 'bg-red-500/10 border border-red-500/30 text-red-300'
+                            }`}>
+                              {aberto ? 'ABERTO' : 'FECHADO'}
+                            </div>
+                          </div>
+
+                          {prof.anos_experiencia != null && (
+                            <p className="text-sm text-gray-500 font-bold">{prof.anos_experiencia} anos de experiência</p>
+                          )}
+
+                          <p className="text-xs text-gray-500 font-bold mt-2">
+                            Horário:{' '}
+                            <span className="text-gray-300">
+                              {prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => iniciarAgendamento(prof)}
+                        className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
+                          isProfessional
+                            ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
+                        }`}
+                        disabled={!!isProfessional}
+                      >
+                        <Calendar className="w-5 h-5" />
+                        AGENDAR
+                      </button>
+
+                      {!aberto && (
+                        <div className="mt-3 text-xs text-gray-500 font-bold">
+                          *Este profissional está fora do horário/dia de atendimento agora.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
+
+          {/* SERVIÇOS */}
+          {activeTab === 'servicos' && (
+            <>
+              <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
+
+              {profissionais.length === 0 ? (
+                <div className="text-gray-500 font-bold">Nenhum profissional cadastrado.</div>
+              ) : (
+                <div className="space-y-4">
+                  {profissionais.map(p => {
+                    const lista = servicosPorProfissional.get(p.id) || [];
+                    return (
+                      <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div className="font-black text-lg">{p.nome}</div>
+                          <div className="text-xs text-gray-500 font-bold">{lista.length} serviços</div>
+                        </div>
+
+                        {lista.length ? (
+                          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {lista.map(s => (
+                              <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                                <div className="font-black">{s.nome}</div>
+                                <div className="text-xs text-gray-500 font-bold mt-1">
+                                  <Clock className="w-4 h-4 inline mr-1" />
+                                  {s.duracao_minutos} min
+                                </div>
+                                <div className="text-primary font-black text-lg mt-2">
+                                  R$ {s.preco}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* AVALIAÇÕES */}
+          {activeTab === 'avaliacoes' && (
+            <>
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
+                <button
+                  onClick={abrirAvaliar}
+                  disabled={!!isProfessional}
+                  className={`px-5 py-2 border rounded-button font-black text-sm transition-all ${
+                    isProfessional
+                      ? 'bg-dark-200 border-gray-900 text-gray-600 cursor-not-allowed'
+                      : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
+                  }`}
+                >
+                  + Avaliar
+                </button>
+              </div>
+
+              {avaliacoes.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {avaliacoes.map(av => (
+                    <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                          {av.users?.nome?.[0] || 'A'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">{av.users?.nome || 'Cliente'}</p>
+                          {renderStars(av.nota, 14)}
+                        </div>
+                      </div>
+                      {av.comentario && <p className="text-sm text-gray-400">{av.comentario}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">Nenhuma avaliação ainda</p>
+              )}
+            </>
+          )}
+
         </div>
       </section>
 
@@ -738,7 +887,7 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="p-6">
-              {/* STEP 1: DATA */}
+              {/* STEP 1 */}
               {flow.step === 1 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
@@ -761,7 +910,7 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* STEP 2: HORÁRIO */}
+              {/* STEP 2 */}
               {flow.step === 2 && (
                 <div>
                   <button
@@ -804,7 +953,7 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* STEP 3: SERVIÇO FILTRADO */}
+              {/* STEP 3 */}
               {flow.step === 3 && (
                 <div>
                   <button
@@ -855,7 +1004,7 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* STEP 4: CONFIRMAR */}
+              {/* STEP 4 */}
               {flow.step === 4 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
@@ -903,6 +1052,7 @@ export default function Vitrine({ user, userType }) {
                   </div>
                 </div>
               )}
+
             </div>
           </div>
         </div>
