@@ -7,16 +7,48 @@ import {
 import { supabase } from '../supabase';
 
 function timeToMinutes(t) {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+  if (!t) return 0;
+  const [h, m] = String(t).split(':').map(Number);
+  return (h * 60) + (m || 0);
 }
+
 function minutesToTime(min) {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
+
 function addMinutes(time, delta) {
   return minutesToTime(timeToMinutes(time) + delta);
+}
+
+function getNowSP() {
+  // Pega data/hora em America/Sao_Paulo sem depender do fuso do usuário
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date());
+
+  const get = (type) => parts.find(p => p.type === type)?.value;
+  const y = get('year');
+  const mo = get('month');
+  const d = get('day');
+  const hh = get('hour');
+  const mm = get('minute');
+
+  return {
+    date: `${y}-${mo}-${d}`,
+    minutes: (Number(hh) * 60) + Number(mm)
+  };
+}
+
+function roundUpToNextStep(min, step = 30) {
+  return Math.ceil(min / step) * step;
 }
 
 const withTimeout = (promise, ms, label = 'timeout') => {
@@ -40,14 +72,15 @@ export default function Vitrine({ user, userType }) {
 
   const [isFavorito, setIsFavorito] = useState(false);
 
-  // Agendamento
+  // Agendamento (NOVO FLUXO)
+  // step 1 = data, step 2 = horario, step 3 = servico filtrado, step 4 = confirmar
   const [showAgendamento, setShowAgendamento] = useState(false);
   const [flow, setFlow] = useState({
     step: 1,
     profissional: null,
-    servico: null,
     data: '',
-    horario: null,
+    horario: null, // { hora, tipo, slot?, maxMinutos }
+    servico: null,
   });
 
   // Avaliar
@@ -87,6 +120,7 @@ export default function Vitrine({ user, userType }) {
       );
 
       if (barbeariaError) throw barbeariaError;
+
       if (!barbeariaData) {
         setBarbearia(null);
         setProfissionais([]);
@@ -97,6 +131,7 @@ export default function Vitrine({ user, userType }) {
 
       setBarbearia(barbeariaData);
 
+      // Profissionais (RLS já garante que público vê só ativo)
       const { data: profissionaisData, error: profErr } = await withTimeout(
         supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
         7000,
@@ -108,6 +143,7 @@ export default function Vitrine({ user, userType }) {
       setProfissionais(profs);
 
       const profissionalIds = profs.map(p => p.id);
+
       if (profissionalIds.length > 0) {
         const { data: servicosData, error: servErr } = await withTimeout(
           supabase.from('servicos').select('*').in('profissional_id', profissionalIds).eq('ativo', true),
@@ -175,7 +211,6 @@ export default function Vitrine({ user, userType }) {
       alert('Faça login para favoritar');
       return;
     }
-
     if (userType !== 'client') {
       alert('Apenas CLIENTE pode favoritar barbearias.');
       return;
@@ -224,34 +259,38 @@ export default function Vitrine({ user, userType }) {
     setFlow({
       step: 1,
       profissional,
-      servico: null,
       data: '',
-      horario: null
+      horario: null,
+      servico: null
     });
     setShowAgendamento(true);
   };
 
+  // Lista de serviços do profissional selecionado
   const servicosDoProf = useMemo(() => {
     if (!flow.profissional) return [];
     return servicos.filter(s => s.profissional_id === flow.profissional.id);
   }, [servicos, flow.profissional]);
 
+  // Horários disponíveis agora dependem apenas de (profissional + data)
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
   const calcularHorariosDisponiveis = async () => {
-    if (!flow.profissional || !flow.data || !flow.servico) return;
+    if (!flow.profissional || !flow.data) return;
 
     try {
       const inicio = flow.profissional.horario_inicio || '08:00';
       const fim = flow.profissional.horario_fim || '18:00';
 
-      const duracao = Number(flow.servico.duracao_minutos || 0);
-      if (!duracao) {
-        setHorariosDisponiveis([]);
-        return;
-      }
+      const startDay = timeToMinutes(inicio);
+      const endDay = timeToMinutes(fim);
 
-      // ✅ ROBUSTO: busy slots via RPC (não faz SELECT direto em agendamentos)
+      // Hora atual SP (pra bloquear passado quando data=hoje)
+      const nowSP = getNowSP();
+      const isHoje = flow.data === nowSP.date;
+      const minNow = isHoje ? roundUpToNextStep(nowSP.minutes, 30) : -Infinity;
+
+      // Busy slots via RPC
       const { data: ags, error: agErr } = await withTimeout(
         supabase.rpc('get_agendamentos_dia', {
           p_profissional_id: flow.profissional.id,
@@ -262,6 +301,7 @@ export default function Vitrine({ user, userType }) {
       );
       if (agErr) throw agErr;
 
+      // Slots temporários (cancelamentos)
       const { data: slots, error: slotErr } = await withTimeout(
         supabase
           .from('slots_temporarios')
@@ -277,34 +317,64 @@ export default function Vitrine({ user, userType }) {
         console.warn('slots_temporarios indisponível:', slotErr.message);
       }
 
-      const agendamentosValidos = (ags || []).filter(a => !String(a.status || '').includes('cancelado'));
+      const agendamentosValidos = (ags || [])
+        .filter(a => !String(a.status || '').includes('cancelado'))
+        .map(a => ({
+          ini: timeToMinutes(a.hora_inicio),
+          fim: timeToMinutes(a.hora_fim)
+        }))
+        .sort((a, b) => a.ini - b.ini);
 
+      const slotsList = (slots || []).map(s => ({
+        ini: timeToMinutes(s.hora_inicio),
+        fim: timeToMinutes(s.hora_fim),
+        raw: s
+      }));
+
+      // Gera horários em intervalos de 30min
       const horarios = [];
-      let cur = timeToMinutes(inicio);
-      const end = timeToMinutes(fim);
+      let cur = startDay;
 
-      while (cur + duracao <= end) {
+      while (cur < endDay) {
+        // bloqueia passado
+        if (cur < minNow) {
+          cur += 30;
+          continue;
+        }
+
         const hora = minutesToTime(cur);
-        const horaFim = minutesToTime(cur + duracao);
 
-        const conflita = agendamentosValidos.some(a => {
-          const ai = timeToMinutes(a.hora_inicio);
-          const af = timeToMinutes(a.hora_fim);
-          const ni = timeToMinutes(hora);
-          const nf = timeToMinutes(horaFim);
-          return ni < af && nf > ai;
-        });
+        // Se começar dentro de um agendamento existente, pula
+        const conflitaAgora = agendamentosValidos.some(a => cur >= a.ini && cur < a.fim);
+        if (conflitaAgora) {
+          cur += 30;
+          continue;
+        }
 
-        if (!conflita) {
-          const slot = (slots || []).find(s => s.hora_inicio === hora);
+        // Qual o próximo início de agendamento após "cur"?
+        const nextBusyStart = agendamentosValidos
+          .filter(a => a.ini > cur)
+          .map(a => a.ini)
+          .sort((a, b) => a - b)[0];
 
-          if (slot) {
-            const slotFimMin = timeToMinutes(slot.hora_fim);
-            const cabeNoSlot = (cur + duracao) <= slotFimMin;
-            if (cabeNoSlot) horarios.push({ hora, tipo: 'slot', slot });
-          } else {
-            horarios.push({ hora, tipo: 'normal' });
-          }
+        let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
+
+        // Se existir um slot temporário exatamente começando nesse horário, ele vira limite
+        const slotExato = slotsList.find(s => s.ini === cur);
+        if (slotExato) {
+          freeEnd = Math.min(freeEnd, slotExato.fim);
+        }
+
+        const maxMinutos = freeEnd - cur;
+
+        // Só considera horário se tiver pelo menos 15min? (aqui deixo >= 1 minuto)
+        if (maxMinutos > 0) {
+          horarios.push({
+            hora,
+            tipo: slotExato ? 'slot' : 'normal',
+            slot: slotExato ? slotExato.raw : null,
+            maxMinutos
+          });
         }
 
         cur += 30;
@@ -318,9 +388,16 @@ export default function Vitrine({ user, userType }) {
   };
 
   useEffect(() => {
-    if (showAgendamento && flow.step === 3) calcularHorariosDisponiveis();
+    if (showAgendamento && flow.step === 2) calcularHorariosDisponiveis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAgendamento, flow.profissional?.id, flow.data, flow.servico?.id, flow.step]);
+  }, [showAgendamento, flow.profissional?.id, flow.data, flow.step]);
+
+  // Serviços filtrados pelo tempo do horário escolhido
+  const servicosFiltrados = useMemo(() => {
+    if (!flow.horario) return [];
+    const max = Number(flow.horario.maxMinutos || 0);
+    return servicosDoProf.filter(s => Number(s.duracao_minutos || 0) > 0 && Number(s.duracao_minutos) <= max);
+  }, [servicosDoProf, flow.horario]);
 
   const confirmarAgendamento = async () => {
     if (!user || userType !== 'client') {
@@ -329,8 +406,14 @@ export default function Vitrine({ user, userType }) {
     }
 
     try {
+      if (!flow.profissional || !flow.data || !flow.horario || !flow.servico) {
+        alert('Dados incompletos. Refaça o agendamento.');
+        return;
+      }
+
       const horaInicio = flow.horario.hora;
-      const horaFim = addMinutes(horaInicio, Number(flow.servico.duracao_minutos || 0));
+      const duracao = Number(flow.servico.duracao_minutos || 0);
+      const horaFim = addMinutes(horaInicio, duracao);
 
       const { error } = await withTimeout(
         supabase.from('agendamentos').insert({
@@ -655,43 +738,9 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="p-6">
+              {/* STEP 1: DATA */}
               {flow.step === 1 && (
                 <div>
-                  <h3 className="text-xl font-black mb-4">Escolha o Serviço</h3>
-                  <div className="space-y-3">
-                    {servicosDoProf.map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => setFlow(prev => ({ ...prev, servico: s, step: 2 }))}
-                        className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-black">{s.nome}</p>
-                            <p className="text-sm text-gray-500">
-                              <Clock className="w-4 h-4 inline mr-1" />
-                              {s.duracao_minutos} min
-                            </p>
-                          </div>
-                          <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
-                        </div>
-                      </button>
-                    ))}
-                    {servicosDoProf.length === 0 && (
-                      <p className="text-gray-500">Este profissional ainda não tem serviços cadastrados.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {flow.step === 2 && (
-                <div>
-                  <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
-                    className="text-primary mb-4 font-bold"
-                  >
-                    ← Voltar
-                  </button>
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
                   <input
                     type="date"
@@ -703,7 +752,7 @@ export default function Vitrine({ user, userType }) {
                   <button
                     onClick={() => {
                       if (!flow.data) return alert('Selecione uma data.');
-                      setFlow(prev => ({ ...prev, step: 3, horario: null }));
+                      setFlow(prev => ({ ...prev, step: 2, horario: null, servico: null }));
                     }}
                     className="mt-4 w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
                   >
@@ -712,10 +761,11 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {flow.step === 3 && (
+              {/* STEP 2: HORÁRIO */}
+              {flow.step === 2 && (
                 <div>
                   <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 2 }))}
+                    onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
                     className="text-primary mb-4 font-bold"
                   >
                     ← Voltar
@@ -728,21 +778,21 @@ export default function Vitrine({ user, userType }) {
                       {horariosDisponiveis.map((h, i) => (
                         <button
                           key={i}
-                          onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 4 }))}
+                          onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 3, servico: null }))}
                           className="relative p-3 rounded-custom font-bold transition-all bg-dark-200 border border-gray-800 hover:border-primary"
                         >
                           {h.tipo === 'slot' && (
                             <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
                           )}
                           <div className="text-lg">{h.hora}</div>
-                          {h.tipo === 'slot' && (
-                            <div className="text-[10px] text-gray-500">Slot</div>
-                          )}
+                          <div className="text-[10px] text-gray-500">
+                            até {h.maxMinutos}min
+                          </div>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500">Nenhum horário disponível para este serviço nessa data.</p>
+                    <p className="text-gray-500">Nenhum horário disponível nessa data.</p>
                   )}
 
                   <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
@@ -754,6 +804,58 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 3: SERVIÇO FILTRADO */}
+              {flow.step === 3 && (
+                <div>
+                  <button
+                    onClick={() => setFlow(prev => ({ ...prev, step: 2, servico: null }))}
+                    className="text-primary mb-4 font-bold"
+                  >
+                    ← Voltar
+                  </button>
+
+                  <h3 className="text-xl font-black mb-4">
+                    Escolha o Serviço <span className="text-sm text-gray-500">(cabe até {flow.horario?.maxMinutos} min)</span>
+                  </h3>
+
+                  {servicosFiltrados.length > 0 ? (
+                    <div className="space-y-3">
+                      {servicosFiltrados.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => setFlow(prev => ({ ...prev, servico: s, step: 4 }))}
+                          className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-black">{s.nome}</p>
+                              <p className="text-sm text-gray-500">
+                                <Clock className="w-4 h-4 inline mr-1" />
+                                {s.duracao_minutos} min
+                              </p>
+                            </div>
+                            <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">
+                      Nenhum serviço cabe nesse horário.
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setFlow(prev => ({ ...prev, step: 2, servico: null }))}
+                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button font-bold"
+                        >
+                          Escolher outro horário
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 4: CONFIRMAR */}
               {flow.step === 4 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
@@ -764,16 +866,16 @@ export default function Vitrine({ user, userType }) {
                       <span className="font-bold">{flow.profissional?.nome}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Serviço:</span>
-                      <span className="font-bold">{flow.servico?.nome}</span>
-                    </div>
-                    <div className="flex justify-between">
                       <span className="text-gray-500">Data:</span>
                       <span className="font-bold">{new Date(flow.data).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Horário:</span>
                       <span className="font-bold">{flow.horario?.hora}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Serviço:</span>
+                      <span className="font-bold">{flow.servico?.nome}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Duração:</span>
