@@ -547,7 +547,7 @@ export default function Vitrine({ user, userType }) {
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
           <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
-          <Link to="/" className="text-primary hover:text-yellow-500 font-bold">← Voltar para Home</Link>
+          <Link to="/" className="text-primary hover:text-yellow-500 font-bold">Voltar para Home</Link>
         </div>
       </div>
     );
@@ -565,28 +565,28 @@ export default function Vitrine({ user, userType }) {
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors font-bold"
+              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">Voltar</span>
+              <span className="hidden sm:inline">VOLTAR</span>
             </button>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={abrirAvaliar}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all bg-dark-200 border ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all bg-dark-200 border ${
                   isProfessional ? 'border-gray-900 text-gray-600 cursor-not-allowed' : 'border-gray-800 text-gray-300 hover:border-primary'
                 }`}
               >
                 <Star className="w-5 h-5 text-primary" />
-                <span className="hidden sm:inline">Avaliar</span>
+                <span className="hidden sm:inline">AVALIAR</span>
               </button>
 
               <button
                 onClick={toggleFavorito}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button font-bold transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all ${
                   isProfessional
                     ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
                     : isFavorito
@@ -596,7 +596,7 @@ export default function Vitrine({ user, userType }) {
               >
                 <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
                 <span className="hidden sm:inline">
-                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'Favoritado' : 'Favoritar')}
+                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
                 </span>
               </button>
             </div>
@@ -757,13 +757,13 @@ export default function Vitrine({ user, userType }) {
             <button
               onClick={abrirAvaliar}
               disabled={!!isProfessional}
-              className={`px-5 py-2 border rounded-button font-black text-sm transition-all ${
+              className={`px-5 py-2 border rounded-button font-normal text-sm transition-all ${
                 isProfessional
                   ? 'bg-dark-100 border-gray-900 text-gray-600 cursor-not-allowed'
                   : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
               }`}
             >
-              + Avaliar
+              + AVALIAR
             </button>
           </div>
 
@@ -795,7 +795,7 @@ export default function Vitrine({ user, userType }) {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-dark-100 border-b border-gray-800 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-black">Agendar com {flow.profissional?.nome}</h2>
+              <h2 className="text-2xl font-normal">Agendar com {flow.profissional?.nome}</h2>
               <button onClick={() => setShowAgendamento(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
@@ -832,7 +832,7 @@ export default function Vitrine({ user, userType }) {
                     onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
                     className="text-primary mb-4 font-bold"
                   >
-                    ← Voltar
+                    Voltar
                   </button>
 
                   <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
@@ -873,9 +873,9 @@ export default function Vitrine({ user, userType }) {
                 <div>
                   <button
                     onClick={() => setFlow(prev => ({ ...prev, step: 2, servico: null }))}
-                    className="text-primary mb-4 font-bold"
+                    className="text-primary mb-4"
                   >
-                    ← Voltar
+                    VOLTAR
                   </button>
 
                   <h3 className="text-xl font-black mb-4">
@@ -956,7 +956,7 @@ export default function Vitrine({ user, userType }) {
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
                       className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold"
                     >
-                      Voltar
+                      VOLTAR
                     </button>
                     <button
                       onClick={confirmarAgendamento}
