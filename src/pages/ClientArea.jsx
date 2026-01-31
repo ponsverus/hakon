@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Heart, History, User, LogOut, Star, Clock, MapPin, X } from 'lucide-react';
+import { Calendar, Heart, History, User, LogOut, X, Camera } from 'lucide-react';
 import { supabase } from '../supabase';
 
 export default function ClientArea({ user, onLogout }) {
@@ -8,15 +8,34 @@ export default function ClientArea({ user, onLogout }) {
   const [agendamentos, setAgendamentos] = useState([]);
   const [favoritos, setFavoritos] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Perfil
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!user?.id) return;
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const loadData = async () => {
     try {
-      // Buscar agendamentos
+      setLoading(true);
+
+      // 1) Perfil (avatar_url)
+      const { data: profileData, error: profileErr } = await supabase
+        .from('users')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!profileErr) setAvatarUrl(profileData?.avatar_url || null);
+
+      // 2) Agendamentos
       const { data: agendamentosData } = await supabase
         .from('agendamentos')
         .select(`
@@ -32,7 +51,7 @@ export default function ClientArea({ user, onLogout }) {
 
       setAgendamentos(agendamentosData || []);
 
-      // Buscar favoritos
+      // 3) Favoritos
       const { data: favoritosData } = await supabase
         .from('favoritos')
         .select(`
@@ -43,7 +62,6 @@ export default function ClientArea({ user, onLogout }) {
         .eq('cliente_id', user.id);
 
       setFavoritos(favoritosData || []);
-
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -102,15 +120,83 @@ export default function ClientArea({ user, onLogout }) {
 
   const getStatusText = (status) => {
     const statusMap = {
-      'agendado': 'Agendado',
-      'confirmado': 'Confirmado',
-      'concluido': 'Concluído',
-      'cancelado_cliente': 'Cancelado',
-      'cancelado_profissional': 'Cancelado',
-      'nao_compareceu': 'Não compareceu'
+      agendado: 'Agendado',
+      confirmado: 'Confirmado',
+      concluido: 'Concluído',
+      cancelado_cliente: 'Cancelado',
+      cancelado_profissional: 'Cancelado',
+      nao_compareceu: 'Não compareceu'
     };
     return statusMap[status] || status;
   };
+
+  // ====== FOTO DE PERFIL ======
+  const openFilePicker = () => fileInputRef.current?.click();
+
+  const onPickAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limpa input pra permitir escolher o mesmo arquivo de novo
+    e.target.value = '';
+
+    // Validações simples (seguras)
+    const maxMb = 3;
+    const okTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+    if (!okTypes.includes(file.type)) {
+      alert('❌ Formato inválido. Use PNG, JPG ou WEBP.');
+      return;
+    }
+    if (file.size > maxMb * 1024 * 1024) {
+      alert(`❌ Imagem muito grande. Máx: ${maxMb}MB.`);
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+
+      // Nome do arquivo (único)
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const path = `${user.id}/${Date.now()}.${ext}`;
+
+      // Upload no bucket avatars
+      const { error: upErr } = await supabase
+        .storage
+        .from('avatars')
+        .upload(path, file, { upsert: true });
+
+      if (upErr) throw upErr;
+
+      // URL pública (bucket public)
+      const { data: pub } = supabase
+        .storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      const url = pub?.publicUrl;
+      if (!url) throw new Error('Não foi possível obter a URL pública.');
+
+      // Salvar no profile (tabela users)
+      const { error: updErr } = await supabase
+        .from('users')
+        .update({ avatar_url: url })
+        .eq('id', user.id);
+
+      if (updErr) throw updErr;
+
+      setAvatarUrl(url);
+      alert('✅ Foto atualizada!');
+    } catch (err) {
+      console.error('Erro ao atualizar avatar:', err);
+      alert('❌ Erro ao atualizar foto. Veja o console.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const nome = user?.user_metadata?.nome || 'Cliente';
+  const avatarFallback = nome?.[0]?.toUpperCase() || 'C';
 
   if (loading) {
     return (
@@ -126,32 +212,68 @@ export default function ClientArea({ user, onLogout }) {
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
+
             <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-custom flex items-center justify-center">
-                <User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-custom overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white font-black">{avatarFallback}</span>
+                )}
               </div>
+
               <div className="hidden sm:block">
                 <h1 className="text-xl sm:text-2xl font-normal">MINHA ÁREA</h1>
                 <p className="text-xs text-blue-400 -mt-1">CLIENTE</p>
               </div>
             </Link>
 
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-button text-sm transition-all"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">SAIR</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onPickAvatar}
+                className="hidden"
+              />
+
+              <button
+                onClick={openFilePicker}
+                disabled={uploadingAvatar}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
+              >
+                <Camera className="w-4 h-4 text-primary" />
+                {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
+              </button>
+
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-button text-sm transition-all"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">SAIR</span>
+              </button>
+            </div>
+
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
-        <div className="mb-8">
-          <h2 className="text-3xl sm:text-4xl font-normal mb-2">Olá, {user.user_metadata?.nome || 'Cliente'} :)</h2>
-          <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
+        <div className="mb-8 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-3xl sm:text-4xl font-normal mb-2">Olá, {nome} :)</h2>
+            <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
+          </div>
+
+          <button
+            onClick={openFilePicker}
+            disabled={uploadingAvatar}
+            className="sm:hidden px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-sm"
+          >
+            {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
+          </button>
         </div>
 
         {/* Quick Actions */}
@@ -291,8 +413,8 @@ export default function ClientArea({ user, onLogout }) {
                 {favoritos.length > 0 ? (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {favoritos.map(favorito => {
-                      const nome = favorito.tipo === 'barbearia' 
-                        ? favorito.barbearias?.nome 
+                      const nomeFav = favorito.tipo === 'barbearia'
+                        ? favorito.barbearias?.nome
                         : favorito.profissionais?.nome;
                       const slug = favorito.tipo === 'barbearia'
                         ? favorito.barbearias?.slug
@@ -314,7 +436,7 @@ export default function ClientArea({ user, onLogout }) {
                             <div className="w-12 h-12 bg-primary/20 rounded-custom flex items-center justify-center mb-3">
                               <Heart className="w-6 h-6 text-primary fill-current" />
                             </div>
-                            <h3 className="text-lg font-black text-white mb-1">{nome}</h3>
+                            <h3 className="text-lg font-black text-white mb-1">{nomeFav}</h3>
                             <p className="text-xs text-gray-500 font-bold uppercase">{favorito.tipo}</p>
                           </div>
 
@@ -346,6 +468,7 @@ export default function ClientArea({ user, onLogout }) {
             )}
           </div>
         </div>
+
       </div>
     </div>
   );
