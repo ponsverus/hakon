@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Trash2, X, ExternalLink, Eye, Copy, Check, Calendar, DollarSign,
@@ -13,6 +13,54 @@ const toNumberOrNull = (v) => {
 };
 
 const sameDay = (a, b) => String(a || '') === String(b || '');
+
+function timeToMinutes(t) {
+  if (!t) return 0;
+  const [h, m] = String(t).split(':').map(Number);
+  return (h * 60) + (m || 0);
+}
+
+function getNowSP() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date());
+
+  const get = (type) => parts.find(p => p.type === type)?.value;
+  const y = get('year');
+  const mo = get('month');
+  const d = get('day');
+  const hh = get('hour');
+  const mm = get('minute');
+
+  const date = `${y}-${mo}-${d}`;
+  const minutes = (Number(hh) * 60) + Number(mm);
+
+  // weekday em SP:
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'short'
+  }).format(new Date());
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dow = map[weekday] ?? new Date().getDay();
+
+  return { date, minutes, dow };
+}
+
+const WEEKDAYS = [
+  { i: 0, label: 'DOM' },
+  { i: 1, label: 'SEG' },
+  { i: 2, label: 'TER' },
+  { i: 3, label: 'QUA' },
+  { i: 4, label: 'QUI' },
+  { i: 5, label: 'SEX' },
+  { i: 6, label: 'SÁB' },
+];
 
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
@@ -39,6 +87,9 @@ export default function Dashboard({ user, onLogout }) {
   const [editingServicoId, setEditingServicoId] = useState(null);
   const [editingProfissional, setEditingProfissional] = useState(null);
 
+  // Logo
+  const [logoUploading, setLogoUploading] = useState(false);
+
   // Forms
   const [formServico, setFormServico] = useState({
     nome: '',
@@ -51,14 +102,16 @@ export default function Dashboard({ user, onLogout }) {
     nome: '',
     anos_experiencia: '',
     horario_inicio: '08:00',
-    horario_fim: '18:00'
+    horario_fim: '18:00',
+    dias_semana: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
   });
 
   const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
 
-  // ✅ Logo (upload + render redondo)
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const logoInputRef = useRef(null);
+  // detecta se existe a coluna dias_semana (pra não quebrar se não tiver)
+  const supportsDiasSemana = useMemo(() => {
+    return profissionais.some(p => Object.prototype.hasOwnProperty.call(p, 'dias_semana'));
+  }, [profissionais]);
 
   useEffect(() => {
     if (user?.id) loadData();
@@ -127,7 +180,7 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos (traz tudo recente, e a UI filtra por data)
+      // Agendamentos (traz recente, UI filtra por data)
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -145,9 +198,7 @@ export default function Dashboard({ user, onLogout }) {
         for (const a of ags) {
           if (a?.status === 'agendado' || a?.status === 'confirmado') {
             const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
-            if (dataHoraFim < agora) {
-              toUpdate.push(a.id);
-            }
+            if (dataHoraFim < agora) toUpdate.push(a.id);
           }
         }
 
@@ -187,63 +238,55 @@ export default function Dashboard({ user, onLogout }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // ✅ Upload da logo (bucket: avatars)
-  const onPickLogo = () => {
-    if (uploadingLogo) return;
-    logoInputRef.current?.click();
-  };
-
-  const handleUploadLogo = async (file) => {
+  // ===================== LOGO (upload + salvar URL) =====================
+  const uploadLogoBarbearia = async (file) => {
     if (!file) return;
-    if (!barbearia?.id) {
-      alert('Barbearia não carregada.');
-      return;
-    }
+    if (!user?.id) return alert('Sessão inválida.');
+    if (!barbearia?.id) return alert('Barbearia não carregada.');
 
-    const allowed = ['image/png', 'image/jpeg', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      alert('Use PNG, JPG ou WEBP.');
-      return;
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      alert('Imagem muito grande. Máx 3MB.');
-      return;
-    }
-
-    setUploadingLogo(true);
     try {
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `barbearias/${barbearia.id}/logo-${Date.now()}.${ext}`;
+      setLogoUploading(true);
+
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const filePath = `${user.id}/logo-${Date.now()}.${ext}`; // <= precisa cair na policy own_folder
 
       const { error: upErr } = await supabase
         .storage
-        .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .from('logos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || 'image/png'
+        });
 
       if (upErr) throw upErr;
 
-      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
-      const logoUrl = pub?.publicUrl || null;
+      const { data: pub } = supabase
+        .storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      const publicUrl = pub?.publicUrl;
+      if (!publicUrl) throw new Error('Não foi possível gerar a URL pública da logo.');
 
       const { error: dbErr } = await supabase
         .from('barbearias')
-        .update({ logo_url: logoUrl })
+        .update({ logo_url: publicUrl })
         .eq('id', barbearia.id);
 
       if (dbErr) throw dbErr;
 
-      setBarbearia(prev => prev ? ({ ...prev, logo_url: logoUrl }) : prev);
       alert('✅ Logo atualizada!');
+      await loadData();
     } catch (e) {
-      console.error('Erro logo:', e);
+      console.error('Erro ao atualizar logo:', e);
       alert('❌ Erro ao atualizar logo: ' + (e?.message || ''));
     } finally {
-      setUploadingLogo(false);
-      if (logoInputRef.current) logoInputRef.current.value = '';
+      setLogoUploading(false);
     }
   };
 
-  // ========= SERVIÇOS =========
+  // ===================== SERVIÇOS =====================
   const createServico = async (e) => {
     e.preventDefault();
     try {
@@ -268,6 +311,7 @@ export default function Dashboard({ user, onLogout }) {
 
       alert('✅ Serviço criado!');
       setShowNovoServico(false);
+      setEditingServicoId(null);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       await loadData();
     } catch (e2) {
@@ -299,6 +343,7 @@ export default function Dashboard({ user, onLogout }) {
       if (error) throw error;
 
       alert('✅ Serviço atualizado!');
+      setShowNovoServico(false);
       setEditingServicoId(null);
       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
       await loadData();
@@ -321,7 +366,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ========= PROFISSIONAIS =========
+  // ===================== PROFISSIONAIS =====================
   const createProfissional = async (e) => {
     e.preventDefault();
     try {
@@ -335,6 +380,11 @@ export default function Dashboard({ user, onLogout }) {
         horario_fim: formProfissional.horario_fim,
       };
 
+      // só tenta salvar dias_semana se a coluna existir (pra não quebrar)
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
+
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
       const { error } = await supabase.from('profissionais').insert([payload]);
@@ -342,7 +392,8 @@ export default function Dashboard({ user, onLogout }) {
 
       alert('✅ Profissional adicionado!');
       setShowNovoProfissional(false);
-      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00' });
+      setEditingProfissional(null);
+      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
@@ -353,12 +404,18 @@ export default function Dashboard({ user, onLogout }) {
   const updateProfissional = async (e) => {
     e.preventDefault();
     try {
+      if (!editingProfissional?.id) throw new Error('Profissional inválido.');
+
       const payload = {
         nome: String(formProfissional.nome || '').trim(),
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
       };
+
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
@@ -370,6 +427,7 @@ export default function Dashboard({ user, onLogout }) {
       if (error) throw error;
 
       alert('✅ Profissional atualizado!');
+      setShowNovoProfissional(false);
       setEditingProfissional(null);
       await loadData();
     } catch (e2) {
@@ -378,7 +436,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ✅ Ativar/Inativar + Excluir (COMPLETO + RESPONSIVO)
+  // ✅ Ativar / Inativar + motivo
   const toggleAtivoProfissional = async (p) => {
     try {
       if (p.ativo === undefined) {
@@ -387,6 +445,7 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       const novoAtivo = !p.ativo;
+
       let motivo = null;
       if (!novoAtivo) motivo = prompt('Motivo (opcional) para inativar este profissional:') || null;
 
@@ -428,7 +487,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ========= AGENDAMENTOS =========
+  // ===================== AGENDAMENTOS =====================
   const confirmarAtendimento = async (id) => {
     try {
       const { error } = await supabase
@@ -446,7 +505,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ======= DADOS CALCULADOS (Visão Geral + Histórico) =======
+  // ======= Visão Geral + Histórico =======
   const agendamentosHoje = useMemo(
     () => agendamentos.filter(a => sameDay(a.data, hoje)),
     [agendamentos, hoje]
@@ -485,7 +544,7 @@ export default function Dashboard({ user, onLogout }) {
 
   const proximoAgendamento = useMemo(() => {
     const now = new Date();
-    const nowTime = now.toTimeString().slice(0, 5); // HH:MM
+    const nowTime = now.toTimeString().slice(0, 5);
 
     const futuros = hojeValidos
       .filter(a => String(a.hora_inicio || '') >= nowTime)
@@ -499,6 +558,27 @@ export default function Dashboard({ user, onLogout }) {
       .filter(a => sameDay(a.data, historicoData))
       .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
   }, [agendamentos, historicoData]);
+
+  // ======= Status do profissional (luz verde/vermelha) =======
+  const getProfStatus = (p) => {
+    const ativo = (p.ativo === undefined) ? true : !!p.ativo;
+    if (!ativo) return { label: 'INATIVO', color: 'bg-red-500' };
+
+    const now = getNowSP();
+    const ini = timeToMinutes(p.horario_inicio || '08:00');
+    const fim = timeToMinutes(p.horario_fim || '18:00');
+
+    // se não tiver dias_semana, assume todos
+    const dias = (Array.isArray(p.dias_semana) && p.dias_semana.length)
+      ? p.dias_semana
+      : [0,1,2,3,4,5,6];
+
+    const trabalhaHoje = dias.includes(now.dow);
+    const dentroHorario = now.minutes >= ini && now.minutes < fim;
+
+    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
+    return { label: 'FECHADO', color: 'bg-yellow-500' };
+  };
 
   // ====== UI ======
   if (loading) return (
@@ -533,16 +613,12 @@ export default function Dashboard({ user, onLogout }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              {/* ✅ LOGO redonda + fallback */}
+              {/* Logo redonda no header */}
               <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {barbearia.logo_url ? (
-                  <img
-                    src={barbearia.logo_url}
-                    alt="Logo"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={barbearia.logo_url} alt="Logo" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
                     <Award className="w-7 h-7 text-black" />
                   </div>
                 )}
@@ -552,60 +628,49 @@ export default function Dashboard({ user, onLogout }) {
                 <h1 className="text-xl font-black">{barbearia.nome}</h1>
                 <p className="text-xs text-gray-500 font-bold -mt-1">DASHBOARD</p>
               </div>
-
-              {/* ✅ Botão de alterar logo (sem mexer na Visão Geral) */}
-              <div className="hidden sm:block">
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={(e) => handleUploadLogo(e.target.files?.[0])}
-                  disabled={uploadingLogo}
-                />
-                <button
-                  onClick={onPickLogo}
-                  className={`ml-3 px-4 py-2 rounded-button font-black text-xs border ${
-                    uploadingLogo
-                      ? 'bg-gray-800 border-gray-700 text-gray-400'
-                      : 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
-                  }`}
-                >
-                  {uploadingLogo ? 'ENVIANDO...' : 'ALTERAR LOGO'}
-                </button>
-              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link to={`/v/${barbearia.slug}`} target="_blank" className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button font-bold text-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to={`/v/${barbearia.slug}`}
+                target="_blank"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button font-bold text-sm"
+              >
                 <Eye className="w-4 h-4" />Ver Vitrine
               </Link>
-              <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm">
+
+              {/* Botão LOGO no header (pequeno no mobile) */}
+              <label className="inline-block">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => uploadLogoBarbearia(e.target.files?.[0])}
+                  disabled={logoUploading}
+                />
+                <span
+                  className={`inline-block rounded-button font-black border transition-all ${
+                    logoUploading
+                      ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+                      : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
+                  }
+                  px-3 py-2 text-[11px]
+                  sm:px-4 sm:py-2 sm:text-sm
+                  `}
+                >
+                  {/* Mobile: curto e discreto / Desktop: mais explícito */}
+                  <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
+                  <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
+                </span>
+              </label>
+
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
+              >
                 <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Sair</span>
               </button>
             </div>
-          </div>
-
-          {/* ✅ Botão logo no mobile (aparece abaixo) */}
-          <div className="sm:hidden pb-4">
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => handleUploadLogo(e.target.files?.[0])}
-              disabled={uploadingLogo}
-            />
-            <button
-              onClick={onPickLogo}
-              className={`w-full px-4 py-3 rounded-button font-black text-sm border ${
-                uploadingLogo
-                  ? 'bg-gray-800 border-gray-700 text-gray-400'
-                  : 'bg-primary/20 border-primary/50 text-primary hover:bg-primary/30'
-              }`}
-            >
-              {uploadingLogo ? 'ENVIANDO...' : 'ALTERAR LOGO'}
-            </button>
           </div>
         </div>
       </header>
@@ -647,7 +712,10 @@ export default function Dashboard({ user, onLogout }) {
               readOnly
               className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white text-sm"
             />
-            <button onClick={copyLink} className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-bold text-sm flex items-center gap-2">
+            <button
+              onClick={copyLink}
+              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-bold text-sm flex items-center gap-2"
+            >
               {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
               {copied ? 'Copiado!' : 'Copiar'}
             </button>
@@ -671,7 +739,7 @@ export default function Dashboard({ user, onLogout }) {
           </div>
 
           <div className="p-6">
-            {/* VISÃO GERAL (INTACTA como no seu código) */}
+            {/* VISÃO GERAL */}
             {activeTab === 'visao-geral' && (
               <div className="space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
@@ -732,7 +800,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <div className="text-sm text-gray-500 font-bold">
-                  Dica: essa visão geral agora “reflete movimento real” e ajuda você a bater o olho e entender o dia.
+                  Dica: essa visão geral “reflete movimento real” e te ajuda a bater o olho e entender o dia.
                 </div>
               </div>
             )}
@@ -830,7 +898,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* HISTÓRICO (ABA PRÓPRIA como no seu código) */}
+            {/* HISTÓRICO */}
             {activeTab === 'historico' && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -897,7 +965,14 @@ export default function Dashboard({ user, onLogout }) {
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-black">Serviços</h2>
-                  <button onClick={() => setShowNovoServico(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold">
+                  <button
+                    onClick={() => {
+                      setShowNovoServico(true);
+                      setEditingServicoId(null);
+                      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                  >
                     <Plus className="w-5 h-5" />Novo Serviço
                   </button>
                 </div>
@@ -947,7 +1022,11 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="text-center py-12">
                     <p className="text-gray-500 mb-4">Nenhum serviço cadastrado</p>
                     <button
-                      onClick={() => setShowNovoServico(true)}
+                      onClick={() => {
+                        setShowNovoServico(true);
+                        setEditingServicoId(null);
+                        setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                      }}
                       className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                     >
                       Adicionar Primeiro Serviço
@@ -957,13 +1036,17 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* PROFISSIONAIS (com Ativar/Inativar/Excluir) */}
+            {/* PROFISSIONAIS */}
             {activeTab === 'profissionais' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-black">Profissionais</h2>
                   <button
-                    onClick={() => setShowNovoProfissional(true)}
+                    onClick={() => {
+                      setShowNovoProfissional(true);
+                      setEditingProfissional(null);
+                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+                    }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                   >
                     <Plus className="w-5 h-5" />Adicionar
@@ -973,6 +1056,7 @@ export default function Dashboard({ user, onLogout }) {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {profissionais.map(p => {
                     const ativo = (p.ativo === undefined) ? true : !!p.ativo;
+                    const status = getProfStatus(p);
 
                     return (
                       <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
@@ -989,8 +1073,15 @@ export default function Dashboard({ user, onLogout }) {
                                 </span>
                               )}
                             </h3>
+
+                            {/* luz status */}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
+                              <span className="text-xs text-gray-400 font-bold">{status.label}</span>
+                            </div>
+
                             {p.anos_experiencia != null && (
-                              <p className="text-xs text-gray-500 font-bold">{p.anos_experiencia} anos</p>
+                              <p className="text-xs text-gray-500 font-bold mt-1">{p.anos_experiencia} anos</p>
                             )}
                           </div>
                         </div>
@@ -1004,24 +1095,24 @@ export default function Dashboard({ user, onLogout }) {
                           {p.horario_inicio} - {p.horario_fim}
                         </div>
 
-                        {/* ✅ Botões responsivos (no mobile não some) */}
-                        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                        {/* ✅ Ativar / Inativar / Excluir */}
+                        <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => toggleAtivoProfissional(p)}
-                            className={`w-full sm:flex-1 py-2 rounded-custom font-bold text-sm border ${
+                            className={`flex-1 py-2 rounded-custom font-bold text-sm border ${
                               ativo
                                 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
                                 : 'bg-green-500/10 border-green-500/30 text-green-300'
                             }`}
                           >
-                            {ativo ? 'INATIVAR' : 'ATIVAR'}
+                            {ativo ? 'Inativar' : 'Ativar'}
                           </button>
 
                           <button
                             onClick={() => excluirProfissional(p)}
-                            className="w-full sm:flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom font-bold text-sm"
+                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom font-bold text-sm"
                           >
-                            EXCLUIR
+                            Excluir
                           </button>
                         </div>
 
@@ -1038,7 +1129,8 @@ export default function Dashboard({ user, onLogout }) {
                               nome: p.nome || '',
                               anos_experiencia: String(p.anos_experiencia ?? ''),
                               horario_inicio: p.horario_inicio || '08:00',
-                              horario_fim: p.horario_fim || '18:00'
+                              horario_fim: p.horario_fim || '18:00',
+                              dias_semana: Array.isArray(p.dias_semana) && p.dias_semana.length ? p.dias_semana : [1,2,3,4,5,6],
                             });
                             setShowNovoProfissional(true);
                           }}
@@ -1050,9 +1142,15 @@ export default function Dashboard({ user, onLogout }) {
                     );
                   })}
                 </div>
+
+                {!supportsDiasSemana && (
+                  <div className="mt-6 text-xs text-gray-500 font-bold bg-dark-200 border border-gray-800 rounded-custom p-4">
+                    Observação: “Dias de trabalho” está pronto no painel, mas sua tabela <b>profissionais</b> ainda não tem a coluna <b>dias_semana</b>.
+                    Quando você criar essa coluna, o painel passa a salvar e refletir automaticamente.
+                  </div>
+                )}
               </div>
             )}
-
           </div>
         </div>
       </div>
@@ -1084,7 +1182,11 @@ export default function Dashboard({ user, onLogout }) {
                   required
                 >
                   <option value="">Selecione</option>
-                  {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  {profissionais
+                    .filter(p => (p.ativo === undefined ? true : !!p.ativo))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
                 </select>
               </div>
 
@@ -1140,13 +1242,14 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => {
                   setShowNovoProfissional(false);
                   setEditingProfissional(null);
-                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00' });
+                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
                 }}
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
+            {/* ✅ FIX do bug: submit correto (SALVAR quando editando, ADICIONAR quando novo) */}
             <form onSubmit={editingProfissional ? updateProfissional : createProfissional} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold mb-2">Nome</label>
@@ -1190,6 +1293,38 @@ export default function Dashboard({ user, onLogout }) {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Dias de trabalho (só “ativa de verdade” quando existir coluna dias_semana) */}
+              <div>
+                <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
+                <div className="grid grid-cols-7 gap-2">
+                  {WEEKDAYS.map(d => {
+                    const active = (formProfissional.dias_semana || []).includes(d.i);
+                    return (
+                      <button
+                        type="button"
+                        key={d.i}
+                        onClick={() => {
+                          const cur = Array.isArray(formProfissional.dias_semana) ? [...formProfissional.dias_semana] : [];
+                          const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
+                          setFormProfissional(prev => ({ ...prev, dias_semana: next.sort((a,b)=>a-b) }));
+                        }}
+                        className={`py-2 rounded-custom border font-black text-xs transition-all ${
+                          active
+                            ? 'bg-primary/20 border-primary/50 text-primary'
+                            : 'bg-dark-200 border-gray-800 text-gray-500'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-gray-500 font-bold mt-2">
+                  Se a coluna <b>dias_semana</b> ainda não existir no banco, isso fica só no visual por enquanto.
+                </p>
               </div>
 
               <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
