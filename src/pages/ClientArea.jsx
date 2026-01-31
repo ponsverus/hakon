@@ -115,7 +115,7 @@ export default function ClientArea({ user, onLogout }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-bold animate-pulse">Carregando...</div>
+        <div className="text-primary text-2xl animate-pulse">CARREGANDO...</div>
       </div>
     );
   }
