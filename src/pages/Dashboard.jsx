@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Trash2, X, ExternalLink, Eye, Copy, Check, Calendar,
-  Users, TrendingUp, Award, LogOut, AlertCircle, Clock, Image as ImageIcon, Save
+  Users, TrendingUp, Award, LogOut, AlertCircle, Clock,
+  Image as ImageIcon, Save
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -41,6 +42,7 @@ function getNowSP() {
   const date = `${y}-${mo}-${d}`;
   const minutes = (Number(hh) * 60) + Number(mm);
 
+  // weekday em SP:
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
     weekday: 'short'
@@ -82,6 +84,23 @@ function formatDateBRFromISO(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
+// ✅ INPUT DATE “BOTÃO” (sem setinha) + bolinha amarela só visual
+function DateFilterButton({ value, onChange, title }) {
+  return (
+    <div className="relative inline-flex">
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        title={title}
+        className="date-no-arrow px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-xs font-bold text-center pr-10 w-[160px] cursor-pointer"
+      />
+      {/* bolinha amarela no lugar da setinha (não captura clique) */}
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-yellow-400" />
+    </div>
+  );
+}
+
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
 
@@ -99,7 +118,7 @@ export default function Dashboard({ user, onLogout }) {
   const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
 
-  // ✅ Data do filtro de faturamento (agora usado na VISÃO GERAL)
+  // ✅ Filtro de faturamento (AGORA usado na VISÃO GERAL)
   const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
@@ -121,7 +140,7 @@ export default function Dashboard({ user, onLogout }) {
     profissional_id: ''
   });
 
-  // ✅ agora é dias_trabalho (coluna real)
+  // ✅ dias_trabalho (coluna real) — NÃO MEXIDO
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
     anos_experiencia: '',
@@ -143,8 +162,6 @@ export default function Dashboard({ user, onLogout }) {
     facebook: '',
     galerias: [] // array de URLs
   });
-
-  const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
 
   useEffect(() => {
     if (user?.id) loadData();
@@ -182,6 +199,7 @@ export default function Dashboard({ user, onLogout }) {
 
       setBarbearia(barbeariaData);
 
+      // ✅ preenche form de info
       setFormInfo({
         nome: barbeariaData.nome || '',
         descricao: barbeariaData.descricao || '',
@@ -192,6 +210,7 @@ export default function Dashboard({ user, onLogout }) {
         galerias: Array.isArray(barbeariaData.galerias) ? barbeariaData.galerias : []
       });
 
+      // Profissionais
       const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
         .select('*')
@@ -212,6 +231,7 @@ export default function Dashboard({ user, onLogout }) {
 
       const ids = profs.map(p => p.id);
 
+      // Serviços
       const { data: servicosData, error: servErr } = await supabase
         .from('servicos')
         .select('*, profissionais (nome)')
@@ -221,6 +241,7 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
+      // Agendamentos
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -230,6 +251,7 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
+      // Auto-concluir passados (sem travar UI)
       if (ags?.length) {
         const agora = new Date();
         const toUpdate = [];
@@ -277,7 +299,7 @@ export default function Dashboard({ user, onLogout }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // ===================== LOGO =====================
+  // ===================== LOGO (upload + salvar URL) =====================
   const uploadLogoBarbearia = async (file) => {
     if (!file) return;
     if (!user?.id) return alert('Sessão inválida.');
@@ -541,7 +563,7 @@ export default function Dashboard({ user, onLogout }) {
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias.length ? dias : [1,2,3,4,5,6],
+        dias_trabalho: dias.length ? dias : [1, 2, 3, 4, 5, 6],
       };
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
@@ -552,7 +574,13 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Profissional adicionado!');
       setShowNovoProfissional(false);
       setEditingProfissional(null);
-      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
+      setFormProfissional({
+        nome: '',
+        anos_experiencia: '',
+        horario_inicio: '08:00',
+        horario_fim: '18:00',
+        dias_trabalho: [1, 2, 3, 4, 5, 6]
+      });
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
@@ -572,7 +600,7 @@ export default function Dashboard({ user, onLogout }) {
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias, // ✅ NÃO MEXIDO
+        dias_trabalho: dias, // ✅ salva domingo=0
       };
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
@@ -594,7 +622,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ✅ Ativar / Inativar + motivo (cancelar não executa)
+  // ✅ Ativar / Inativar + motivo (corrigido: CANCELAR não aplica)
   const toggleAtivoProfissional = async (p) => {
     try {
       if (p.ativo === undefined) {
@@ -604,18 +632,16 @@ export default function Dashboard({ user, onLogout }) {
 
       const novoAtivo = !p.ativo;
 
-      const ok = confirm(novoAtivo ? 'Ativar este profissional?' : 'Inativar este profissional?');
-      if (!ok) return;
-
       let motivo = null;
 
+      // Se vai INATIVAR, abrir prompt. Se cancelar, NÃO FAZ NADA.
       if (!novoAtivo) {
-        const resp = prompt('Motivo (opcional) para inativar este profissional:');
-        if (resp === null) return; // ✅ cancelou o prompt => aborta
-        motivo = resp.trim() || null;
+        const r = prompt('Motivo (opcional) para inativar este profissional:');
+        if (r === null) return; // ✅ cancelou = não aplica
+        motivo = r || null;
       }
 
-      const { error } = await supabase
+      const { error: upErr } = await supabase
         .from('profissionais')
         .update({
           ativo: novoAtivo,
@@ -623,7 +649,7 @@ export default function Dashboard({ user, onLogout }) {
         })
         .eq('id', p.id);
 
-      if (error) throw error;
+      if (upErr) throw upErr;
 
       alert(novoAtivo ? '✅ Profissional ativado!' : '⛔ Profissional inativado!');
       await loadData();
@@ -638,12 +664,12 @@ export default function Dashboard({ user, onLogout }) {
     if (!ok) return;
 
     try {
-      const { error } = await supabase
+      const { error: delErr } = await supabase
         .from('profissionais')
         .delete()
         .eq('id', p.id);
 
-      if (error) throw error;
+      if (delErr) throw delErr;
 
       alert('✅ Profissional excluído!');
       await loadData();
@@ -656,12 +682,12 @@ export default function Dashboard({ user, onLogout }) {
   // ===================== AGENDAMENTOS =====================
   const confirmarAtendimento = async (id) => {
     try {
-      const { error } = await supabase
+      const { error: updErr } = await supabase
         .from('agendamentos')
         .update({ status: 'concluido', concluido_em: new Date().toISOString() })
         .eq('id', id);
 
-      if (error) throw error;
+      if (updErr) throw updErr;
 
       alert('✅ Atendimento confirmado!');
       await loadData();
@@ -671,11 +697,38 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ======= Cálculos =======
+  // ======= Visão Geral + Histórico =======
   const agendamentosHoje = useMemo(
     () => agendamentos.filter(a => sameDay(a.data, hoje)),
     [agendamentos, hoje]
   );
+
+  // ✅ faturamento por data escolhida (VISÃO GERAL)
+  const agendamentosDoDiaFaturamento = useMemo(
+    () => agendamentos.filter(a => sameDay(a.data, faturamentoData)),
+    [agendamentos, faturamentoData]
+  );
+
+  const concluidosDoDiaFaturamento = useMemo(
+    () => agendamentosDoDiaFaturamento.filter(a => a.status === 'concluido'),
+    [agendamentosDoDiaFaturamento]
+  );
+
+  const faturamentoDoDiaSelecionado = useMemo(
+    () => concluidosDoDiaFaturamento.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
+    [concluidosDoDiaFaturamento]
+  );
+
+  // ✅ Faturamento por profissional (só faz sentido com 2+)
+  const faturamentoPorProfissional = useMemo(() => {
+    const map = new Map(); // profissional_nome -> valor
+    for (const a of concluidosDoDiaFaturamento) {
+      const nome = a.profissionais?.nome || 'Profissional';
+      const v = Number(a.servicos?.preco || 0);
+      map.set(nome, (map.get(nome) || 0) + v);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]); // maior -> menor
+  }, [concluidosDoDiaFaturamento]);
 
   const hojeValidos = useMemo(
     () => agendamentosHoje.filter(a => !String(a.status || '').includes('cancelado')),
@@ -693,7 +746,11 @@ export default function Dashboard({ user, onLogout }) {
   );
 
   const ticketMedioHoje = useMemo(
-    () => (hojeConcluidos.length ? (hojeConcluidos.reduce((s, a) => s + Number(a.servicos?.preco || 0), 0) / hojeConcluidos.length) : 0),
+    () => (
+      hojeConcluidos.length
+        ? (hojeConcluidos.reduce((s, a) => s + Number(a.servicos?.preco || 0), 0) / hojeConcluidos.length)
+        : 0
+    ),
     [hojeConcluidos]
   );
 
@@ -714,51 +771,11 @@ export default function Dashboard({ user, onLogout }) {
     return futuros[0] || null;
   }, [hojeValidos]);
 
-  // ✅ faturamento do DIA selecionado (VISÃO GERAL)
-  const concluidosDoDiaFaturamento = useMemo(() => {
-    return agendamentos
-      .filter(a => sameDay(a.data, faturamentoData))
-      .filter(a => a.status === 'concluido');
-  }, [agendamentos, faturamentoData]);
-
-  const faturamentoDoDia = useMemo(() => {
-    return concluidosDoDiaFaturamento.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
-  }, [concluidosDoDiaFaturamento]);
-
-  // ✅ destrincha faturamento por profissional (só usado se profissionais >= 2)
-  const faturamentoPorProfissional = useMemo(() => {
-    const map = new Map();
-
-    for (const a of concluidosDoDiaFaturamento) {
-      const pid = a.profissional_id;
-      const nome = a.profissionais?.nome || 'Profissional';
-      const val = Number(a.servicos?.preco || 0);
-
-      if (!map.has(pid)) map.set(pid, { profissional_id: pid, nome, total: 0, qtd: 0 });
-      const cur = map.get(pid);
-      cur.total += val;
-      cur.qtd += 1;
-    }
-
-    return Array.from(map.values()).sort((x, y) => y.total - x.total);
-  }, [concluidosDoDiaFaturamento]);
-
   const agendamentosDiaSelecionado = useMemo(() => {
     return agendamentos
       .filter(a => sameDay(a.data, historicoData))
       .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
   }, [agendamentos, historicoData]);
-
-  // ✅ lista de agendamentos (aba) com HOJE + FUTURO (válidos)
-  const agendamentosAba = useMemo(() => {
-    const validos = agendamentos.filter(a => !String(a.status || '').includes('cancelado'));
-    const hojeOuFuturo = validos.filter(a => String(a.data || '') >= String(hoje));
-    return hojeOuFuturo.sort((a, b) => {
-      const d = String(a.data).localeCompare(String(b.data));
-      if (d !== 0) return d;
-      return String(a.hora_inicio).localeCompare(String(b.hora_inicio));
-    });
-  }, [agendamentos, hoje]);
 
   // ======= Status do profissional (luz verde/vermelha) =======
   const getProfStatus = (p) => {
@@ -769,9 +786,10 @@ export default function Dashboard({ user, onLogout }) {
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
+    // ✅ usa dias_trabalho (se vazio, assume todos) — NÃO MEXIDO
     const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
       ? p.dias_trabalho
-      : [0,1,2,3,4,5,6];
+      : [0, 1, 2, 3, 4, 5, 6];
 
     const trabalhaHoje = dias.includes(now.dow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
@@ -780,7 +798,7 @@ export default function Dashboard({ user, onLogout }) {
     return { label: 'FECHADO', color: 'bg-red-500' };
   };
 
-  // ✅ serviços agrupados por profissional
+  // ✅ serviços agrupados por profissional (para dashboard)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
     for (const p of profissionais) map.set(p.id, []);
@@ -811,7 +829,7 @@ export default function Dashboard({ user, onLogout }) {
           Tentar Novamente
         </button>
         <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold">
-          Sair
+          SAIR
         </button>
       </div>
     </div>
@@ -819,11 +837,24 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ✅ CSS local para remover seta do date */}
+      {/* CSS local: remove setinha do input date */}
       <style>{`
-        input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; display: none; }
-        input[type="date"]::-webkit-inner-spin-button,
-        input[type="date"]::-webkit-clear-button { display: none; }
+        /* remove seta/spinner visual do date */
+        .date-no-arrow {
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+        }
+        .date-no-arrow::-webkit-inner-spin-button,
+        .date-no-arrow::-webkit-clear-button {
+          display: none;
+          -webkit-appearance: none;
+        }
+        /* deixa o calendário aparecer ao clicar (mantém o picker do navegador) */
+        .date-no-arrow::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+        }
       `}</style>
 
       {/* Header */}
@@ -831,6 +862,7 @@ export default function Dashboard({ user, onLogout }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
+              {/* Logo redonda no header */}
               <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {barbearia.logo_url ? (
                   <img src={barbearia.logo_url} alt="Logo" className="w-full h-full object-cover" />
@@ -856,6 +888,7 @@ export default function Dashboard({ user, onLogout }) {
                 <Eye className="w-4 h-4" />Ver Vitrine
               </Link>
 
+              {/* Botão LOGO no header (não mexido no design) */}
               <label className="inline-block">
                 <input
                   type="file"
@@ -865,13 +898,13 @@ export default function Dashboard({ user, onLogout }) {
                   disabled={logoUploading}
                 />
                 <span
-                  className={`inline-flex items-center justify-center leading-none rounded-button font-black border transition-all ${
+                  className={`inline-block rounded-button font-black border transition-all ${
                     logoUploading
                       ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
                       : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
                   }
-                  px-3 h-8 text-[11px]
-                  sm:px-4 sm:h-9 sm:text-sm
+                  px-3 py-2 text-[11px]
+                  sm:px-4 sm:py-2 sm:text-sm
                   `}
                 >
                   <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
@@ -892,20 +925,29 @@ export default function Dashboard({ user, onLogout }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats do topo */}
+        {/* Stats do topo (sem filtro de data aqui) */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* ✅ Faturamento SEM filtro aqui */}
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
-            <span
-              className="text-green-400 mb-2 block"
-              style={{ fontFamily: 'Roboto, sans-serif', fontSize: 34, lineHeight: 1 }}
-            >
-              $
-            </span>
+            {/* ✅ removeu ícone e colocou caractere R$ em bold mais grosso */}
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                style={{ fontFamily: 'Roboto, sans-serif' }}
+                className="text-green-400 font-black text-3xl leading-none"
+              >
+                R$
+              </span>
+              <span className="text-xs text-gray-500 font-bold">Faturamento (hoje)</span>
+            </div>
 
-            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoDoDia.toFixed(2)}</div>
+            <div className="text-3xl font-black text-white mb-1">
+              R$ {agendamentosHoje
+                .filter(a => a.status === 'concluido')
+                .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
+                .toFixed(2)}
+            </div>
+
             <div className="text-sm text-green-300 font-bold">
-              Faturamento • {formatDateBRFromISO(faturamentoData)}
+              {formatDateBRFromISO(hoje)}
             </div>
           </div>
 
@@ -970,69 +1012,6 @@ export default function Dashboard({ user, onLogout }) {
             {/* VISÃO GERAL */}
             {activeTab === 'visao-geral' && (
               <div className="space-y-6">
-                {/* ✅ Filtro de data do faturamento AGORA AQUI (igual histórico) */}
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <div className="text-xs text-gray-500 font-bold">Faturamento por data</div>
-                      <div className="text-2xl font-black mt-1">
-                        R$ {faturamentoDoDia.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-500 font-bold mt-1">
-                        {formatDateBRFromISO(faturamentoData)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400 font-bold">Dia:</span>
-                      <input
-                        type="date"
-                        value={faturamentoData}
-                        onChange={(e) => setFaturamentoData(e.target.value)}
-                        onClick={(e) => e.currentTarget.showPicker?.()}
-                        className="bg-dark-100 border border-gray-800 rounded-button text-white font-bold text-sm cursor-pointer appearance-none"
-                        style={{
-                          width: 'auto',
-                          padding: '8px 12px',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          appearance: 'none'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* ✅ Destrinchamento por profissional: só se tiver 2+ profissionais */}
-                  {profissionais.length >= 2 && (
-                    <div className="mt-5">
-                      <div className="text-sm text-gray-300 font-black mb-3">
-                        Faturamento por profissional
-                      </div>
-
-                      {faturamentoPorProfissional.length ? (
-                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {faturamentoPorProfissional.map((p) => (
-                            <div key={p.profissional_id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                              <div className="font-black text-white">{p.nome}</div>
-                              <div className="text-2xl font-black text-primary mt-1">
-                                R$ {p.total.toFixed(2)}
-                              </div>
-                              <div className="text-xs text-gray-500 font-bold mt-1">
-                                {p.qtd} concluído(s)
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500 font-bold">
-                          Nenhum faturamento concluído nessa data.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* ✅ resto da visão geral (intacto) */}
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 font-bold mb-2">Cancelamentos Hoje</div>
@@ -1068,6 +1047,56 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
+                {/* ✅ Faturamento + filtro de data (aqui na visão geral) */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h3 className="text-lg font-black flex items-center gap-2">
+                      <span
+                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                        className="font-black text-2xl"
+                      >
+                        R$
+                      </span>
+                      Faturamento
+                    </h3>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400 font-bold">Dia:</span>
+                      <DateFilterButton
+                        value={faturamentoData}
+                        onChange={(e) => setFaturamentoData(e.target.value)}
+                        title="Filtrar faturamento por data"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-3xl font-black text-white mb-2">
+                    R$ {faturamentoDoDiaSelecionado.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-400 font-bold mb-4">
+                    Concluídos em {formatDateBRFromISO(faturamentoData)}
+                  </div>
+
+                  {/* ✅ só mostra destrinchado se tiver 2+ profissionais (como você pediu) */}
+                  {profissionais.length >= 2 && faturamentoPorProfissional.length > 0 ? (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {faturamentoPorProfissional.map(([nome, valor]) => (
+                        <div key={nome} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                          <div className="text-xs text-gray-500 font-bold mb-1">Profissional</div>
+                          <div className="font-black text-white">{nome}</div>
+                          <div className="text-primary font-black mt-1">R$ {Number(valor).toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500 font-bold">
+                      {profissionais.length < 2
+                        ? 'Você tem 1 profissional — o detalhamento por profissional não aparece.'
+                        : 'Sem faturamento concluído nessa data.'}
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                   <h3 className="text-lg font-black mb-3">Resumo rápido</h3>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1086,7 +1115,10 @@ export default function Dashboard({ user, onLogout }) {
                     <div>
                       <div className="text-xs text-gray-500 font-bold">Faturamento hoje</div>
                       <div className="text-2xl font-black">
-                        R$ {agendamentosHoje.filter(a => a.status === 'concluido').reduce((s, a) => s + Number(a.servicos?.preco || 0), 0).toFixed(2)}
+                        R$ {agendamentosHoje
+                          .filter(a => a.status === 'concluido')
+                          .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
+                          .toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -1098,41 +1130,25 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* AGENDAMENTOS (HOJE + FUTURO) */}
+            {/* AGENDAMENTOS (HOJE) */}
             {activeTab === 'agendamentos' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Agendamentos</h2>
-                {agendamentosAba.length > 0 ? (
+                <h2 className="text-2xl font-black mb-6">Agendamentos de Hoje</h2>
+                {hojeValidos.length > 0 ? (
                   <div className="space-y-4">
-                    {agendamentosAba.map(a => {
-                      const isDone = a.status === 'concluido';
-                      const isFuture = String(a.data || '') > String(hoje);
-
-                      return (
+                    {hojeValidos
+                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
+                      .map(a => (
                         <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">
-                                {a.servicos?.nome} • {a.profissionais?.nome}
-                              </p>
-                              <p className="text-xs text-gray-500 font-bold mt-1">
-                                {formatDateBRFromISO(a.data)} • {a.hora_inicio}
-                              </p>
+                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                             </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className={`px-3 py-1 rounded-button text-xs font-bold ${
-                                isDone ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                              }`}>
-                                {isDone ? 'Concluído' : 'Agendado'}
-                              </div>
-
-                              {!isDone && isFuture && (
-                                <div className="px-3 py-1 rounded-button text-xs font-bold bg-yellow-500/20 border border-yellow-500/40 text-yellow-300">
-                                  Futuro
-                                </div>
-                              )}
+                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                              a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
                             </div>
                           </div>
 
@@ -1147,7 +1163,7 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
                           </div>
 
-                          {!isDone && (
+                          {a.status !== 'concluido' && (
                             <button
                               onClick={() => confirmarAtendimento(a.id)}
                               className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
@@ -1156,11 +1172,10 @@ export default function Dashboard({ user, onLogout }) {
                             </button>
                           )}
                         </div>
-                      );
-                    })}
+                      ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento</p>
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento hoje</p>
                 )}
               </div>
             )}
@@ -1217,19 +1232,10 @@ export default function Dashboard({ user, onLogout }) {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 font-bold">Dia:</span>
-                    <input
-                      type="date"
+                    <DateFilterButton
                       value={historicoData}
                       onChange={(e) => setHistoricoData(e.target.value)}
-                      onClick={(e) => e.currentTarget.showPicker?.()}
-                      className="bg-dark-200 border border-gray-800 rounded-button text-white font-bold text-sm cursor-pointer appearance-none"
-                      style={{
-                        width: 'auto',
-                        padding: '8px 12px',
-                        WebkitAppearance: 'none',
-                        MozAppearance: 'none',
-                        appearance: 'none'
-                      }}
+                      title="Filtrar histórico por data"
                     />
                   </div>
                 </div>
@@ -1279,7 +1285,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS */}
+            {/* SERVIÇOS (separado por profissional) */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1373,7 +1379,13 @@ export default function Dashboard({ user, onLogout }) {
                     onClick={() => {
                       setShowNovoProfissional(true);
                       setEditingProfissional(null);
-                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
+                      setFormProfissional({
+                        nome: '',
+                        anos_experiencia: '',
+                        horario_inicio: '08:00',
+                        horario_fim: '18:00',
+                        dias_trabalho: [1, 2, 3, 4, 5, 6]
+                      });
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                   >
@@ -1402,6 +1414,7 @@ export default function Dashboard({ user, onLogout }) {
                               )}
                             </h3>
 
+                            {/* luz status */}
                             <div className="flex items-center gap-2 mt-1">
                               <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
                               <span className="text-xs text-gray-400 font-bold">{status.label}</span>
@@ -1422,6 +1435,7 @@ export default function Dashboard({ user, onLogout }) {
                           {p.horario_inicio} - {p.horario_fim}
                         </div>
 
+                        {/* Ativar / Inativar / Excluir */}
                         <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => toggleAtivoProfissional(p)}
@@ -1456,7 +1470,7 @@ export default function Dashboard({ user, onLogout }) {
                               anos_experiencia: String(p.anos_experiencia ?? ''),
                               horario_inicio: p.horario_inicio || '08:00',
                               horario_fim: p.horario_fim || '18:00',
-                              dias_trabalho: Array.isArray(p.dias_trabalho) && p.dias_trabalho.length ? p.dias_trabalho : [1,2,3,4,5,6],
+                              dias_trabalho: Array.isArray(p.dias_trabalho) && p.dias_trabalho.length ? p.dias_trabalho : [1, 2, 3, 4, 5, 6],
                             });
                             setShowNovoProfissional(true);
                           }}
@@ -1556,13 +1570,13 @@ export default function Dashboard({ user, onLogout }) {
 
                 {/* ✅ GALERIAS */}
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-black flex items-center gap-2">
                         <ImageIcon className="w-5 h-5 text-primary" />
                         Galerias
                       </h3>
-                      <p className="text-xs text-gray-500 font-bold mt-2">
+                      <p className="text-xs text-gray-500 font-bold mt-1">
                         Adicione fotos do seu negócio. Isso será exibido na vitrine quando a gente atualizar a vitrine.
                       </p>
                     </div>
