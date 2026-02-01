@@ -968,7 +968,7 @@ export default function Dashboard({ user, onLogout }) {
 
         {/* Link Vitrine */}
         <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
-          <h3 className="text-lg font-black mb-3 flex items-center gap-2">
+          <h3 className="text-lg font-normal mb-3 flex items-center gap-2">
             <ExternalLink className="w-5 h-5 text-primary" />SUA VITRINE
           </h3>
           <div className="flex gap-2">
