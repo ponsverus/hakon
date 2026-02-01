@@ -99,7 +99,7 @@ export default function Dashboard({ user, onLogout }) {
   const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
 
-  // ✅ Faturamento por data (filtro)
+  // ✅ Data do filtro de faturamento (agora usado na VISÃO GERAL)
   const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
@@ -182,7 +182,6 @@ export default function Dashboard({ user, onLogout }) {
 
       setBarbearia(barbeariaData);
 
-      // ✅ preenche form de info (sem mexer no design, só dados)
       setFormInfo({
         nome: barbeariaData.nome || '',
         descricao: barbeariaData.descricao || '',
@@ -193,7 +192,6 @@ export default function Dashboard({ user, onLogout }) {
         galerias: Array.isArray(barbeariaData.galerias) ? barbeariaData.galerias : []
       });
 
-      // Profissionais
       const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
         .select('*')
@@ -214,7 +212,6 @@ export default function Dashboard({ user, onLogout }) {
 
       const ids = profs.map(p => p.id);
 
-      // Serviços
       const { data: servicosData, error: servErr } = await supabase
         .from('servicos')
         .select('*, profissionais (nome)')
@@ -224,7 +221,6 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -234,7 +230,6 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
-      // Auto-concluir passados (sem travar UI)
       if (ags?.length) {
         const agora = new Date();
         const toUpdate = [];
@@ -282,7 +277,7 @@ export default function Dashboard({ user, onLogout }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // ===================== LOGO (upload + salvar URL) =====================
+  // ===================== LOGO =====================
   const uploadLogoBarbearia = async (file) => {
     if (!file) return;
     if (!user?.id) return alert('Sessão inválida.');
@@ -599,7 +594,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ✅ Ativar / Inativar + motivo (CORRIGIDO: cancelar não executa)
+  // ✅ Ativar / Inativar + motivo (cancelar não executa)
   const toggleAtivoProfissional = async (p) => {
     try {
       if (p.ativo === undefined) {
@@ -676,25 +671,10 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ======= Visão Geral + Histórico =======
+  // ======= Cálculos =======
   const agendamentosHoje = useMemo(
     () => agendamentos.filter(a => sameDay(a.data, hoje)),
     [agendamentos, hoje]
-  );
-
-  const agendamentosDoDiaFaturamento = useMemo(
-    () => agendamentos.filter(a => sameDay(a.data, faturamentoData)),
-    [agendamentos, faturamentoData]
-  );
-
-  const concluidosDoDiaFaturamento = useMemo(
-    () => agendamentosDoDiaFaturamento.filter(a => a.status === 'concluido'),
-    [agendamentosDoDiaFaturamento]
-  );
-
-  const faturamentoDoDia = useMemo(
-    () => concluidosDoDiaFaturamento.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
-    [concluidosDoDiaFaturamento]
   );
 
   const hojeValidos = useMemo(
@@ -734,6 +714,35 @@ export default function Dashboard({ user, onLogout }) {
     return futuros[0] || null;
   }, [hojeValidos]);
 
+  // ✅ faturamento do DIA selecionado (VISÃO GERAL)
+  const concluidosDoDiaFaturamento = useMemo(() => {
+    return agendamentos
+      .filter(a => sameDay(a.data, faturamentoData))
+      .filter(a => a.status === 'concluido');
+  }, [agendamentos, faturamentoData]);
+
+  const faturamentoDoDia = useMemo(() => {
+    return concluidosDoDiaFaturamento.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
+  }, [concluidosDoDiaFaturamento]);
+
+  // ✅ destrincha faturamento por profissional (só usado se profissionais >= 2)
+  const faturamentoPorProfissional = useMemo(() => {
+    const map = new Map();
+
+    for (const a of concluidosDoDiaFaturamento) {
+      const pid = a.profissional_id;
+      const nome = a.profissionais?.nome || 'Profissional';
+      const val = Number(a.servicos?.preco || 0);
+
+      if (!map.has(pid)) map.set(pid, { profissional_id: pid, nome, total: 0, qtd: 0 });
+      const cur = map.get(pid);
+      cur.total += val;
+      cur.qtd += 1;
+    }
+
+    return Array.from(map.values()).sort((x, y) => y.total - x.total);
+  }, [concluidosDoDiaFaturamento]);
+
   const agendamentosDiaSelecionado = useMemo(() => {
     return agendamentos
       .filter(a => sameDay(a.data, historicoData))
@@ -760,7 +769,6 @@ export default function Dashboard({ user, onLogout }) {
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    // ✅ usa dias_trabalho (se vazio, assume todos)
     const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
       ? p.dias_trabalho
       : [0,1,2,3,4,5,6];
@@ -811,7 +819,7 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ✅ CSS local para corrigir input date (remove seta/área extra) */}
+      {/* ✅ CSS local para remover seta do date */}
       <style>{`
         input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; display: none; }
         input[type="date"]::-webkit-inner-spin-button,
@@ -823,7 +831,6 @@ export default function Dashboard({ user, onLogout }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              {/* Logo redonda no header */}
               <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {barbearia.logo_url ? (
                   <img src={barbearia.logo_url} alt="Logo" className="w-full h-full object-cover" />
@@ -849,7 +856,6 @@ export default function Dashboard({ user, onLogout }) {
                 <Eye className="w-4 h-4" />Ver Vitrine
               </Link>
 
-              {/* Botão LOGO no header (mobile: centralizado verticalmente) */}
               <label className="inline-block">
                 <input
                   type="file"
@@ -888,8 +894,8 @@ export default function Dashboard({ user, onLogout }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats do topo */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* ✅ Faturamento SEM filtro aqui */}
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
-            {/* ✅ remove ícone e usa caractere $ maior com Roboto só aqui */}
             <span
               className="text-green-400 mb-2 block"
               style={{ fontFamily: 'Roboto, sans-serif', fontSize: 34, lineHeight: 1 }}
@@ -897,18 +903,7 @@ export default function Dashboard({ user, onLogout }) {
               $
             </span>
 
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-3xl font-black text-white mb-1">R$ {faturamentoDoDia.toFixed(2)}</div>
-
-              <input
-                type="date"
-                value={faturamentoData}
-                onChange={(e) => setFaturamentoData(e.target.value)}
-                className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-xs font-bold"
-                title="Filtrar faturamento por data"
-              />
-            </div>
-
+            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoDoDia.toFixed(2)}</div>
             <div className="text-sm text-green-300 font-bold">
               Faturamento • {formatDateBRFromISO(faturamentoData)}
             </div>
@@ -975,6 +970,69 @@ export default function Dashboard({ user, onLogout }) {
             {/* VISÃO GERAL */}
             {activeTab === 'visao-geral' && (
               <div className="space-y-6">
+                {/* ✅ Filtro de data do faturamento AGORA AQUI (igual histórico) */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="text-xs text-gray-500 font-bold">Faturamento por data</div>
+                      <div className="text-2xl font-black mt-1">
+                        R$ {faturamentoDoDia.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500 font-bold mt-1">
+                        {formatDateBRFromISO(faturamentoData)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400 font-bold">Dia:</span>
+                      <input
+                        type="date"
+                        value={faturamentoData}
+                        onChange={(e) => setFaturamentoData(e.target.value)}
+                        onClick={(e) => e.currentTarget.showPicker?.()}
+                        className="bg-dark-100 border border-gray-800 rounded-button text-white font-bold text-sm cursor-pointer appearance-none"
+                        style={{
+                          width: 'auto',
+                          padding: '8px 12px',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          appearance: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ✅ Destrinchamento por profissional: só se tiver 2+ profissionais */}
+                  {profissionais.length >= 2 && (
+                    <div className="mt-5">
+                      <div className="text-sm text-gray-300 font-black mb-3">
+                        Faturamento por profissional
+                      </div>
+
+                      {faturamentoPorProfissional.length ? (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {faturamentoPorProfissional.map((p) => (
+                            <div key={p.profissional_id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                              <div className="font-black text-white">{p.nome}</div>
+                              <div className="text-2xl font-black text-primary mt-1">
+                                R$ {p.total.toFixed(2)}
+                              </div>
+                              <div className="text-xs text-gray-500 font-bold mt-1">
+                                {p.qtd} concluído(s)
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500 font-bold">
+                          Nenhum faturamento concluído nessa data.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ✅ resto da visão geral (intacto) */}
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 font-bold mb-2">Cancelamentos Hoje</div>
@@ -1063,7 +1121,6 @@ export default function Dashboard({ user, onLogout }) {
                               </p>
                             </div>
 
-                            {/* ✅ TAGS: AGENDADO + FUTURO (se for futuro) */}
                             <div className="flex items-center gap-2">
                               <div className={`px-3 py-1 rounded-button text-xs font-bold ${
                                 isDone ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
@@ -1160,8 +1217,6 @@ export default function Dashboard({ user, onLogout }) {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 font-bold">Dia:</span>
-
-                    {/* ✅ input date como "botão", sem seta, sem lado esticado */}
                     <input
                       type="date"
                       value={historicoData}
@@ -1224,7 +1279,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS (separado por profissional) */}
+            {/* SERVIÇOS */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1507,7 +1562,6 @@ export default function Dashboard({ user, onLogout }) {
                         <ImageIcon className="w-5 h-5 text-primary" />
                         Galerias
                       </h3>
-                      {/* ✅ mais respiro para não “colar” no botão */}
                       <p className="text-xs text-gray-500 font-bold mt-2">
                         Adicione fotos do seu negócio. Isso será exibido na vitrine quando a gente atualizar a vitrine.
                       </p>
