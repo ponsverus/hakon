@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Heart, History, User, LogOut, X, Camera } from 'lucide-react';
+import { Calendar, Heart, History, LogOut, X } from 'lucide-react';
 import { supabase } from '../supabase';
+
+// ✅ Data segura: YYYY-MM-DD -> DD/MM/YYYY (sem Date/UTC)
+function formatDateBRFromISO(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-');
+  if (!y || !m || !d) return String(dateStr);
+  return `${d}/${m}/${y}`;
+}
 
 export default function ClientArea({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('agendamentos');
@@ -169,7 +177,7 @@ export default function ClientArea({ user, onLogout }) {
       if (upErr) throw upErr;
 
       // URL pública (bucket public)
-      const { data: pub } = await supabase
+      const { data: pub } = supabase
         .storage
         .from('avatars')
         .getPublicUrl(path);
@@ -198,7 +206,7 @@ export default function ClientArea({ user, onLogout }) {
   const nome = user?.user_metadata?.nome || 'Cliente';
   const avatarFallback = nome?.[0]?.toUpperCase() || 'C';
 
-  // ✅ Mantém a regra: ordenar por DATA (mais próxima) e depois HORÁRIO (mais cedo)
+  // ✅ Regra: ordenar por DATA (mais próxima) e depois HORÁRIO (mais cedo)
   const sortByDateThenTime = (list) => {
     return [...(list || [])].sort((a, b) => {
       const da = String(a?.data || '');
@@ -211,7 +219,7 @@ export default function ClientArea({ user, onLogout }) {
     });
   };
 
-  // ✅ NOVO: separar por sessão (ABERTO / CANCELADO / CONCLUÍDO) sem perder a regra de data+hora
+  // ✅ Separar por status (Em aberto / Cancelados / Concluídos), mantendo a ordenação data+hora em cada lista
   const agendamentosPorStatus = useMemo(() => {
     const abertos = [];
     const cancelados = [];
@@ -225,7 +233,7 @@ export default function ClientArea({ user, onLogout }) {
       } else if (st.includes('cancelado')) {
         cancelados.push(a);
       } else {
-        abertos.push(a); // qualquer outro status cai como "em aberto"
+        abertos.push(a);
       }
     }
 
@@ -236,7 +244,7 @@ export default function ClientArea({ user, onLogout }) {
     };
   }, [agendamentos]);
 
-  const renderSecao = (titulo, lista) => {
+  const renderSecaoAgendamentos = (titulo, lista) => {
     if (!lista.length) return null;
 
     return (
@@ -278,7 +286,7 @@ export default function ClientArea({ user, onLogout }) {
                 <div>
                   <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
                   <div className="text-sm text-white font-bold">
-                    {new Date(agendamento.data).toLocaleDateString('pt-BR')}
+                    {formatDateBRFromISO(agendamento.data)}
                   </div>
                 </div>
                 <div>
@@ -324,9 +332,9 @@ export default function ClientArea({ user, onLogout }) {
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
-
             <Link to="/" className="flex items-center gap-3">
-              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-custom overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+              {/* ✅ Avatar redondo (como estava aprovado) */}
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
@@ -349,12 +357,12 @@ export default function ClientArea({ user, onLogout }) {
                 className="hidden"
               />
 
+              {/* ✅ Botão FOTO no header e sem ícone (como estava aprovado) */}
               <button
                 onClick={openFilePicker}
                 disabled={uploadingAvatar}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
+                className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
               >
-                <Camera className="w-4 h-4 text-primary" />
                 {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
               </button>
 
@@ -366,7 +374,6 @@ export default function ClientArea({ user, onLogout }) {
                 <span className="hidden sm:inline">SAIR</span>
               </button>
             </div>
-
           </div>
         </div>
       </header>
@@ -379,13 +386,7 @@ export default function ClientArea({ user, onLogout }) {
             <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
           </div>
 
-          <button
-            onClick={openFilePicker}
-            disabled={uploadingAvatar}
-            className="sm:hidden px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-sm"
-          >
-            {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
-          </button>
+          {/* ✅ mantém sem botão duplicado no mobile (como estava aprovado) */}
         </div>
 
         {/* Quick Actions */}
@@ -451,9 +452,9 @@ export default function ClientArea({ user, onLogout }) {
                   agendamentosPorStatus.cancelados.length ||
                   agendamentosPorStatus.concluidos.length) ? (
                   <div>
-                    {renderSecao('Em aberto', agendamentosPorStatus.abertos)}
-                    {renderSecao('Cancelados', agendamentosPorStatus.cancelados)}
-                    {renderSecao('Concluídos', agendamentosPorStatus.concluidos)}
+                    {renderSecaoAgendamentos('Em aberto', agendamentosPorStatus.abertos)}
+                    {renderSecaoAgendamentos('Cancelados', agendamentosPorStatus.cancelados)}
+                    {renderSecaoAgendamentos('Concluídos', agendamentosPorStatus.concluidos)}
                   </div>
                 ) : (
                   <div className="text-center py-12">
