@@ -945,10 +945,6 @@ export default function Dashboard({ user, onLogout }) {
                 .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
                 .toFixed(2)}
             </div>
-
-            <div className="text-sm text-green-400">
-              {formatDateBRFromISO(hoje)}
-            </div>
           </div>
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
