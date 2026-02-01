@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Heart, History, User, LogOut, X, Camera } from 'lucide-react';
+import { Calendar, Heart, History, User, LogOut, X } from 'lucide-react';
 import { supabase } from '../supabase';
+
+// ✅ Data segura: YYYY-MM-DD -> DD/MM/YYYY (sem Date/UTC)
+function formatDateBRFromISO(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-');
+  if (!y || !m || !d) return String(dateStr);
+  return `${d}/${m}/${y}`;
+}
 
 export default function ClientArea({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('agendamentos');
@@ -212,9 +220,9 @@ export default function ClientArea({ user, onLogout }) {
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
-
             <Link to="/" className="flex items-center gap-3">
-              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-custom overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+              {/* ✅ Avatar redondo */}
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
@@ -237,12 +245,12 @@ export default function ClientArea({ user, onLogout }) {
                 className="hidden"
               />
 
+              {/* ✅ Botão FOTO movido para o header (perto do SAIR) e sem ícone */}
               <button
                 onClick={openFilePicker}
                 disabled={uploadingAvatar}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
+                className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
               >
-                <Camera className="w-4 h-4 text-primary" />
                 {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
               </button>
 
@@ -254,7 +262,6 @@ export default function ClientArea({ user, onLogout }) {
                 <span className="hidden sm:inline">SAIR</span>
               </button>
             </div>
-
           </div>
         </div>
       </header>
@@ -267,13 +274,7 @@ export default function ClientArea({ user, onLogout }) {
             <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
           </div>
 
-          <button
-            onClick={openFilePicker}
-            disabled={uploadingAvatar}
-            className="sm:hidden px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-sm"
-          >
-            {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
-          </button>
+          {/* ✅ removido botão duplicado no mobile (agora já existe no header) */}
         </div>
 
         {/* Quick Actions */}
@@ -364,7 +365,8 @@ export default function ClientArea({ user, onLogout }) {
                           <div>
                             <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
                             <div className="text-sm text-white font-bold">
-                              {new Date(agendamento.data).toLocaleDateString('pt-BR')}
+                              {/* ✅ data firme (sem UTC) */}
+                              {formatDateBRFromISO(agendamento.data)}
                             </div>
                           </div>
                           <div>
