@@ -969,7 +969,7 @@ export default function Dashboard({ user, onLogout }) {
         {/* Link Vitrine */}
         <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
           <h3 className="text-lg font-black mb-3 flex items-center gap-2">
-            <ExternalLink className="w-5 h-5 text-primary" />Link da Sua Vitrine
+            <ExternalLink className="w-5 h-5 text-primary" />SUA VITRINE
           </h3>
           <div className="flex gap-2">
             <input
@@ -1018,19 +1018,19 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 font-bold mb-2">Concluídos Hoje</div>
-                    <div className="text-3xl font-black text-white">{hojeConcluidos.length}</div>
-                    <div className="text-sm text-gray-400 font-bold mt-1">
+                    <div className="text-xs text-gray-500 mb-2">CONCLUÍDOS HOJE</div>
+                    <div className="text-3xl font-normal text-white">{hojeConcluidos.length}</div>
+                    <div className="text-sm text-gray-400 mt-1">
                       Ticket médio: <span className="text-primary">R$ {ticketMedioHoje.toFixed(2)}</span>
                     </div>
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 font-bold mb-2">Próximo agendamento</div>
+                    <div className="text-xs text-gray-500 mb-2">PRÓXIMO AGENDAMENTO</div>
                     {proximoAgendamento ? (
                       <>
-                        <div className="text-3xl font-black text-primary">{proximoAgendamento.hora_inicio}</div>
-                        <div className="text-sm text-gray-300 font-bold mt-1">
+                        <div className="text-3xl font-normal text-primary">{proximoAgendamento.hora_inicio}</div>
+                        <div className="text-sm text-gray-300 mt-1">
                           {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
                         </div>
                         <div className="text-xs text-gray-500 font-bold mt-1">
@@ -1038,7 +1038,7 @@ export default function Dashboard({ user, onLogout }) {
                         </div>
                       </>
                     ) : (
-                      <div className="text-sm text-gray-500 font-bold">Nenhum futuro hoje</div>
+                      <div className="text-sm text-gray-500">:(</div>
                     )}
                   </div>
                 </div>
