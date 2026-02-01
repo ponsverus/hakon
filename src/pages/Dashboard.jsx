@@ -1052,8 +1052,8 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h3 className="text-lg font-black flex items-center gap-2">
                       <span
-                        style={{ fontFamily: 'Roboto Condesend, sans-serif' }}
-                        className="font-black text-2xl"
+                        style={{ fontFamily: 'Roboto Condensed, sans-serif' }}
+                        className="font-normal text-2xl"
                       >
                         R$
                       </span>
