@@ -1010,7 +1010,7 @@ export default function Dashboard({ user, onLogout }) {
               <div className="space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 font-bold mb-2">CANCELAMENTOS HOJE</div>
+                    <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
                     <div className="text-3xl font-black text-white">{hojeCancelados.length}</div>
                     <div className="text-sm text-gray-400 font-bold mt-1">
                       Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
@@ -1096,20 +1096,20 @@ export default function Dashboard({ user, onLogout }) {
                   <h3 className="text-lg font-normal mb-3">Resumo rápido</h3>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <div className="text-xs text-gray-500">Total hoje</div>
-                      <div className="text-2xl font-black">{agendamentosHoje.length}</div>
+                      <div className="text-xs text-gray-500">TOTAL HOJE</div>
+                      <div className="text-2xl font-normal">{agendamentosHoje.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Válidos hoje</div>
-                      <div className="text-2xl font-black">{hojeValidos.length}</div>
+                      <div className="text-xs text-gray-500">VÁLIDOS HOJE</div>
+                      <div className="text-2xl font-normal">{hojeValidos.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Cancelados hoje</div>
-                      <div className="text-2xl font-black">{hojeCancelados.length}</div>
+                      <div className="text-xs text-gray-500">CANCELADOS HOJE</div>
+                      <div className="text-2xl font-normal">{hojeCancelados.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Faturamento hoje</div>
-                      <div className="text-2xl font-black">
+                      <div className="text-xs text-gray-500">FATURAMENTO HOJE</div>
+                      <div className="text-2xl font-normal">
                         R$ {agendamentosHoje
                           .filter(a => a.status === 'concluido')
                           .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
