@@ -1010,7 +1010,7 @@ export default function Dashboard({ user, onLogout }) {
               <div className="space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 font-bold mb-2">Cancelamentos Hoje</div>
+                    <div className="text-xs text-gray-500 font-bold mb-2">CANCELAMENTOS HOJE</div>
                     <div className="text-3xl font-black text-white">{hojeCancelados.length}</div>
                     <div className="text-sm text-gray-400 font-bold mt-1">
                       Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
@@ -1056,8 +1056,7 @@ export default function Dashboard({ user, onLogout }) {
                       FATURAMENTO
                     </h3>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400">DIA:</span>
+                    <div className="flex items-center gap-2">                    
                       <DateFilterButton
                         value={faturamentoData}
                         onChange={(e) => setFaturamentoData(e.target.value)}
