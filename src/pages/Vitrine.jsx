@@ -46,6 +46,14 @@ function getNowSP() {
   };
 }
 
+// ✅ FIX: formata data sem new Date() (evita +1 dia por fuso)
+function formatDateBR(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = String(ymd).split('-');
+  if (!y || !m || !d) return String(ymd);
+  return `${d}/${m}/${y}`;
+}
+
 // ✅ pega DOW (0=DOM..6=SÁB) para uma data YYYY-MM-DD em SP
 function getDowFromDateSP(dateStr) {
   if (!dateStr) return null;
@@ -135,6 +143,9 @@ export default function Vitrine({ user, userType }) {
     horario: null, // { hora, tipo, slot?, maxMinutos }
     servicosSelecionados: [], // ✅ agora é array
   });
+
+  // ✅ FIX: data mínima do datepicker em SP (sem UTC)
+  const minDateSP = useMemo(() => getNowSP().date, []);
 
   // Avaliar
   const [showAvaliar, setShowAvaliar] = useState(false);
@@ -459,12 +470,17 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
-  // ✅ serviços possíveis (não filtra por max individual; controla por soma)
+  // ✅ serviços possíveis (ordem por preço: maior -> menor)
   const servicosPossiveis = useMemo(() => {
     if (!flow.horario) return [];
     return servicosDoProf
       .filter(s => Number(s.duracao_minutos || 0) > 0)
-      .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+      .sort((a, b) => {
+        const pa = Number(a.preco ?? 0);
+        const pb = Number(b.preco ?? 0);
+        if (pb !== pa) return pb - pa; // ✅ maior -> menor
+        return String(a.nome || '').localeCompare(String(b.nome || ''));
+      });
   }, [servicosDoProf, flow.horario]);
 
   // ✅ status ABERTO/FECHADO pro card (bolinha verde/vermelha)
@@ -831,7 +847,15 @@ export default function Vitrine({ user, userType }) {
           ) : (
             <div className="space-y-4">
               {profissionais.map(p => {
-                const lista = (servicosPorProf.get(p.id) || []).slice().sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+                // ✅ ORDEM por preço: maior -> menor (em cada card do profissional)
+                const lista = (servicosPorProf.get(p.id) || [])
+                  .slice()
+                  .sort((a, b) => {
+                    const pa = Number(a.preco ?? 0);
+                    const pb = Number(b.preco ?? 0);
+                    if (pb !== pa) return pb - pa;
+                    return String(a.nome || '').localeCompare(String(b.nome || ''));
+                  });
 
                 return (
                   <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
@@ -923,7 +947,8 @@ export default function Vitrine({ user, userType }) {
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
                   <input
                     type="date"
-                    min={new Date().toISOString().split('T')[0]}
+                    // ✅ FIX: min em SP (sem UTC)
+                    min={minDateSP}
                     value={flow.data}
                     onChange={(e) => setFlow(prev => ({ ...prev, data: e.target.value }))}
                     className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
@@ -1126,7 +1151,8 @@ export default function Vitrine({ user, userType }) {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Data:</span>
-                      <span className="font-bold">{new Date(flow.data).toLocaleDateString('pt-BR')}</span>
+                      {/* ✅ FIX: sem new Date() */}
+                      <span className="font-bold">{formatDateBR(flow.data)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Horário:</span>
