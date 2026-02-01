@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft,
-  Zap, X, AlertCircle, Instagram, Facebook, Image as ImageIcon, ChevronLeft, ChevronRight
+  Calendar, MapPin, Clock, Phone, Heart, ArrowLeft,
+  Zap, X, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -81,17 +81,33 @@ const withTimeout = (promise, ms, label = 'timeout') => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 };
 
-// ✅ Sempre 5 estrelas (cheias + apagadas)
-function Stars5({ value = 0, size = 14 }) {
+// ✅ 1 estrela (para header/nota geral e botão avaliar)
+function StarChar({ size = 18, className = 'text-primary' }) {
+  return (
+    <span
+      className={className}
+      style={{ fontSize: size, lineHeight: 1 }}
+      aria-hidden="true"
+    >
+      ★
+    </span>
+  );
+}
+
+// ✅ 5 estrelas com apagadas (para cards/lista de avaliações)
+function Stars5Char({ value = 0, size = 14 }) {
   const v = Math.max(0, Math.min(5, Number(value || 0)));
   return (
-    <div className="flex items-center gap-1">
-      {[1,2,3,4,5].map(i => (
-        <Star
+    <div className="flex items-center gap-1" aria-label={`Nota ${v} de 5`}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <span
           key={i}
-          className={i <= v ? 'text-primary fill-current' : 'text-gray-700'}
-          style={{ width: size, height: size }}
-        />
+          style={{ fontSize: size, lineHeight: 1 }}
+          className={i <= v ? 'text-primary' : 'text-gray-700'}
+          aria-hidden="true"
+        >
+          ★
+        </span>
       ))}
     </div>
   );
@@ -119,67 +135,6 @@ function normalizeDiasTrabalho(arr) {
     .map(n => (n === 7 ? 0 : n))
     .filter(n => n >= 0 && n <= 6);
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
-}
-
-// ✅ Normaliza links sociais (aceita @, id, ou URL)
-function normalizeInstagram(input) {
-  const raw = String(input || '').trim();
-  if (!raw) return null;
-
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-
-  // remove @ se vier
-  const handle = raw.replace(/^@/, '').replace('instagram.com/', '').replace(/\//g, '').trim();
-  if (!handle) return null;
-
-  return `https://instagram.com/${handle}`;
-}
-
-function normalizeFacebook(input) {
-  const raw = String(input || '').trim();
-  if (!raw) return null;
-
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-
-  // se já veio tipo "facebook.com/algumacoisa"
-  if (raw.includes('facebook.com')) {
-    const cleaned = raw.replace(/^@/, '').trim();
-    return `https://${cleaned.replace(/^https?:\/\//, '')}`;
-  }
-
-  // veio só id/nome
-  const id = raw.replace(/^@/, '').replace(/\s/g, '').trim();
-  if (!id) return null;
-
-  return `https://facebook.com/${id}`;
-}
-
-// ✅ DatePicker no design combinado: sem seta, com bolinha amarela, text-base, clicável
-function DatePickerButton({ value, onChange, min }) {
-  const inputRef = useRef(null);
-
-  return (
-    <div className="relative w-full">
-      {/* Visual */}
-      <div className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-button text-white flex items-center justify-center text-base">
-        <span className="text-white">{value ? formatDateBR(value) : 'Selecionar data'}</span>
-
-        {/* ✅ Bolinha amarela no lugar da “seta” */}
-        <span className="absolute right-4 w-2.5 h-2.5 rounded-full bg-yellow-500" />
-      </div>
-
-      {/* Input invisível (captura clique e abre calendário) */}
-      <input
-        ref={inputRef}
-        type="date"
-        value={value}
-        min={min}
-        onChange={onChange}
-        className="absolute inset-0 opacity-0 cursor-pointer"
-        aria-label="Selecionar data"
-      />
-    </div>
-  );
 }
 
 export default function Vitrine({ user, userType }) {
@@ -213,10 +168,6 @@ export default function Vitrine({ user, userType }) {
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-
-  // ✅ Galeria modal
-  const [showGaleria, setShowGaleria] = useState(false);
-  const [galeriaIndex, setGaleriaIndex] = useState(0);
 
   const isProfessional = user && userType === 'professional';
   const isClient = user && userType === 'client';
@@ -404,10 +355,9 @@ export default function Vitrine({ user, userType }) {
 
   // ✅ regra: dia de trabalho do profissional (0..6)
   const diaSelecionadoEhTrabalho = useMemo(() => {
-    if (!flow.profissional || !flow.data) return true; // sem data ainda
+    if (!flow.profissional || !flow.data) return true;
     const dias = normalizeDiasTrabalho(flow.profissional.dias_trabalho);
-    // se não tiver nada salvo, assume todos (não quebra operação)
-    const diasEfetivos = dias.length ? dias : [0,1,2,3,4,5,6];
+    const diasEfetivos = dias.length ? dias : [0, 1, 2, 3, 4, 5, 6];
     const dow = getDowFromDateSP(flow.data);
     if (dow == null) return true;
     return diasEfetivos.includes(dow);
@@ -416,7 +366,6 @@ export default function Vitrine({ user, userType }) {
   const calcularHorariosDisponiveis = async () => {
     if (!flow.profissional || !flow.data) return;
 
-    // ✅ se o dia é fechado, nem calcula horários
     if (!diaSelecionadoEhTrabalho) {
       setHorariosDisponiveis([]);
       return;
@@ -535,7 +484,7 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
-  // ✅ serviços possíveis (ordem por preço: maior -> menor)
+  // ✅ serviços possíveis
   const servicosPossiveis = useMemo(() => {
     if (!flow.horario) return [];
     return servicosDoProf
@@ -543,12 +492,12 @@ export default function Vitrine({ user, userType }) {
       .sort((a, b) => {
         const pa = Number(a.preco ?? 0);
         const pb = Number(b.preco ?? 0);
-        if (pb !== pa) return pb - pa; // ✅ maior -> menor
+        if (pb !== pa) return pb - pa;
         return String(a.nome || '').localeCompare(String(b.nome || ''));
       });
   }, [servicosDoProf, flow.horario]);
 
-  // ✅ status ABERTO/FECHADO pro card (bolinha verde/vermelha)
+  // ✅ status ABERTO/FECHADO pro card
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -558,9 +507,8 @@ export default function Vitrine({ user, userType }) {
     const fim = timeToMinutes(p?.horario_fim || '18:00');
 
     const dias = normalizeDiasTrabalho(p?.dias_trabalho);
-    const diasEfetivos = dias.length ? dias : [0,1,2,3,4,5,6];
+    const diasEfetivos = dias.length ? dias : [0, 1, 2, 3, 4, 5, 6];
 
-    // agora dow de hoje em SP
     const hojeDow = getDowFromDateSP(now.date);
     const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
@@ -581,7 +529,6 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
-      // ✅ valida novamente dia de trabalho
       if (!diaSelecionadoEhTrabalho) {
         alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
         setFlow(prev => ({ ...prev, step: 1, horario: null, servicosSelecionados: [] }));
@@ -597,7 +544,6 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
-      // ✅ cria agendamentos SEQUENCIAIS (um por serviço)
       let curInicio = horaInicioBase;
       const insertedIds = [];
 
@@ -632,7 +578,6 @@ export default function Vitrine({ user, userType }) {
           curInicio = curFim;
         }
       } catch (errInsert) {
-        // rollback best-effort
         if (insertedIds.length) {
           await supabase.from('agendamentos').delete().in('id', insertedIds);
         }
@@ -697,6 +642,12 @@ export default function Vitrine({ user, userType }) {
   // ✅ logo no hero
   const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
 
+  // ✅ galerias da barbearia (masonry/colmeia)
+  const galerias = useMemo(() => {
+    const arr = barbearia?.galerias;
+    return Array.isArray(arr) ? arr.filter(Boolean) : [];
+  }, [barbearia?.galerias]);
+
   // ✅ serviços agrupados por profissional (para seção Serviços)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
@@ -708,34 +659,10 @@ export default function Vitrine({ user, userType }) {
     return map;
   }, [profissionais, servicos]);
 
-  // ✅ redes sociais (vitrine)
-  const instagramUrl = useMemo(() => normalizeInstagram(barbearia?.instagram), [barbearia?.instagram]);
-  const facebookUrl = useMemo(() => normalizeFacebook(barbearia?.facebook), [barbearia?.facebook]);
-
-  // ✅ galeria (vitrine)
-  const galerias = useMemo(() => (
-    Array.isArray(barbearia?.galerias) ? barbearia.galerias.filter(Boolean) : []
-  ), [barbearia?.galerias]);
-
-  const openGaleria = (idx) => {
-    setGaleriaIndex(idx);
-    setShowGaleria(true);
-  };
-
-  const nextGaleria = () => {
-    if (!galerias.length) return;
-    setGaleriaIndex((prev) => (prev + 1) % galerias.length);
-  };
-
-  const prevGaleria = () => {
-    if (!galerias.length) return;
-    setGaleriaIndex((prev) => (prev - 1 + galerias.length) % galerias.length);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-normal animate-pulse">Carregando...</div>
+        <div className="text-primary text-2xl font-bold animate-pulse">Carregando...</div>
       </div>
     );
   }
@@ -745,13 +672,13 @@ export default function Vitrine({ user, userType }) {
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
           <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-normal text-white mb-2">Não foi possível carregar</h1>
+          <h1 className="text-2xl font-black text-white mb-2">Não foi possível carregar</h1>
           <p className="text-gray-400 mb-6">{error}</p>
           <button
             onClick={loadVitrine}
-            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-normal"
+            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
           >
-            TENTAR NOVAMENTE
+            Tentar novamente
           </button>
         </div>
       </div>
@@ -762,8 +689,8 @@ export default function Vitrine({ user, userType }) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-normal text-white mb-4">Barbearia não encontrada</h1>
-          <Link to="/" className="text-primary hover:text-yellow-500 font-normal">VOLTAR PARA HOME</Link>
+          <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
+          <Link to="/" className="text-primary hover:text-yellow-500 font-bold">Voltar para Home</Link>
         </div>
       </div>
     );
@@ -795,7 +722,8 @@ export default function Vitrine({ user, userType }) {
                   isProfessional ? 'border-gray-900 text-gray-600 cursor-not-allowed' : 'border-gray-800 text-gray-300 hover:border-primary'
                 }`}
               >
-                <Star className="w-5 h-5 text-primary" />
+                {/* ✅ troca ícone por caractere */}
+                <StarChar size={18} className="text-primary" />
                 <span className="hidden sm:inline">AVALIAR</span>
               </button>
 
@@ -812,7 +740,7 @@ export default function Vitrine({ user, userType }) {
               >
                 <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
                 <span className="hidden sm:inline">
-                  {isProfessional ? 'SOMENTE CLIENTE' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
+                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
                 </span>
               </button>
             </div>
@@ -830,18 +758,19 @@ export default function Vitrine({ user, userType }) {
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-normal text-black">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
                 {barbearia.nome?.[0] || 'B'}
               </div>
             )}
 
             <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal mb-3">{barbearia.nome}</h1>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
               <p className="text-base sm:text-lg text-gray-400 mb-4">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                {/* ✅ aqui agora é só 1 estrela + nota */}
                 <div className="flex items-center gap-2">
-                  <Stars5 value={Math.round(Number(mediaAvaliacoes || 0))} size={18} />
+                  <StarChar size={18} className="text-primary" />
                   <span className="text-xl font-normal text-primary">{mediaAvaliacoes}</span>
                   <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
                 </div>
@@ -856,85 +785,22 @@ export default function Vitrine({ user, userType }) {
                 {barbearia.telefone && (
                   <a
                     href={`tel:${barbearia.telefone}`}
-                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
+                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
                   >
                     <Phone className="w-4 h-4" />
                     {barbearia.telefone}
                   </a>
                 )}
               </div>
-
-              {/* ✅ Redes sociais (vitrine) */}
-              {(instagramUrl || facebookUrl) && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {instagramUrl && (
-                    <a
-                      href={instagramUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-gray-200 transition-all"
-                      title="Instagram"
-                    >
-                      <Instagram className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-normal">INSTAGRAM</span>
-                    </a>
-                  )}
-
-                  {facebookUrl && (
-                    <a
-                      href={facebookUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-gray-200 transition-all"
-                      title="Facebook"
-                    >
-                      <Facebook className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-normal">FACEBOOK</span>
-                    </a>
-                  )}
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ✅ Galeria (vitrine) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-normal flex items-center gap-2">
-              <ImageIcon className="w-6 h-6 text-primary" />
-              GALERIA
-            </h2>
-          </div>
-
-          {galerias.length ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {galerias.map((url, idx) => (
-                <button
-                  key={url}
-                  type="button"
-                  onClick={() => openGaleria(idx)}
-                  className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden hover:border-primary transition-all"
-                  title="Abrir imagem"
-                >
-                  <img src={url} alt="Galeria" className="w-full h-32 object-cover" />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="text-gray-500 font-normal">
-              Nenhuma imagem na galeria ainda.
-            </div>
-          )}
         </div>
       </section>
 
       {/* Profissionais */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-normal mb-6">PROFISSIONAIS</h2>
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {profissionais.map(prof => {
@@ -944,25 +810,24 @@ export default function Vitrine({ user, userType }) {
               return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-normal text-black">
+                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
                       {prof.nome?.[0] || 'P'}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-normal mb-1">{prof.nome}</h3>
+                      <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
 
-                      {/* luz status */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                        <span className="text-xs text-gray-400 font-normal">{status.label}</span>
+                        <span className="text-xs text-gray-400 font-bold">{status.label}</span>
                       </div>
 
                       {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
+                        <p className="text-sm text-gray-500 font-bold mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
-                      <p className="text-xs text-gray-500 font-normal mt-2">
+                      <p className="text-xs text-gray-500 font-bold mt-2">
                         Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
-                      <p className="text-xs text-gray-600 font-normal mt-2">
+                      <p className="text-xs text-gray-600 font-bold mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
                     </div>
@@ -970,7 +835,7 @@ export default function Vitrine({ user, userType }) {
 
                   <button
                     onClick={() => iniciarAgendamento(prof)}
-                    className={`w-full py-3 rounded-button hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
+                    className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
                       isProfessional
                         ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
@@ -988,12 +853,12 @@ export default function Vitrine({ user, userType }) {
       </section>
 
       {/* Serviços */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
+      <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-normal mb-6">SERVIÇOS</h2>
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
 
           {profissionais.length === 0 ? (
-            <p className="text-gray-500 font-normal">Nenhum profissional cadastrado.</p>
+            <p className="text-gray-500 font-bold">Nenhum profissional cadastrado.</p>
           ) : (
             <div className="space-y-4">
               {profissionais.map(p => {
@@ -1009,25 +874,25 @@ export default function Vitrine({ user, userType }) {
                 return (
                   <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="font-normal text-lg">{p.nome}</div>
-                      <div className="text-xs text-gray-500 font-normal">{lista.length} serviço(s)</div>
+                      <div className="font-black text-lg">{p.nome}</div>
+                      <div className="text-xs text-gray-500 font-bold">{lista.length} serviço(s)</div>
                     </div>
 
                     {lista.length ? (
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {lista.map(s => (
                           <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                            <div className="font-normal">{s.nome}</div>
-                            <div className="text-xs text-gray-500 font-normal mt-1">
+                            <div className="font-black">{s.nome}</div>
+                            <div className="text-xs text-gray-500 font-bold mt-1">
                               <Clock className="w-4 h-4 inline mr-1" />
                               {s.duracao_minutos} min
                             </div>
-                            <div className="text-primary font-normal text-lg mt-2">R$ {s.preco}</div>
+                            <div className="text-primary font-black text-lg mt-2">R$ {s.preco}</div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500 font-normal">Sem serviços ativos para este profissional.</p>
+                      <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
                     )}
                   </div>
                 );
@@ -1037,15 +902,38 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
+      {/* ✅ GALERIA (colmeia/masonry) — sem fundo, sem título, sem ícone */}
+      {galerias.length > 0 && (
+        <section className="py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [column-fill:_balance]">
+              {galerias.map((url, idx) => (
+                <div
+                  key={`${url}-${idx}`}
+                  className="mb-3 w-full break-inside-avoid overflow-hidden rounded-custom border border-gray-800 bg-dark-100"
+                >
+                  <img
+                    src={url}
+                    alt="Galeria"
+                    className="w-full h-auto object-contain bg-black"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Avaliações */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-normal">AVALIAÇÕES</h2>
+            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
             <button
               onClick={abrirAvaliar}
               disabled={!!isProfessional}
-              className={`px-5 py-2 border rounded-button text-sm transition-all ${
+              className={`px-5 py-2 border rounded-button font-normal text-sm transition-all ${
                 isProfessional
                   ? 'bg-dark-100 border-gray-900 text-gray-600 cursor-not-allowed'
                   : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
@@ -1060,12 +948,13 @@ export default function Vitrine({ user, userType }) {
               {avaliacoes.map(av => (
                 <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-normal">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                       {av.users?.nome?.[0] || 'A'}
                     </div>
                     <div>
-                      <p className="text-sm font-normal">{av.users?.nome || 'Cliente'}</p>
-                      <Stars5 value={av.nota} size={14} />
+                      <p className="text-sm font-bold">{av.users?.nome || 'Cliente'}</p>
+                      {/* ✅ aqui vira caractere com apagadas (mantém 5 apenas nesta lista) */}
+                      <Stars5Char value={av.nota} size={14} />
                     </div>
                   </div>
                   {av.comentario && <p className="text-sm text-gray-400">{av.comentario}</p>}
@@ -1078,61 +967,12 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* Modal Galeria */}
-      {showGaleria && galerias.length > 0 && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl w-full">
-            <button
-              onClick={() => setShowGaleria(false)}
-              className="absolute -top-12 right-0 text-gray-300 hover:text-white"
-              title="Fechar"
-            >
-              <X className="w-7 h-7" />
-            </button>
-
-            <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
-              <div className="relative">
-                <img
-                  src={galerias[galeriaIndex]}
-                  alt="Galeria"
-                  className="w-full max-h-[80vh] object-contain bg-black"
-                />
-
-                {galerias.length > 1 && (
-                  <>
-                    <button
-                      onClick={prevGaleria}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 border border-gray-700 flex items-center justify-center hover:border-primary"
-                      title="Anterior"
-                    >
-                      <ChevronLeft className="w-5 h-5 text-white" />
-                    </button>
-
-                    <button
-                      onClick={nextGaleria}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 border border-gray-700 flex items-center justify-center hover:border-primary"
-                      title="Próxima"
-                    >
-                      <ChevronRight className="w-5 h-5 text-white" />
-                    </button>
-                  </>
-                )}
-
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/60 border border-gray-700 text-xs text-gray-200">
-                  {galeriaIndex + 1} / {galerias.length}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal Agendamento */}
       {showAgendamento && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-dark-100 border-b border-gray-800 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-normal">AGENDAR COM {flow.profissional?.nome}</h2>
+              <h2 className="text-2xl font-normal">Agendar com {flow.profissional?.nome}</h2>
               <button onClick={() => setShowAgendamento(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
@@ -1142,19 +982,18 @@ export default function Vitrine({ user, userType }) {
               {/* STEP 1: DATA */}
               {flow.step === 1 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">ESCOLHA A DATA</h3>
-
-                  {/* ✅ Date no design combinado (sem seta + bolinha amarela + text-base) */}
-                  <DatePickerButton
-                    value={flow.data}
+                  <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
+                  <input
+                    type="date"
                     min={minDateSP}
+                    value={flow.data}
                     onChange={(e) => setFlow(prev => ({ ...prev, data: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   />
 
-                  {/* Mensagem apenas quando dia fechado */}
                   {flow.data && !diaSelecionadoEhTrabalho && (
-                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-custom p-3 text-red-300 text-sm font-normal">
-                      Este profissional está <span className="text-red-200">FECHADO</span> nessa data. Escolha outro dia.
+                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-custom p-3 text-red-300 text-sm font-bold">
+                      Este profissional está <b>FECHADO</b> nessa data. Escolha outro dia.
                     </div>
                   )}
 
@@ -1164,7 +1003,7 @@ export default function Vitrine({ user, userType }) {
                       if (!diaSelecionadoEhTrabalho) return alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
                       setFlow(prev => ({ ...prev, step: 2, horario: null, servicosSelecionados: [] }));
                     }}
-                    className={`mt-4 w-full py-3 rounded-button ${
+                    className={`mt-4 w-full py-3 rounded-button font-black ${
                       (!flow.data || !diaSelecionadoEhTrabalho)
                         ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
@@ -1181,12 +1020,12 @@ export default function Vitrine({ user, userType }) {
                 <div>
                   <button
                     onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
-                    className="text-primary mb-4"
+                    className="text-primary mb-4 font-bold"
                   >
-                    VOLTAR
+                    Voltar
                   </button>
 
-                  <h3 className="text-xl font-normal mb-4">ESCOLHA O HORÁRIO</h3>
+                  <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
 
                   {!diaSelecionadoEhTrabalho ? (
                     <p className="text-gray-500">Esse profissional está fechado nessa data.</p>
@@ -1196,7 +1035,7 @@ export default function Vitrine({ user, userType }) {
                         <button
                           key={i}
                           onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 3, servicosSelecionados: [] }))}
-                          className="relative p-3 rounded-custom transition-all bg-dark-200 border border-gray-800 hover:border-primary"
+                          className="relative p-3 rounded-custom font-bold transition-all bg-dark-200 border border-gray-800 hover:border-primary"
                         >
                           {h.tipo === 'slot' && (
                             <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
@@ -1221,7 +1060,7 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
-              {/* STEP 3: SERVIÇOS (multi seleção + soma) */}
+              {/* STEP 3: SERVIÇOS */}
               {flow.step === 3 && (
                 <div>
                   <button
@@ -1231,24 +1070,24 @@ export default function Vitrine({ user, userType }) {
                     VOLTAR
                   </button>
 
-                  <h3 className="text-xl font-normal mb-2">
-                    ESCOLHA O(S) SERVIÇO(S) <span className="text-sm text-gray-500">(cabe até {flow.horario?.maxMinutos} min)</span>
+                  <h3 className="text-xl font-black mb-2">
+                    Escolha o(s) Serviço(s) <span className="text-sm text-gray-500">(cabe até {flow.horario?.maxMinutos} min)</span>
                   </h3>
 
                   <div className="mb-4 bg-dark-200 border border-gray-800 rounded-custom p-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Selecionados:</span>
-                      <span>{totalSelecionado.qtd}</span>
+                      <span className="text-gray-500 font-bold">Selecionados:</span>
+                      <span className="font-bold">{totalSelecionado.qtd}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500">Duração total:</span>
-                      <span className={`${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
+                      <span className="text-gray-500 font-bold">Duração total:</span>
+                      <span className={`font-bold ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
                         {totalSelecionado.duracao} min
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500">Valor total:</span>
-                      <span className="text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="text-gray-500 font-bold">Valor total:</span>
+                      <span className="font-bold text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -1284,7 +1123,7 @@ export default function Vitrine({ user, userType }) {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <p className="flex items-center gap-2">
+                                <p className="font-black flex items-center gap-2">
                                   <span
                                     className={`inline-block w-3.5 h-3.5 rounded border ${
                                       selected ? 'bg-primary/30 border-primary/60' : 'bg-dark-100 border-gray-700'
@@ -1297,7 +1136,7 @@ export default function Vitrine({ user, userType }) {
                                   {s.duracao_minutos} min
                                 </p>
                               </div>
-                              <div className="text-2xl text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
+                              <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
                             </div>
                           </button>
                         );
@@ -1309,9 +1148,9 @@ export default function Vitrine({ user, userType }) {
                       <div className="mt-3">
                         <button
                           onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button"
+                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button font-bold"
                         >
-                          ESCOLHER OUTRO HORÁRIO
+                          Escolher outro horário
                         </button>
                       </div>
                     </div>
@@ -1322,7 +1161,7 @@ export default function Vitrine({ user, userType }) {
                       if (!flow.servicosSelecionados?.length) return alert('Selecione pelo menos 1 serviço.');
                       setFlow(prev => ({ ...prev, step: 4 }));
                     }}
-                    className={`mt-4 w-full py-3 rounded-button ${
+                    className={`mt-4 w-full py-3 rounded-button font-black ${
                       flow.servicosSelecionados?.length
                         ? 'bg-gradient-to-r from-primary to-yellow-600 text-black'
                         : 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
@@ -1337,28 +1176,28 @@ export default function Vitrine({ user, userType }) {
               {/* STEP 4: CONFIRMAR */}
               {flow.step === 4 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">CONFIRMAR AGENDAMENTO</h3>
+                  <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
 
                   <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Profissional:</span>
-                      <span>{flow.profissional?.nome}</span>
+                      <span className="font-bold">{flow.profissional?.nome}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Data:</span>
-                      <span>{formatDateBR(flow.data)}</span>
+                      <span className="font-bold">{formatDateBR(flow.data)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Horário:</span>
-                      <span>{flow.horario?.hora}</span>
+                      <span className="font-bold">{flow.horario?.hora}</span>
                     </div>
 
                     <div className="pt-2 border-t border-gray-800">
-                      <div className="text-gray-500 text-sm mb-2">Serviços:</div>
+                      <div className="text-gray-500 font-bold text-sm mb-2">Serviços:</div>
                       <div className="space-y-1">
                         {(flow.servicosSelecionados || []).map(s => (
                           <div key={s.id} className="flex justify-between text-sm">
-                            <span className="text-gray-200">{s.nome}</span>
+                            <span className="font-bold text-gray-200">{s.nome}</span>
                             <span className="text-gray-400">{s.duracao_minutos} min • R$ {Number(s.preco || 0).toFixed(2)}</span>
                           </div>
                         ))}
@@ -1367,24 +1206,24 @@ export default function Vitrine({ user, userType }) {
 
                     <div className="flex justify-between">
                       <span className="text-gray-500">Duração total:</span>
-                      <span>{totalSelecionado.duracao} min</span>
+                      <span className="font-bold">{totalSelecionado.duracao} min</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Valor total:</span>
-                      <span className="text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="font-bold text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
                   <div className="flex gap-3">
                     <button
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
-                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button"
+                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold"
                     >
                       VOLTAR
                     </button>
                     <button
                       onClick={confirmarAgendamento}
-                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button"
+                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
                     >
                       CONFIRMAR
                     </button>
@@ -1402,20 +1241,20 @@ export default function Vitrine({ user, userType }) {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-normal">AVALIAR</h3>
+              <h3 className="text-2xl font-black">Avaliar</h3>
               <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             <div className="mb-4">
-              <div className="text-sm text-gray-300 mb-2">NOTA</div>
+              <div className="text-sm text-gray-300 font-bold mb-2">Nota</div>
               <div className="flex gap-2">
-                {[1,2,3,4,5].map(n => (
+                {[1, 2, 3, 4, 5].map(n => (
                   <button
                     key={n}
                     onClick={() => setAvaliarNota(n)}
-                    className={`w-10 h-10 rounded-custom border transition-all ${
+                    className={`w-10 h-10 rounded-custom border font-black transition-all ${
                       avaliarNota >= n
                         ? 'bg-primary/20 border-primary/50 text-primary'
                         : 'bg-dark-200 border-gray-800 text-gray-500'
@@ -1428,7 +1267,7 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="mb-5">
-              <div className="text-sm text-gray-300 mb-2">COMENTÁRIO (OPCIONAL)</div>
+              <div className="text-sm text-gray-300 font-bold mb-2">Comentário (opcional)</div>
               <textarea
                 value={avaliarTexto}
                 onChange={(e) => setAvaliarTexto(e.target.value)}
@@ -1441,12 +1280,12 @@ export default function Vitrine({ user, userType }) {
             <button
               onClick={enviarAvaliacao}
               disabled={avaliarLoading}
-              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button disabled:opacity-60"
+              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black disabled:opacity-60"
             >
               {avaliarLoading ? 'ENVIANDO...' : 'ENVIAR AVALIAÇÃO'}
             </button>
 
-            <p className="text-xs text-gray-500 mt-3">
+            <p className="text-xs text-gray-500 mt-3 font-bold">
               Somente clientes logados podem avaliar.
             </p>
           </div>
