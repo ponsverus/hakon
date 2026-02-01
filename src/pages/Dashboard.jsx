@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Trash2, X, ExternalLink, Eye, Copy, Check, Calendar, DollarSign,
-  Users, TrendingUp, Award, LogOut, AlertCircle, Clock
+  Users, TrendingUp, Award, LogOut, AlertCircle, Clock, Instagram, Facebook
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -18,24 +18,6 @@ function timeToMinutes(t) {
   if (!t) return 0;
   const [h, m] = String(t).split(':').map(Number);
   return (h * 60) + (m || 0);
-}
-
-// ✅ Data YYYY-MM-DD em America/Sao_Paulo (sem UTC)
-function getTodaySP() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
-
-// ✅ Exibe data sem usar new Date() (evita bug de fuso)
-function formatDateBR(ymd) {
-  if (!ymd) return '';
-  const [y, m, d] = String(ymd).split('-');
-  if (!y || !m || !d) return String(ymd);
-  return `${d}/${m}/${y}`;
 }
 
 function getNowSP() {
@@ -106,14 +88,20 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
-  // ✅ HOJE correto em SP (sem UTC)
-  const hoje = getTodaySP();
-
   // Histórico (data selecionada)
+  const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
 
-  // ✅ Faturamento (data selecionável)
-  const [faturamentoData, setFaturamentoData] = useState(hoje);
+  // ✅ Nova aba: Informações do negócio
+  const [savingBiz, setSavingBiz] = useState(false);
+  const [bizForm, setBizForm] = useState({
+    nome: '',
+    descricao: '',
+    endereco: '',
+    telefone: '',
+    instagram: '',
+    facebook: ''
+  });
 
   // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
@@ -150,14 +138,6 @@ export default function Dashboard({ user, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // ✅ Mantém datas sempre em SP quando dashboard abre
-  useEffect(() => {
-    const t = getTodaySP();
-    setHistoricoData(t);
-    setFaturamentoData(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
   const loadData = async () => {
     if (!user?.id) {
       setError('Sessão inválida. Faça login novamente.');
@@ -189,6 +169,16 @@ export default function Dashboard({ user, onLogout }) {
 
       setBarbearia(barbeariaData);
 
+      // ✅ preenche form da aba Informações (não muda layout em nada)
+      setBizForm({
+        nome: barbeariaData.nome || '',
+        descricao: barbeariaData.descricao || '',
+        endereco: barbeariaData.endereco || '',
+        telefone: barbeariaData.telefone || '',
+        instagram: barbeariaData.instagram || '',
+        facebook: barbeariaData.facebook || ''
+      });
+
       // Profissionais
       const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
@@ -210,7 +200,7 @@ export default function Dashboard({ user, onLogout }) {
 
       const ids = profs.map(p => p.id);
 
-      // Serviços (ordem no banco não importa; UI vai ordenar por preço quando exibir)
+      // Serviços
       const { data: servicosData, error: servErr } = await supabase
         .from('servicos')
         .select('*, profissionais (nome)')
@@ -220,7 +210,7 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos (traz recente, UI filtra/ordena)
+      // Agendamentos (traz recente, UI filtra por data)
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -230,22 +220,15 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
-      // ✅ Auto-concluir passados SEM timezone bug:
-      // - se data < hojeSP => passou
-      // - se data == hojeSP e hora_fim < agoraMin => passou
+      // Auto-concluir passados (sem travar UI)
       if (ags?.length) {
-        const now = getNowSP();
+        const agora = new Date();
         const toUpdate = [];
 
         for (const a of ags) {
           if (a?.status === 'agendado' || a?.status === 'confirmado') {
-            const dataStr = String(a.data || '');
-            const fimMin = timeToMinutes(a.hora_fim || '00:00');
-
-            const passouDia = dataStr < now.date;
-            const passouHoje = (dataStr === now.date) && (fimMin <= now.minutes);
-
-            if (passouDia || passouHoje) toUpdate.push(a.id);
+            const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
+            if (dataHoraFim < agora) toUpdate.push(a.id);
           }
         }
 
@@ -458,7 +441,7 @@ export default function Dashboard({ user, onLogout }) {
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias, // ✅ agora salva domingo=0
+        dias_trabalho: dias, // ✅ NÃO MEXER
       };
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
@@ -586,43 +569,16 @@ export default function Dashboard({ user, onLogout }) {
     return total ? (canc / total) * 100 : 0;
   }, [agendamentosHoje.length, hojeCancelados.length]);
 
-  // ✅ Faturamento por data selecionada (concluídos do dia escolhido)
-  const agendamentosFaturamentoDia = useMemo(() => {
-    return (agendamentos || []).filter(a => sameDay(a.data, faturamentoData));
-  }, [agendamentos, faturamentoData]);
-
-  const concluidosFaturamentoDia = useMemo(() => {
-    return agendamentosFaturamentoDia.filter(a => a.status === 'concluido');
-  }, [agendamentosFaturamentoDia]);
-
-  const faturamentoSelecionado = useMemo(() => {
-    return concluidosFaturamentoDia.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
-  }, [concluidosFaturamentoDia]);
-
-  // ✅ Próximos agendamentos (inclui hoje e futuro), ordenado: data asc + hora asc
-  const agendamentosProximos = useMemo(() => {
-    const now = getNowSP();
-    const nowTime = String(Math.floor(now.minutes / 60)).padStart(2, '0') + ':' + String(now.minutes % 60).padStart(2, '0');
-
-    return (agendamentos || [])
-      .filter(a => !String(a.status || '').includes('cancelado'))
-      .filter(a => {
-        const d = String(a.data || '');
-        if (d > now.date) return true;
-        if (d < now.date) return false;
-        // hoje: só os que ainda não começaram (ou iguais)
-        return String(a.hora_inicio || '') >= nowTime;
-      })
-      .sort((a, b) => {
-        const d = String(a.data || '').localeCompare(String(b.data || ''));
-        if (d !== 0) return d;
-        return String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || ''));
-      });
-  }, [agendamentos]);
-
   const proximoAgendamento = useMemo(() => {
-    return agendamentosProximos[0] || null;
-  }, [agendamentosProximos]);
+    const now = new Date();
+    const nowTime = now.toTimeString().slice(0, 5);
+
+    const futuros = hojeValidos
+      .filter(a => String(a.hora_inicio || '') >= nowTime)
+      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
+
+    return futuros[0] || null;
+  }, [hojeValidos]);
 
   const agendamentosDiaSelecionado = useMemo(() => {
     return agendamentos
@@ -639,7 +595,7 @@ export default function Dashboard({ user, onLogout }) {
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    // ✅ usa dias_trabalho (se vazio, assume todos)
+    // ✅ usa dias_trabalho (se vazio, assume todos) — NÃO MEXER
     const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
       ? p.dias_trabalho
       : [0,1,2,3,4,5,6];
@@ -648,8 +604,72 @@ export default function Dashboard({ user, onLogout }) {
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
     if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
-    return { label: 'FECHADO', color: 'bg-yellow-500' };
+
+    // ✅ ALTERAÇÃO #1: FECHADO agora é vermelho (coerente com vitrine)
+    return { label: 'FECHADO', color: 'bg-red-500' };
   };
+
+  // ✅ Serviços agrupados por profissional (para aba Serviços)
+  const servicosPorProf = useMemo(() => {
+    const map = new Map();
+    for (const p of profissionais) map.set(p.id, []);
+    for (const s of servicos) {
+      if (!map.has(s.profissional_id)) map.set(s.profissional_id, []);
+      map.get(s.profissional_id).push(s);
+    }
+    return map;
+  }, [profissionais, servicos]);
+
+  // ✅ salvar informações do negócio
+  const salvarBizInfo = async () => {
+    if (!barbearia?.id) return;
+    try {
+      setSavingBiz(true);
+
+      const payload = {
+        nome: String(bizForm.nome || '').trim(),
+        descricao: String(bizForm.descricao || '').trim(),
+        endereco: String(bizForm.endereco || '').trim(),
+        telefone: String(bizForm.telefone || '').trim(),
+        instagram: String(bizForm.instagram || '').trim() || null,
+        facebook: String(bizForm.facebook || '').trim() || null,
+      };
+
+      if (!payload.nome) return alert('Nome da barbearia é obrigatório.');
+      if (!payload.descricao) return alert('Descrição é obrigatória.');
+      if (!payload.endereco) return alert('Endereço é obrigatório.');
+      if (!payload.telefone) return alert('Telefone é obrigatório.');
+
+      const { error: updErr } = await supabase
+        .from('barbearias')
+        .update(payload)
+        .eq('id', barbearia.id);
+
+      if (updErr) throw updErr;
+
+      alert('✅ Informações atualizadas!');
+      await loadData();
+    } catch (e) {
+      console.error('salvarBizInfo:', e);
+      alert('❌ Erro ao salvar informações: ' + (e?.message || ''));
+    } finally {
+      setSavingBiz(false);
+    }
+  };
+
+  const instagramLink = useMemo(() => {
+    const v = String(barbearia?.instagram || '').trim();
+    if (!v) return null;
+    const handle = v.startsWith('@') ? v.slice(1) : v;
+    return `https://instagram.com/${handle}`;
+  }, [barbearia?.instagram]);
+
+  const facebookLink = useMemo(() => {
+    const v = String(barbearia?.facebook || '').trim();
+    if (!v) return null;
+    // aceita username/id
+    return `https://facebook.com/${v}`;
+  }, [barbearia?.facebook]);
 
   // ====== UI ======
   if (loading) return (
@@ -678,7 +698,7 @@ export default function Dashboard({ user, onLogout }) {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pb-16">
       {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -750,33 +770,19 @@ export default function Dashboard({ user, onLogout }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
             <DollarSign className="w-8 h-8 text-green-400 mb-2" />
-            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoSelecionado.toFixed(2)}</div>
-            <div className="text-sm text-green-300 font-bold flex items-center justify-between gap-2">
-              <span>Faturamento</span>
-              <input
-                type="date"
-                value={faturamentoData}
-                onChange={(e) => setFaturamentoData(e.target.value)}
-                className="bg-dark-200 border border-green-500/30 rounded px-2 py-1 text-[12px] text-white"
-              />
-            </div>
-            <div className="text-[11px] text-green-200/70 font-bold mt-2">
-              Data: {formatDateBR(faturamentoData)} • Concluídos: {concluidosFaturamentoDia.length}
-            </div>
+            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoHoje.toFixed(2)}</div>
+            <div className="text-sm text-green-300 font-bold">Faturamento Hoje</div>
           </div>
-
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
             <div className="text-sm text-gray-400 font-bold">Agendamentos Hoje</div>
           </div>
-
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Users className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{profissionais.length}</div>
             <div className="text-sm text-gray-400 font-bold">Profissionais</div>
           </div>
-
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
             <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
@@ -809,7 +815,15 @@ export default function Dashboard({ user, onLogout }) {
         {/* Tabs */}
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
-            {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais'].map(tab => (
+            {[
+              'visao-geral',
+              'agendamentos',
+              'cancelados',
+              'historico',
+              'servicos',
+              'profissionais',
+              'informacoes'
+            ].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -817,7 +831,7 @@ export default function Dashboard({ user, onLogout }) {
                   activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {tab === 'agendamentos' ? 'próximos' : tab.replace('-', ' ')}
+                {tab === 'informacoes' ? 'informações' : tab.replace('-', ' ')}
               </button>
             ))}
           </div>
@@ -852,11 +866,11 @@ export default function Dashboard({ user, onLogout }) {
                           {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
                         </div>
                         <div className="text-xs text-gray-500 font-bold mt-1">
-                          {proximoAgendamento.servicos?.nome} • {formatDateBR(proximoAgendamento.data)}
+                          {proximoAgendamento.servicos?.nome}
                         </div>
                       </>
                     ) : (
-                      <div className="text-sm text-gray-500 font-bold">Nenhum agendamento futuro</div>
+                      <div className="text-sm text-gray-500 font-bold">Nenhum futuro hoje</div>
                     )}
                   </div>
                 </div>
@@ -889,53 +903,33 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* PRÓXIMOS AGENDAMENTOS (HOJE + FUTURO) */}
+            {/* AGENDAMENTOS (HOJE) */}
             {activeTab === 'agendamentos' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Próximos Agendamentos</h2>
-
-                {agendamentosProximos.length > 0 ? (
+                <h2 className="text-2xl font-black mb-6">Agendamentos de Hoje</h2>
+                {hojeValidos.length > 0 ? (
                   <div className="space-y-4">
-                    {agendamentosProximos.map(a => {
-                      const isHoje = sameDay(a.data, hoje);
-                      return (
+                    {hojeValidos
+                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
+                      .map(a => (
                         <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">
-                                {a.servicos?.nome} • {a.profissionais?.nome}
-                              </p>
-                              <p className="text-xs text-gray-500 font-bold mt-1">
-                                Data: <span className="text-gray-300">{formatDateBR(a.data)}</span>
-                                {' • '}
-                                Horário: <span className="text-gray-300">{a.hora_inicio}</span>
-                              </p>
+                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                             </div>
-
-                            <div className="flex flex-col items-end gap-2">
-                              <div className={`px-3 py-1 rounded-button text-xs font-bold ${
-                                a.status === 'concluido'
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-blue-500/20 text-blue-400'
-                              }`}>
-                                {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
-                              </div>
-
-                              {!isHoje && (
-                                <div className="px-3 py-1 rounded-button text-xs font-bold bg-yellow-500/10 border border-yellow-500/20 text-yellow-300">
-                                  FUTURO
-                                </div>
-                              )}
-                              {isHoje && (
-                                <div className="px-3 py-1 rounded-button text-xs font-bold bg-primary/10 border border-primary/20 text-primary">
-                                  HOJE
-                                </div>
-                              )}
+                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                              a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
                             </div>
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Horário</div>
+                              <div className="text-sm font-bold">{a.hora_inicio}</div>
+                            </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Valor</div>
                               <div className="text-sm font-bold">R$ {a.servicos?.preco}</div>
@@ -951,16 +945,15 @@ export default function Dashboard({ user, onLogout }) {
                             </button>
                           )}
                         </div>
-                      );
-                    })}
+                      ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento futuro</p>
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento hoje</p>
                 )}
               </div>
             )}
 
-            {/* CANCELADOS (HOJE) */}
+            {/* CANCELADOS */}
             {activeTab === 'cancelados' && (
               <div>
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados (Hoje)</h2>
@@ -983,7 +976,7 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{formatDateBR(a.data)}</div>
+                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Horário</div>
@@ -1011,11 +1004,13 @@ export default function Dashboard({ user, onLogout }) {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 font-bold">Dia:</span>
+
+                    {/* ✅ ALTERAÇÃO #3: input date arredondado */}
                     <input
                       type="date"
                       value={historicoData}
                       onChange={(e) => setHistoricoData(e.target.value)}
-                      className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                      className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-button text-white"
                     />
                   </div>
                 </div>
@@ -1038,9 +1033,6 @@ export default function Dashboard({ user, onLogout }) {
                               <div className="font-black text-lg">{a.users?.nome || 'Cliente'}</div>
                               <div className="text-sm text-gray-400 font-bold">
                                 {a.hora_inicio} • {a.servicos?.nome} • {a.profissionais?.nome}
-                              </div>
-                              <div className="text-xs text-gray-500 font-bold mt-1">
-                                Data: <span className="text-gray-300">{formatDateBR(a.data)}</span>
                               </div>
                             </div>
 
@@ -1068,7 +1060,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS (ordenado por preço desc) */}
+            {/* SERVIÇOS */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1085,68 +1077,73 @@ export default function Dashboard({ user, onLogout }) {
                   </button>
                 </div>
 
-                {servicos.length > 0 ? (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {servicos
-                      .slice()
-                      .sort((a, b) => {
-                        const pa = Number(a.preco ?? 0);
-                        const pb = Number(b.preco ?? 0);
-                        if (pb !== pa) return pb - pa; // ✅ maior -> menor
-                        return String(a.nome || '').localeCompare(String(b.nome || ''));
-                      })
-                      .map(s => (
-                        <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h3 className="text-lg font-black">{s.nome}</h3>
-                              <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
+                {profissionais.length > 0 ? (
+                  <div className="space-y-4">
+                    {profissionais.map(p => {
+                      // ✅ ALTERAÇÃO #2: separação por profissional
+                      // ✅ e organização: maior preço primeiro (menor por último)
+                      const lista = (servicosPorProf.get(p.id) || [])
+                        .slice()
+                        .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0));
+
+                      return (
+                        <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="font-black text-lg">{p.nome}</div>
+                            <div className="text-xs text-gray-500 font-bold">{lista.length} serviço(s)</div>
+                          </div>
+
+                          {lista.length ? (
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {lista.map(s => (
+                                <div key={s.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                                  <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                      <h3 className="text-lg font-black">{s.nome}</h3>
+                                      <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
+                                    </div>
+                                    <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
+                                  </div>
+                                  <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
+
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingServicoId(s.id);
+                                        setFormServico({
+                                          nome: s.nome || '',
+                                          duracao_minutos: String(s.duracao_minutos ?? ''),
+                                          preco: String(s.preco ?? ''),
+                                          profissional_id: s.profissional_id || ''
+                                        });
+                                        setShowNovoServico(true);
+                                      }}
+                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                                    >
+                                      Editar
+                                    </button>
+
+                                    <button
+                                      onClick={() => deleteServico(s.id)}
+                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                                    >
+                                      <Trash2 className="w-4 h-4 inline mr-1" />
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
-                          </div>
-                          <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
-
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingServicoId(s.id);
-                                setFormServico({
-                                  nome: s.nome || '',
-                                  duracao_minutos: String(s.duracao_minutos ?? ''),
-                                  preco: String(s.preco ?? ''),
-                                  profissional_id: s.profissional_id || ''
-                                });
-                                setShowNovoServico(true);
-                              }}
-                              className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
-                            >
-                              Editar
-                            </button>
-
-                            <button
-                              onClick={() => deleteServico(s.id)}
-                              className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
-                            >
-                              <Trash2 className="w-4 h-4 inline mr-1" />
-                              Excluir
-                            </button>
-                          </div>
+                          ) : (
+                            <p className="text-gray-500 font-bold">Sem serviços cadastrados para este profissional.</p>
+                          )}
                         </div>
-                      ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <p className="text-gray-500 mb-4">Nenhum serviço cadastrado</p>
-                    <button
-                      onClick={() => {
-                        setShowNovoServico(true);
-                        setEditingServicoId(null);
-                        setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
-                      }}
-                      className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
-                    >
-                      Adicionar Primeiro Serviço
-                    </button>
+                    <p className="text-gray-500 mb-4">Nenhum profissional cadastrado</p>
                   </div>
                 )}
               </div>
@@ -1260,9 +1257,135 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
             )}
+
+            {/* ✅ INFORMAÇÕES DO NEGÓCIO */}
+            {activeTab === 'informacoes' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-black">Informações do negócio</h2>
+
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2">Nome da barbearia</label>
+                    <input
+                      type="text"
+                      value={bizForm.nome}
+                      onChange={(e) => setBizForm(prev => ({ ...prev, nome: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-2">Descrição</label>
+                    <textarea
+                      rows={3}
+                      value={bizForm.descricao}
+                      onChange={(e) => setBizForm(prev => ({ ...prev, descricao: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Telefone</label>
+                      <input
+                        type="text"
+                        value={bizForm.telefone}
+                        onChange={(e) => setBizForm(prev => ({ ...prev, telefone: e.target.value }))}
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Endereço</label>
+                      <input
+                        type="text"
+                        value={bizForm.endereco}
+                        onChange={(e) => setBizForm(prev => ({ ...prev, endereco: e.target.value }))}
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Instagram (arroba ou usuário)</label>
+                      <input
+                        type="text"
+                        value={bizForm.instagram}
+                        onChange={(e) => setBizForm(prev => ({ ...prev, instagram: e.target.value }))}
+                        placeholder="@seuusuario"
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white placeholder-gray-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Facebook (username/id)</label>
+                      <input
+                        type="text"
+                        value={bizForm.facebook}
+                        onChange={(e) => setBizForm(prev => ({ ...prev, facebook: e.target.value }))}
+                        placeholder="seuusuario"
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white placeholder-gray-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={salvarBizInfo}
+                    disabled={savingBiz}
+                    className={`w-full py-3 rounded-button font-black ${
+                      savingBiz
+                        ? 'bg-gray-900 border border-gray-800 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
+                    }`}
+                  >
+                    {savingBiz ? 'SALVANDO...' : 'SALVAR INFORMAÇÕES'}
+                  </button>
+
+                  <div className="text-xs text-gray-500 font-bold">
+                    Essas informações refletem diretamente na sua vitrine.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* ✅ Footer fixo com redes sociais */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-dark-100 border-t border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-center gap-4">
+          {instagramLink ? (
+            <a
+              href={instagramLink}
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button flex items-center gap-2 text-sm font-bold text-gray-200"
+              title="Instagram"
+            >
+              <Instagram className="w-4 h-4 text-primary" /> Instagram
+            </a>
+          ) : null}
+
+          {facebookLink ? (
+            <a
+              href={facebookLink}
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button flex items-center gap-2 text-sm font-bold text-gray-200"
+              title="Facebook"
+            >
+              <Facebook className="w-4 h-4 text-blue-400" /> Facebook
+            </a>
+          ) : null}
+
+          {!instagramLink && !facebookLink ? (
+            <div className="text-xs text-gray-500 font-bold">
+              Adicione suas redes em “Informações”.
+            </div>
+          ) : null}
+        </div>
+      </footer>
 
       {/* Modal Serviço */}
       {showNovoServico && (
@@ -1403,7 +1526,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* ✅ Dias de trabalho REAL (dias_trabalho) */}
+              {/* ✅ Dias de trabalho REAL (dias_trabalho) — NÃO MEXER */}
               <div>
                 <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-7 gap-2">
