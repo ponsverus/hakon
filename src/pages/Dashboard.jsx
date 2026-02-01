@@ -20,6 +20,23 @@ function timeToMinutes(t) {
   return (h * 60) + (m || 0);
 }
 
+// ✅ DATA “à prova de fuso” (SP)
+function getTodaySP() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date()); // YYYY-MM-DD
+}
+
+function formatDateBR(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = String(ymd).split('-');
+  if (!y || !m || !d) return String(ymd);
+  return `${d}/${m}/${y}`;
+}
+
 function getNowSP() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -52,7 +69,6 @@ function getNowSP() {
   return { date, minutes, dow };
 }
 
-// ✅ DOM=0 ... SÁB=6
 const WEEKDAYS = [
   { i: 0, label: 'DOM' },
   { i: 1, label: 'SEG' },
@@ -62,18 +78,6 @@ const WEEKDAYS = [
   { i: 5, label: 'SEX' },
   { i: 6, label: 'SÁB' },
 ];
-
-// ✅ Normaliza e GARANTE que domingo seja 0 (e não 7)
-function normalizeDiasTrabalho(arr) {
-  const base = Array.isArray(arr) ? arr : [];
-  const cleaned = base
-    .map(n => Number(n))
-    .filter(n => Number.isFinite(n))
-    .map(n => (n === 7 ? 0 : n))
-    .filter(n => n >= 0 && n <= 6);
-
-  return Array.from(new Set(cleaned)).sort((a, b) => a - b);
-}
 
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
@@ -88,9 +92,14 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
+  // ✅ HOJE em SP (fix do +1 dia)
+  const hoje = useMemo(() => getTodaySP(), []);
+
   // Histórico (data selecionada)
-  const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
+
+  // ✅ Faturamento por data (histórico)
+  const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
@@ -111,16 +120,20 @@ export default function Dashboard({ user, onLogout }) {
     profissional_id: ''
   });
 
-  // ✅ agora é dias_trabalho (coluna real)
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
     anos_experiencia: '',
     horario_inicio: '08:00',
     horario_fim: '18:00',
-    dias_trabalho: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
+    dias_semana: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
   });
 
   const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
+
+  // detecta se existe a coluna dias_semana (pra não quebrar se não tiver)
+  const supportsDiasSemana = useMemo(() => {
+    return profissionais.some(p => Object.prototype.hasOwnProperty.call(p, 'dias_semana'));
+  }, [profissionais]);
 
   useEffect(() => {
     if (user?.id) loadData();
@@ -189,13 +202,13 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos (traz recente, UI filtra por data)
+      // Agendamentos (traz recente, UI filtra/ordena)
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
         .in('profissional_id', ids)
         .order('data', { ascending: false })
-        .limit(300);
+        .limit(400);
 
       if (agErr) throw agErr;
 
@@ -225,7 +238,7 @@ export default function Dashboard({ user, onLogout }) {
               .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
               .in('profissional_id', ids)
               .order('data', { ascending: false })
-              .limit(300)
+              .limit(400)
               .then(({ data }) => setAgendamentos(data || []));
           });
         }
@@ -381,16 +394,17 @@ export default function Dashboard({ user, onLogout }) {
     try {
       if (!barbearia?.id) throw new Error('Barbearia não carregada.');
 
-      const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
-
       const payload = {
         barbearia_id: barbearia.id,
         nome: String(formProfissional.nome || '').trim(),
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias.length ? dias : [1,2,3,4,5,6],
       };
+
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
@@ -400,7 +414,7 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Profissional adicionado!');
       setShowNovoProfissional(false);
       setEditingProfissional(null);
-      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
+      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
@@ -413,15 +427,16 @@ export default function Dashboard({ user, onLogout }) {
     try {
       if (!editingProfissional?.id) throw new Error('Profissional inválido.');
 
-      const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
-
       const payload = {
         nome: String(formProfissional.nome || '').trim(),
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias, // ✅ agora salva domingo=0
       };
+
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
@@ -511,7 +526,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ======= Visão Geral + Histórico =======
+  // ======= Agendamentos Hoje (válidos/cancelados/concluídos) =======
   const agendamentosHoje = useMemo(
     () => agendamentos.filter(a => sameDay(a.data, hoje)),
     [agendamentos, hoje]
@@ -559,13 +574,41 @@ export default function Dashboard({ user, onLogout }) {
     return futuros[0] || null;
   }, [hojeValidos]);
 
+  // ✅ Agendamentos futuros (inclui hoje e próximos) — ordenado do mais próximo pro mais distante
+  const agendamentosProximos = useMemo(() => {
+    return (agendamentos || [])
+      .filter(a => !String(a.status || '').includes('cancelado'))
+      .filter(a => String(a.data || '') >= String(hoje))
+      .sort((a, b) => {
+        const d = String(a.data || '').localeCompare(String(b.data || ''));
+        if (d !== 0) return d;
+        return String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || ''));
+      });
+  }, [agendamentos, hoje]);
+
+  // ✅ Histórico por data selecionada (agendamentos)
   const agendamentosDiaSelecionado = useMemo(() => {
     return agendamentos
       .filter(a => sameDay(a.data, historicoData))
       .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
   }, [agendamentos, historicoData]);
 
-  // ======= Status do profissional (luz verde/vermelha) =======
+  // ✅ Faturamento por data selecionada
+  const concluidosData = useMemo(() => {
+    return (agendamentos || [])
+      .filter(a => sameDay(a.data, faturamentoData))
+      .filter(a => a.status === 'concluido');
+  }, [agendamentos, faturamentoData]);
+
+  const faturamentoSelecionado = useMemo(() => {
+    return concluidosData.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
+  }, [concluidosData]);
+
+  const ticketMedioSelecionado = useMemo(() => {
+    return concluidosData.length ? (faturamentoSelecionado / concluidosData.length) : 0;
+  }, [faturamentoSelecionado, concluidosData.length]);
+
+  // ======= Status do profissional (luz verde/amarela/vermelha) =======
   const getProfStatus = (p) => {
     const ativo = (p.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'INATIVO', color: 'bg-red-500' };
@@ -574,9 +617,8 @@ export default function Dashboard({ user, onLogout }) {
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    // ✅ usa dias_trabalho (se vazio, assume todos)
-    const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
-      ? p.dias_trabalho
+    const dias = (Array.isArray(p.dias_semana) && p.dias_semana.length)
+      ? p.dias_semana
       : [0,1,2,3,4,5,6];
 
     const trabalhaHoje = dias.includes(now.dow);
@@ -585,6 +627,13 @@ export default function Dashboard({ user, onLogout }) {
     if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
     return { label: 'FECHADO', color: 'bg-yellow-500' };
   };
+
+  // ✅ Ordenação dos serviços: maior preço -> menor preço (exibição)
+  const servicosOrdenados = useMemo(() => {
+    return (servicos || [])
+      .slice()
+      .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0));
+  }, [servicos]);
 
   // ====== UI ======
   if (loading) return (
@@ -645,7 +694,7 @@ export default function Dashboard({ user, onLogout }) {
                 <Eye className="w-4 h-4" />Ver Vitrine
               </Link>
 
-              {/* Botão LOGO no header (pequeno no mobile) */}
+              {/* Botão LOGO no header */}
               <label className="inline-block">
                 <input
                   type="file"
@@ -782,80 +831,132 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
+                {/* ✅ Histórico de faturamento por data */}
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <h3 className="text-lg font-black mb-3">Resumo rápido</h3>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-xs text-gray-500 font-bold">Total hoje</div>
-                      <div className="text-2xl font-black">{agendamentosHoje.length}</div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h3 className="text-lg font-black">Faturamento por data</h3>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 font-bold">Data:</span>
+                      <input
+                        type="date"
+                        value={faturamentoData}
+                        onChange={(e) => setFaturamentoData(e.target.value)}
+                        className="px-3 py-2 bg-dark-100 border border-gray-800 rounded-custom text-white text-sm"
+                      />
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500 font-bold">Válidos hoje</div>
-                      <div className="text-2xl font-black">{hojeValidos.length}</div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Faturamento ({formatDateBR(faturamentoData)})</div>
+                      <div className="text-2xl font-black text-white">R$ {faturamentoSelecionado.toFixed(2)}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500 font-bold">Cancelados hoje</div>
-                      <div className="text-2xl font-black">{hojeCancelados.length}</div>
+
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Concluídos</div>
+                      <div className="text-2xl font-black text-white">{concluidosData.length}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500 font-bold">Faturamento hoje</div>
-                      <div className="text-2xl font-black">R$ {faturamentoHoje.toFixed(2)}</div>
+
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Ticket médio</div>
+                      <div className="text-2xl font-black text-primary">R$ {ticketMedioSelecionado.toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
 
+                {/* ✅ Próximos agendamentos (inclui hoje e futuros) */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <h3 className="text-lg font-black mb-3">Próximos agendamentos</h3>
+
+                  {agendamentosProximos.length ? (
+                    <div className="space-y-3">
+                      {agendamentosProximos.slice(0, 20).map(a => (
+                        <div key={a.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-black text-white">
+                                {a.users?.nome || 'Cliente'} • {a.profissionais?.nome}
+                              </div>
+                              <div className="text-sm text-gray-400 font-bold">
+                                {formatDateBR(a.data)} • {a.hora_inicio} • {a.servicos?.nome}
+                              </div>
+                            </div>
+
+                            <div className="text-primary font-black">
+                              R$ {Number(a.servicos?.preco || 0).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {agendamentosProximos.length > 20 && (
+                        <div className="text-xs text-gray-500 font-bold">
+                          Mostrando 20 de {agendamentosProximos.length}. Veja o restante na aba “Agendamentos”.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 font-bold">Nenhum agendamento futuro.</div>
+                  )}
+                </div>
+
                 <div className="text-sm text-gray-500 font-bold">
-                  Dica: essa visão geral “reflete movimento real” e te ajuda a bater o olho e entender o dia.
+                  Dica: você consegue bater o olho e ver o que vem “pra frente”, sem perder o controle do dia.
                 </div>
               </div>
             )}
 
-            {/* AGENDAMENTOS (HOJE) */}
+            {/* AGENDAMENTOS (HOJE + FUTUROS) */}
             {activeTab === 'agendamentos' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Agendamentos de Hoje</h2>
-                {hojeValidos.length > 0 ? (
+                <h2 className="text-2xl font-black mb-6">Agendamentos (Hoje e Próximos)</h2>
+
+                {agendamentosProximos.length > 0 ? (
                   <div className="space-y-4">
-                    {hojeValidos
-                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
-                      .map(a => (
-                        <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
-                            </div>
-                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
-                              a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
-                            </div>
+                    {agendamentosProximos.map(a => (
+                      <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
+                            <p className="text-sm text-gray-400">
+                              {a.servicos?.nome} • {a.profissionais?.nome}
+                            </p>
                           </div>
-
-                          <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Horário</div>
-                              <div className="text-sm font-bold">{a.hora_inicio}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Valor</div>
-                              <div className="text-sm font-bold">R$ {a.servicos?.preco}</div>
-                            </div>
+                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                            a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
                           </div>
-
-                          {a.status !== 'concluido' && (
-                            <button
-                              onClick={() => confirmarAtendimento(a.id)}
-                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
-                            >
-                              ✓ Confirmar Atendimento
-                            </button>
-                          )}
                         </div>
-                      ))}
+
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Data</div>
+                            <div className="text-sm font-bold">{formatDateBR(a.data)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Horário</div>
+                            <div className="text-sm font-bold">{a.hora_inicio}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Valor</div>
+                            <div className="text-sm font-bold">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</div>
+                          </div>
+                        </div>
+
+                        {a.status !== 'concluido' && (
+                          <button
+                            onClick={() => confirmarAtendimento(a.id)}
+                            className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
+                          >
+                            ✓ Confirmar Atendimento
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento hoje</p>
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento (hoje ou futuros)</p>
                 )}
               </div>
             )}
@@ -883,7 +984,7 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
+                              <div className="text-white font-bold">{formatDateBR(a.data)}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Horário</div>
@@ -891,7 +992,7 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Valor</div>
-                              <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
+                              <div className="text-white font-bold">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</div>
                             </div>
                           </div>
                         </div>
@@ -951,7 +1052,7 @@ export default function Dashboard({ user, onLogout }) {
                           </div>
 
                           <div className="text-sm text-gray-300 font-bold">
-                            Valor: <span className="text-primary">R$ {a.servicos?.preco ?? '0.00'}</span>
+                            Valor: <span className="text-primary">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</span>
                           </div>
                         </div>
                       );
@@ -982,16 +1083,16 @@ export default function Dashboard({ user, onLogout }) {
                   </button>
                 </div>
 
-                {servicos.length > 0 ? (
+                {servicosOrdenados.length > 0 ? (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {servicos.map(s => (
+                    {servicosOrdenados.map(s => (
                       <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="text-lg font-black">{s.nome}</h3>
                             <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
                           </div>
-                          <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
+                          <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
                         </div>
                         <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
 
@@ -1050,7 +1151,7 @@ export default function Dashboard({ user, onLogout }) {
                     onClick={() => {
                       setShowNovoProfissional(true);
                       setEditingProfissional(null);
-                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
+                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                   >
@@ -1135,7 +1236,7 @@ export default function Dashboard({ user, onLogout }) {
                               anos_experiencia: String(p.anos_experiencia ?? ''),
                               horario_inicio: p.horario_inicio || '08:00',
                               horario_fim: p.horario_fim || '18:00',
-                              dias_trabalho: Array.isArray(p.dias_trabalho) && p.dias_trabalho.length ? p.dias_trabalho : [1,2,3,4,5,6],
+                              dias_semana: Array.isArray(p.dias_semana) && p.dias_semana.length ? p.dias_semana : [1,2,3,4,5,6],
                             });
                             setShowNovoProfissional(true);
                           }}
@@ -1147,6 +1248,13 @@ export default function Dashboard({ user, onLogout }) {
                     );
                   })}
                 </div>
+
+                {!supportsDiasSemana && (
+                  <div className="mt-6 text-xs text-gray-500 font-bold bg-dark-200 border border-gray-800 rounded-custom p-4">
+                    Observação: “Dias de trabalho” está pronto no painel, mas sua tabela <b>profissionais</b> ainda não tem a coluna <b>dias_semana</b>.
+                    Quando você criar essa coluna, o painel passa a salvar e refletir automaticamente.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1240,7 +1348,7 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => {
                   setShowNovoProfissional(false);
                   setEditingProfissional(null);
-                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
+                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
                 }}
               >
                 <X className="w-6 h-6" />
@@ -1292,20 +1400,20 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* ✅ Dias de trabalho REAL (dias_trabalho) */}
+              {/* Dias de trabalho */}
               <div>
                 <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-7 gap-2">
                   {WEEKDAYS.map(d => {
-                    const active = (formProfissional.dias_trabalho || []).includes(d.i);
+                    const active = (formProfissional.dias_semana || []).includes(d.i);
                     return (
                       <button
                         type="button"
                         key={d.i}
                         onClick={() => {
-                          const cur = Array.isArray(formProfissional.dias_trabalho) ? [...formProfissional.dias_trabalho] : [];
+                          const cur = Array.isArray(formProfissional.dias_semana) ? [...formProfissional.dias_semana] : [];
                           const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
-                          setFormProfissional(prev => ({ ...prev, dias_trabalho: normalizeDiasTrabalho(next) }));
+                          setFormProfissional(prev => ({ ...prev, dias_semana: next.sort((a,b)=>a-b) }));
                         }}
                         className={`py-2 rounded-custom border font-black text-xs transition-all ${
                           active
@@ -1320,7 +1428,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <p className="text-[11px] text-gray-500 font-bold mt-2">
-                  Domingo = 0, Segunda = 1, ... Sábado = 6.
+                  Se a coluna <b>dias_semana</b> ainda não existir no banco, isso fica só no visual por enquanto.
                 </p>
               </div>
 
