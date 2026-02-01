@@ -950,19 +950,19 @@ export default function Dashboard({ user, onLogout }) {
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
-            <div className="text-sm text-gray-400 font-bold">Agendamentos Hoje</div>
+            <div className="text-sm text-gray-400">AGENDAMENTOS HOJE</div>
           </div>
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Users className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{profissionais.length}</div>
-            <div className="text-sm text-gray-400 font-bold">Profissionais</div>
+            <div className="text-sm text-gray-400">PROFISSIONAIS</div>
           </div>
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
             <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
-            <div className="text-sm text-gray-400 font-bold">Serviços (total)</div>
+            <div className="text-sm text-gray-400">SERVIÇOS</div>
           </div>
         </div>
 
