@@ -20,6 +20,24 @@ function timeToMinutes(t) {
   return (h * 60) + (m || 0);
 }
 
+// ✅ Data YYYY-MM-DD em America/Sao_Paulo (sem UTC)
+function getTodaySP() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+// ✅ Exibe data sem usar new Date() (evita bug de fuso)
+function formatDateBR(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = String(ymd).split('-');
+  if (!y || !m || !d) return String(ymd);
+  return `${d}/${m}/${y}`;
+}
+
 function getNowSP() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -88,9 +106,14 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
+  // ✅ HOJE correto em SP (sem UTC)
+  const hoje = getTodaySP();
+
   // Histórico (data selecionada)
-  const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
+
+  // ✅ Faturamento (data selecionável)
+  const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
@@ -124,6 +147,14 @@ export default function Dashboard({ user, onLogout }) {
 
   useEffect(() => {
     if (user?.id) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // ✅ Mantém datas sempre em SP quando dashboard abre
+  useEffect(() => {
+    const t = getTodaySP();
+    setHistoricoData(t);
+    setFaturamentoData(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -179,7 +210,7 @@ export default function Dashboard({ user, onLogout }) {
 
       const ids = profs.map(p => p.id);
 
-      // Serviços
+      // Serviços (ordem no banco não importa; UI vai ordenar por preço quando exibir)
       const { data: servicosData, error: servErr } = await supabase
         .from('servicos')
         .select('*, profissionais (nome)')
@@ -189,7 +220,7 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos (traz recente, UI filtra por data)
+      // Agendamentos (traz recente, UI filtra/ordena)
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -199,15 +230,22 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
-      // Auto-concluir passados (sem travar UI)
+      // ✅ Auto-concluir passados SEM timezone bug:
+      // - se data < hojeSP => passou
+      // - se data == hojeSP e hora_fim < agoraMin => passou
       if (ags?.length) {
-        const agora = new Date();
+        const now = getNowSP();
         const toUpdate = [];
 
         for (const a of ags) {
           if (a?.status === 'agendado' || a?.status === 'confirmado') {
-            const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
-            if (dataHoraFim < agora) toUpdate.push(a.id);
+            const dataStr = String(a.data || '');
+            const fimMin = timeToMinutes(a.hora_fim || '00:00');
+
+            const passouDia = dataStr < now.date;
+            const passouHoje = (dataStr === now.date) && (fimMin <= now.minutes);
+
+            if (passouDia || passouHoje) toUpdate.push(a.id);
           }
         }
 
@@ -548,16 +586,43 @@ export default function Dashboard({ user, onLogout }) {
     return total ? (canc / total) * 100 : 0;
   }, [agendamentosHoje.length, hojeCancelados.length]);
 
+  // ✅ Faturamento por data selecionada (concluídos do dia escolhido)
+  const agendamentosFaturamentoDia = useMemo(() => {
+    return (agendamentos || []).filter(a => sameDay(a.data, faturamentoData));
+  }, [agendamentos, faturamentoData]);
+
+  const concluidosFaturamentoDia = useMemo(() => {
+    return agendamentosFaturamentoDia.filter(a => a.status === 'concluido');
+  }, [agendamentosFaturamentoDia]);
+
+  const faturamentoSelecionado = useMemo(() => {
+    return concluidosFaturamentoDia.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
+  }, [concluidosFaturamentoDia]);
+
+  // ✅ Próximos agendamentos (inclui hoje e futuro), ordenado: data asc + hora asc
+  const agendamentosProximos = useMemo(() => {
+    const now = getNowSP();
+    const nowTime = String(Math.floor(now.minutes / 60)).padStart(2, '0') + ':' + String(now.minutes % 60).padStart(2, '0');
+
+    return (agendamentos || [])
+      .filter(a => !String(a.status || '').includes('cancelado'))
+      .filter(a => {
+        const d = String(a.data || '');
+        if (d > now.date) return true;
+        if (d < now.date) return false;
+        // hoje: só os que ainda não começaram (ou iguais)
+        return String(a.hora_inicio || '') >= nowTime;
+      })
+      .sort((a, b) => {
+        const d = String(a.data || '').localeCompare(String(b.data || ''));
+        if (d !== 0) return d;
+        return String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || ''));
+      });
+  }, [agendamentos]);
+
   const proximoAgendamento = useMemo(() => {
-    const now = new Date();
-    const nowTime = now.toTimeString().slice(0, 5);
-
-    const futuros = hojeValidos
-      .filter(a => String(a.hora_inicio || '') >= nowTime)
-      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
-
-    return futuros[0] || null;
-  }, [hojeValidos]);
+    return agendamentosProximos[0] || null;
+  }, [agendamentosProximos]);
 
   const agendamentosDiaSelecionado = useMemo(() => {
     return agendamentos
@@ -685,19 +750,33 @@ export default function Dashboard({ user, onLogout }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
             <DollarSign className="w-8 h-8 text-green-400 mb-2" />
-            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoHoje.toFixed(2)}</div>
-            <div className="text-sm text-green-300 font-bold">Faturamento Hoje</div>
+            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoSelecionado.toFixed(2)}</div>
+            <div className="text-sm text-green-300 font-bold flex items-center justify-between gap-2">
+              <span>Faturamento</span>
+              <input
+                type="date"
+                value={faturamentoData}
+                onChange={(e) => setFaturamentoData(e.target.value)}
+                className="bg-dark-200 border border-green-500/30 rounded px-2 py-1 text-[12px] text-white"
+              />
+            </div>
+            <div className="text-[11px] text-green-200/70 font-bold mt-2">
+              Data: {formatDateBR(faturamentoData)} • Concluídos: {concluidosFaturamentoDia.length}
+            </div>
           </div>
+
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
             <div className="text-sm text-gray-400 font-bold">Agendamentos Hoje</div>
           </div>
+
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Users className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{profissionais.length}</div>
             <div className="text-sm text-gray-400 font-bold">Profissionais</div>
           </div>
+
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
             <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
@@ -738,7 +817,7 @@ export default function Dashboard({ user, onLogout }) {
                   activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {tab.replace('-', ' ')}
+                {tab === 'agendamentos' ? 'próximos' : tab.replace('-', ' ')}
               </button>
             ))}
           </div>
@@ -773,11 +852,11 @@ export default function Dashboard({ user, onLogout }) {
                           {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
                         </div>
                         <div className="text-xs text-gray-500 font-bold mt-1">
-                          {proximoAgendamento.servicos?.nome}
+                          {proximoAgendamento.servicos?.nome} • {formatDateBR(proximoAgendamento.data)}
                         </div>
                       </>
                     ) : (
-                      <div className="text-sm text-gray-500 font-bold">Nenhum futuro hoje</div>
+                      <div className="text-sm text-gray-500 font-bold">Nenhum agendamento futuro</div>
                     )}
                   </div>
                 </div>
@@ -810,33 +889,53 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* AGENDAMENTOS (HOJE) */}
+            {/* PRÓXIMOS AGENDAMENTOS (HOJE + FUTURO) */}
             {activeTab === 'agendamentos' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Agendamentos de Hoje</h2>
-                {hojeValidos.length > 0 ? (
+                <h2 className="text-2xl font-black mb-6">Próximos Agendamentos</h2>
+
+                {agendamentosProximos.length > 0 ? (
                   <div className="space-y-4">
-                    {hojeValidos
-                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
-                      .map(a => (
+                    {agendamentosProximos.map(a => {
+                      const isHoje = sameDay(a.data, hoje);
+                      return (
                         <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
+                              <p className="text-sm text-gray-400">
+                                {a.servicos?.nome} • {a.profissionais?.nome}
+                              </p>
+                              <p className="text-xs text-gray-500 font-bold mt-1">
+                                Data: <span className="text-gray-300">{formatDateBR(a.data)}</span>
+                                {' • '}
+                                Horário: <span className="text-gray-300">{a.hora_inicio}</span>
+                              </p>
                             </div>
-                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
-                              a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
+
+                            <div className="flex flex-col items-end gap-2">
+                              <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                                a.status === 'concluido'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
+                              </div>
+
+                              {!isHoje && (
+                                <div className="px-3 py-1 rounded-button text-xs font-bold bg-yellow-500/10 border border-yellow-500/20 text-yellow-300">
+                                  FUTURO
+                                </div>
+                              )}
+                              {isHoje && (
+                                <div className="px-3 py-1 rounded-button text-xs font-bold bg-primary/10 border border-primary/20 text-primary">
+                                  HOJE
+                                </div>
+                              )}
                             </div>
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <div className="text-xs text-gray-500 font-bold">Horário</div>
-                              <div className="text-sm font-bold">{a.hora_inicio}</div>
-                            </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Valor</div>
                               <div className="text-sm font-bold">R$ {a.servicos?.preco}</div>
@@ -852,15 +951,16 @@ export default function Dashboard({ user, onLogout }) {
                             </button>
                           )}
                         </div>
-                      ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento hoje</p>
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento futuro</p>
                 )}
               </div>
             )}
 
-            {/* CANCELADOS */}
+            {/* CANCELADOS (HOJE) */}
             {activeTab === 'cancelados' && (
               <div>
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados (Hoje)</h2>
@@ -883,7 +983,7 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
+                              <div className="text-white font-bold">{formatDateBR(a.data)}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Horário</div>
@@ -939,6 +1039,9 @@ export default function Dashboard({ user, onLogout }) {
                               <div className="text-sm text-gray-400 font-bold">
                                 {a.hora_inicio} • {a.servicos?.nome} • {a.profissionais?.nome}
                               </div>
+                              <div className="text-xs text-gray-500 font-bold mt-1">
+                                Data: <span className="text-gray-300">{formatDateBR(a.data)}</span>
+                              </div>
                             </div>
 
                             <div className={`px-3 py-1 rounded-button text-xs font-bold ${
@@ -965,7 +1068,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS */}
+            {/* SERVIÇOS (ordenado por preço desc) */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -984,44 +1087,52 @@ export default function Dashboard({ user, onLogout }) {
 
                 {servicos.length > 0 ? (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {servicos.map(s => (
-                      <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="text-lg font-black">{s.nome}</h3>
-                            <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
+                    {servicos
+                      .slice()
+                      .sort((a, b) => {
+                        const pa = Number(a.preco ?? 0);
+                        const pb = Number(b.preco ?? 0);
+                        if (pb !== pa) return pb - pa; // ✅ maior -> menor
+                        return String(a.nome || '').localeCompare(String(b.nome || ''));
+                      })
+                      .map(s => (
+                        <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="text-lg font-black">{s.nome}</h3>
+                              <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
+                            </div>
+                            <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
                           </div>
-                          <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
-                        </div>
-                        <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
+                          <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
 
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingServicoId(s.id);
-                              setFormServico({
-                                nome: s.nome || '',
-                                duracao_minutos: String(s.duracao_minutos ?? ''),
-                                preco: String(s.preco ?? ''),
-                                profissional_id: s.profissional_id || ''
-                              });
-                              setShowNovoServico(true);
-                            }}
-                            className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
-                          >
-                            Editar
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingServicoId(s.id);
+                                setFormServico({
+                                  nome: s.nome || '',
+                                  duracao_minutos: String(s.duracao_minutos ?? ''),
+                                  preco: String(s.preco ?? ''),
+                                  profissional_id: s.profissional_id || ''
+                                });
+                                setShowNovoServico(true);
+                              }}
+                              className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                            >
+                              Editar
+                            </button>
 
-                          <button
-                            onClick={() => deleteServico(s.id)}
-                            className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
-                          >
-                            <Trash2 className="w-4 h-4 inline mr-1" />
-                            Excluir
-                          </button>
+                            <button
+                              onClick={() => deleteServico(s.id)}
+                              className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                            >
+                              <Trash2 className="w-4 h-4 inline mr-1" />
+                              Excluir
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 ) : (
                   <div className="text-center py-12">
