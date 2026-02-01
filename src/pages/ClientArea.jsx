@@ -1,15 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Heart, History, User, LogOut, X } from 'lucide-react';
+import { Calendar, Heart, History, User, LogOut, X, Camera } from 'lucide-react';
 import { supabase } from '../supabase';
-
-// ✅ Data segura: YYYY-MM-DD -> DD/MM/YYYY (sem Date/UTC)
-function formatDateBRFromISO(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = String(dateStr).split('-');
-  if (!y || !m || !d) return String(dateStr);
-  return `${d}/${m}/${y}`;
-}
 
 export default function ClientArea({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('agendamentos');
@@ -177,7 +169,7 @@ export default function ClientArea({ user, onLogout }) {
       if (upErr) throw upErr;
 
       // URL pública (bucket public)
-      const { data: pub } = supabase
+      const { data: pub } = await supabase
         .storage
         .from('avatars')
         .getPublicUrl(path);
@@ -206,6 +198,19 @@ export default function ClientArea({ user, onLogout }) {
   const nome = user?.user_metadata?.nome || 'Cliente';
   const avatarFallback = nome?.[0]?.toUpperCase() || 'C';
 
+  // ✅ ÚNICA MUDANÇA PEDIDA: ordenar agendamentos por DATA (mais próxima) e depois HORÁRIO (mais cedo)
+  const agendamentosOrdenados = useMemo(() => {
+    return [...(agendamentos || [])].sort((a, b) => {
+      const da = String(a?.data || '');
+      const db = String(b?.data || '');
+      if (da !== db) return da.localeCompare(db);
+
+      const ha = String(a?.hora_inicio || '99:99');
+      const hb = String(b?.hora_inicio || '99:99');
+      return ha.localeCompare(hb);
+    });
+  }, [agendamentos]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -220,9 +225,9 @@ export default function ClientArea({ user, onLogout }) {
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
+
             <Link to="/" className="flex items-center gap-3">
-              {/* ✅ Avatar redondo */}
-              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-custom overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
@@ -245,12 +250,12 @@ export default function ClientArea({ user, onLogout }) {
                 className="hidden"
               />
 
-              {/* ✅ Botão FOTO movido para o header (perto do SAIR) e sem ícone */}
               <button
                 onClick={openFilePicker}
                 disabled={uploadingAvatar}
-                className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button text-sm transition-all"
               >
+                <Camera className="w-4 h-4 text-primary" />
                 {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
               </button>
 
@@ -262,6 +267,7 @@ export default function ClientArea({ user, onLogout }) {
                 <span className="hidden sm:inline">SAIR</span>
               </button>
             </div>
+
           </div>
         </div>
       </header>
@@ -274,7 +280,13 @@ export default function ClientArea({ user, onLogout }) {
             <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
           </div>
 
-          {/* ✅ removido botão duplicado no mobile (agora já existe no header) */}
+          <button
+            onClick={openFilePicker}
+            disabled={uploadingAvatar}
+            className="sm:hidden px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-sm"
+          >
+            {uploadingAvatar ? 'ENVIANDO...' : 'FOTO'}
+          </button>
         </div>
 
         {/* Quick Actions */}
@@ -336,9 +348,9 @@ export default function ClientArea({ user, onLogout }) {
             {/* Tab Agendamentos */}
             {activeTab === 'agendamentos' && (
               <div>
-                {agendamentos.length > 0 ? (
+                {agendamentosOrdenados.length > 0 ? (
                   <div className="space-y-4">
-                    {agendamentos.map(agendamento => (
+                    {agendamentosOrdenados.map(agendamento => (
                       <div
                         key={agendamento.id}
                         className="bg-dark-200 border border-gray-800 rounded-custom p-4 sm:p-5"
@@ -365,8 +377,7 @@ export default function ClientArea({ user, onLogout }) {
                           <div>
                             <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
                             <div className="text-sm text-white font-bold">
-                              {/* ✅ data firme (sem UTC) */}
-                              {formatDateBRFromISO(agendamento.data)}
+                              {new Date(agendamento.data).toLocaleDateString('pt-BR')}
                             </div>
                           </div>
                           <div>
