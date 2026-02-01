@@ -931,12 +931,12 @@ export default function Dashboard({ user, onLogout }) {
             {/* ✅ removeu ícone e colocou caractere R$ em bold mais grosso */}
             <div className="mb-2 flex items-center gap-2">
               <span
-                style={{ fontFamily: 'Roboto, sans-serif' }}
+                style={{ fontFamily: 'Roboto Condensed, sans-serif' }}
                 className="text-green-400 font-black text-3xl leading-none"
               >
-                R$
+                $
               </span>
-              <span className="text-xs text-gray-500 font-bold">Faturamento (hoje)</span>
+              <span className="text-sm text-gray-500">FATURAMENTO HOJE</span>
             </div>
 
             <div className="text-3xl font-black text-white mb-1">
