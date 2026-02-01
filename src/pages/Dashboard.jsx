@@ -893,9 +893,9 @@ export default function Dashboard({ user, onLogout }) {
               {/* Botão SAIR (altura reduzida no mobile) */}
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
+                className="flex items-center gap-2 px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-700 rounded-button-sm"
               >
-                <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Sair</span>
+                <LogOut className="w-4 h-4" /><span className="hidden sm:inline">SAIR</span>
               </button>
             </div>
           </div>
