@@ -885,7 +885,7 @@ export default function Dashboard({ user, onLogout }) {
                 target="_blank"
                 className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button font-bold text-sm"
               >
-                <Eye className="w-4 h-4" />Ver Vitrine
+                <Eye className="w-4 h-4" />VER VITRINE
               </Link>
 
               {/* Botão LOGO no header (não mexido no design) */}
