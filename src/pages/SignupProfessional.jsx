@@ -344,13 +344,13 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Descrição do Negócio *</label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Sobre seus Serviços *</label>
               <div className="relative">
                 <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
                 <textarea
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Ex: Especialista em cortes clássicos e modernos..."
+                  placeholder="Ex: Referência em cuidados detalhistas, unindo técnica avançada..."
                   rows="3"
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
                   required
