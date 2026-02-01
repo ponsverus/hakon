@@ -93,7 +93,7 @@ function DateFilterButton({ value, onChange, title }) {
         value={value}
         onChange={onChange}
         title={title}
-        className="date-no-arrow px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-xs font-bold text-center pr-10 w-[160px] cursor-pointer"
+        className="date-no-arrow px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-sm text-center pr-10 w-[160px] cursor-pointer"
       />
       {/* bolinha amarela no lugar da setinha (não captura clique) */}
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-yellow-400" />
