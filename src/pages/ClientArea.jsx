@@ -198,9 +198,9 @@ export default function ClientArea({ user, onLogout }) {
   const nome = user?.user_metadata?.nome || 'Cliente';
   const avatarFallback = nome?.[0]?.toUpperCase() || 'C';
 
-  // ✅ ÚNICA MUDANÇA PEDIDA: ordenar agendamentos por DATA (mais próxima) e depois HORÁRIO (mais cedo)
-  const agendamentosOrdenados = useMemo(() => {
-    return [...(agendamentos || [])].sort((a, b) => {
+  // ✅ Mantém a regra: ordenar por DATA (mais próxima) e depois HORÁRIO (mais cedo)
+  const sortByDateThenTime = (list) => {
+    return [...(list || [])].sort((a, b) => {
       const da = String(a?.data || '');
       const db = String(b?.data || '');
       if (da !== db) return da.localeCompare(db);
@@ -209,7 +209,106 @@ export default function ClientArea({ user, onLogout }) {
       const hb = String(b?.hora_inicio || '99:99');
       return ha.localeCompare(hb);
     });
+  };
+
+  // ✅ NOVO: separar por sessão (ABERTO / CANCELADO / CONCLUÍDO) sem perder a regra de data+hora
+  const agendamentosPorStatus = useMemo(() => {
+    const abertos = [];
+    const cancelados = [];
+    const concluidos = [];
+
+    for (const a of (agendamentos || [])) {
+      const st = String(a?.status || '');
+
+      if (st === 'concluido') {
+        concluidos.push(a);
+      } else if (st.includes('cancelado')) {
+        cancelados.push(a);
+      } else {
+        abertos.push(a); // qualquer outro status cai como "em aberto"
+      }
+    }
+
+    return {
+      abertos: sortByDateThenTime(abertos),
+      cancelados: sortByDateThenTime(cancelados),
+      concluidos: sortByDateThenTime(concluidos),
+    };
   }, [agendamentos]);
+
+  const renderSecao = (titulo, lista) => {
+    if (!lista.length) return null;
+
+    return (
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xs sm:text-sm text-gray-400 font-bold uppercase tracking-wide">
+            {titulo}
+          </div>
+          <div className="text-xs text-gray-500 font-bold">
+            {lista.length}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {lista.map(agendamento => (
+            <div
+              key={agendamento.id}
+              className="bg-dark-200 border border-gray-800 rounded-custom p-4 sm:p-5"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-black text-white mb-1">
+                    {agendamento.profissionais?.barbearias?.nome}
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-2">
+                    Profissional: {agendamento.profissionais?.nome}
+                  </p>
+                  <p className="text-sm text-primary font-bold">
+                    {agendamento.servicos?.nome}
+                  </p>
+                </div>
+
+                <div className={`inline-flex px-3 py-1 rounded-button text-xs font-bold border ${getStatusColor(agendamento.status)}`}>
+                  {getStatusText(agendamento.status)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                <div>
+                  <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
+                  <div className="text-sm text-white font-bold">
+                    {new Date(agendamento.data).toLocaleDateString('pt-BR')}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 font-bold mb-1">Horário</div>
+                  <div className="text-sm text-white font-bold">
+                    {agendamento.hora_inicio}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 font-bold mb-1">Valor</div>
+                  <div className="text-sm text-white font-bold">
+                    R$ {agendamento.servicos?.preco}
+                  </div>
+                </div>
+              </div>
+
+              {(agendamento.status === 'agendado' || agendamento.status === 'confirmado') && (
+                <button
+                  onClick={() => cancelarAgendamento(agendamento.id)}
+                  className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-custom text-sm transition-all"
+                >
+                  CANCELAR AGENDAMENTO
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -348,62 +447,13 @@ export default function ClientArea({ user, onLogout }) {
             {/* Tab Agendamentos */}
             {activeTab === 'agendamentos' && (
               <div>
-                {agendamentosOrdenados.length > 0 ? (
-                  <div className="space-y-4">
-                    {agendamentosOrdenados.map(agendamento => (
-                      <div
-                        key={agendamento.id}
-                        className="bg-dark-200 border border-gray-800 rounded-custom p-4 sm:p-5"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                          <div className="flex-1">
-                            <h3 className="text-lg font-black text-white mb-1">
-                              {agendamento.profissionais?.barbearias?.nome}
-                            </h3>
-                            <p className="text-sm text-gray-400 mb-2">
-                              Profissional: {agendamento.profissionais?.nome}
-                            </p>
-                            <p className="text-sm text-primary font-bold">
-                              {agendamento.servicos?.nome}
-                            </p>
-                          </div>
-
-                          <div className={`inline-flex px-3 py-1 rounded-button text-xs font-bold border ${getStatusColor(agendamento.status)}`}>
-                            {getStatusText(agendamento.status)}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
-                            <div className="text-sm text-white font-bold">
-                              {new Date(agendamento.data).toLocaleDateString('pt-BR')}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold mb-1">Horário</div>
-                            <div className="text-sm text-white font-bold">
-                              {agendamento.hora_inicio}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500 font-bold mb-1">Valor</div>
-                            <div className="text-sm text-white font-bold">
-                              R$ {agendamento.servicos?.preco}
-                            </div>
-                          </div>
-                        </div>
-
-                        {(agendamento.status === 'agendado' || agendamento.status === 'confirmado') && (
-                          <button
-                            onClick={() => cancelarAgendamento(agendamento.id)}
-                            className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-custom text-sm transition-all"
-                          >
-                            CANCELAR AGENDAMENTO
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                {(agendamentosPorStatus.abertos.length ||
+                  agendamentosPorStatus.cancelados.length ||
+                  agendamentosPorStatus.concluidos.length) ? (
+                  <div>
+                    {renderSecao('Em aberto', agendamentosPorStatus.abertos)}
+                    {renderSecao('Cancelados', agendamentosPorStatus.cancelados)}
+                    {renderSecao('Concluídos', agendamentosPorStatus.concluidos)}
                   </div>
                 ) : (
                   <div className="text-center py-12">
