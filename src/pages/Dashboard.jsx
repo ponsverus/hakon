@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Trash2, X, ExternalLink, Eye, Copy, Check, Calendar, DollarSign,
-  Users, TrendingUp, Award, LogOut, AlertCircle, Clock, Instagram, Facebook
+  Users, TrendingUp, Award, LogOut, AlertCircle, Clock, Image as ImageIcon, Save
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -75,6 +75,14 @@ function normalizeDiasTrabalho(arr) {
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
 
+// ✅ Data segura: YYYY-MM-DD -> DD/MM/YYYY (sem Date/UTC)
+function formatDateBRFromISO(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).split('-');
+  if (!y || !m || !d) return String(dateStr);
+  return `${d}/${m}/${y}`;
+}
+
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
 
@@ -92,16 +100,8 @@ export default function Dashboard({ user, onLogout }) {
   const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
 
-  // ✅ Nova aba: Informações do negócio
-  const [savingBiz, setSavingBiz] = useState(false);
-  const [bizForm, setBizForm] = useState({
-    nome: '',
-    descricao: '',
-    endereco: '',
-    telefone: '',
-    instagram: '',
-    facebook: ''
-  });
+  // ✅ Faturamento por data (filtro)
+  const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
@@ -129,6 +129,20 @@ export default function Dashboard({ user, onLogout }) {
     horario_inicio: '08:00',
     horario_fim: '18:00',
     dias_trabalho: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
+  });
+
+  // ✅ Info do negócio (barbearias)
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+
+  const [formInfo, setFormInfo] = useState({
+    nome: '',
+    descricao: '',
+    telefone: '',
+    endereco: '',
+    instagram: '',
+    facebook: '',
+    galerias: [] // array de URLs
   });
 
   const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
@@ -169,14 +183,15 @@ export default function Dashboard({ user, onLogout }) {
 
       setBarbearia(barbeariaData);
 
-      // ✅ preenche form da aba Informações (não muda layout em nada)
-      setBizForm({
+      // ✅ preenche form de info (sem mexer no design, só dados)
+      setFormInfo({
         nome: barbeariaData.nome || '',
         descricao: barbeariaData.descricao || '',
-        endereco: barbeariaData.endereco || '',
         telefone: barbeariaData.telefone || '',
+        endereco: barbeariaData.endereco || '',
         instagram: barbeariaData.instagram || '',
-        facebook: barbeariaData.facebook || ''
+        facebook: barbeariaData.facebook || '',
+        galerias: Array.isArray(barbeariaData.galerias) ? barbeariaData.galerias : []
       });
 
       // Profissionais
@@ -316,6 +331,130 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
+  // ===================== INFO NEGÓCIO =====================
+  const salvarInfoNegocio = async () => {
+    if (!barbearia?.id) return alert('Barbearia não carregada.');
+    try {
+      setInfoSaving(true);
+
+      const payload = {
+        nome: String(formInfo.nome || '').trim(),
+        descricao: String(formInfo.descricao || '').trim(),
+        telefone: String(formInfo.telefone || '').trim(),
+        endereco: String(formInfo.endereco || '').trim(),
+        instagram: String(formInfo.instagram || '').trim() || null,
+        facebook: String(formInfo.facebook || '').trim() || null,
+        galerias: Array.isArray(formInfo.galerias) ? formInfo.galerias : []
+      };
+
+      const { error: updErr } = await supabase
+        .from('barbearias')
+        .update(payload)
+        .eq('id', barbearia.id);
+
+      if (updErr) throw updErr;
+
+      alert('✅ Informações atualizadas!');
+      await loadData();
+    } catch (e) {
+      console.error('Erro ao salvar info:', e);
+      alert('❌ Erro ao salvar informações: ' + (e?.message || ''));
+    } finally {
+      setInfoSaving(false);
+    }
+  };
+
+  const uploadGaleria = async (files) => {
+    if (!files?.length) return;
+    if (!barbearia?.id) return alert('Barbearia não carregada.');
+
+    const maxMb = 4;
+    const okTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+    try {
+      setGalleryUploading(true);
+
+      const urlsNovas = [];
+
+      for (const file of Array.from(files)) {
+        if (!okTypes.includes(file.type)) {
+          alert('❌ Formato inválido. Use PNG, JPG ou WEBP.');
+          continue;
+        }
+        if (file.size > maxMb * 1024 * 1024) {
+          alert(`❌ Imagem muito grande (máx ${maxMb}MB).`);
+          continue;
+        }
+
+        const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+        const path = `${barbearia.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+
+        // ✅ bucket "galerias" (crie no Storage se ainda não existir)
+        const { error: upErr } = await supabase
+          .storage
+          .from('galerias')
+          .upload(path, file, { upsert: true, contentType: file.type });
+
+        if (upErr) {
+          console.error('upload galeria error:', upErr);
+          alert('❌ Erro ao enviar imagem: ' + upErr.message);
+          continue;
+        }
+
+        const { data: pub } = supabase.storage.from('galerias').getPublicUrl(path);
+        const url = pub?.publicUrl;
+        if (url) urlsNovas.push(url);
+      }
+
+      if (urlsNovas.length) {
+        const next = Array.isArray(formInfo.galerias) ? [...formInfo.galerias, ...urlsNovas] : [...urlsNovas];
+        setFormInfo(prev => ({ ...prev, galerias: next }));
+
+        // ✅ já salva no banco pra refletir depois na vitrine
+        const { error: updErr } = await supabase
+          .from('barbearias')
+          .update({ galerias: next })
+          .eq('id', barbearia.id);
+
+        if (updErr) throw updErr;
+
+        alert('✅ Galeria atualizada!');
+        await loadData();
+      }
+    } catch (e) {
+      console.error('Erro uploadGaleria:', e);
+      alert('❌ Erro ao atualizar galeria: ' + (e?.message || ''));
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
+
+  const removerImagemGaleria = async (url) => {
+    if (!barbearia?.id) return;
+    const ok = confirm('Remover esta imagem da galeria?');
+    if (!ok) return;
+
+    try {
+      const cur = Array.isArray(formInfo.galerias) ? formInfo.galerias : [];
+      const next = cur.filter(x => x !== url);
+
+      setFormInfo(prev => ({ ...prev, galerias: next }));
+
+      const { error: updErr } = await supabase
+        .from('barbearias')
+        .update({ galerias: next })
+        .eq('id', barbearia.id);
+
+      if (updErr) throw updErr;
+
+      alert('✅ Imagem removida!');
+      await loadData();
+    } catch (e) {
+      console.error('Erro removerImagemGaleria:', e);
+      alert('❌ Erro ao remover: ' + (e?.message || ''));
+    }
+  };
+
   // ===================== SERVIÇOS =====================
   const createServico = async (e) => {
     e.preventDefault();
@@ -441,7 +580,7 @@ export default function Dashboard({ user, onLogout }) {
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
-        dias_trabalho: dias, // ✅ NÃO MEXER
+        dias_trabalho: dias, // ✅ agora salva domingo=0
       };
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
@@ -538,6 +677,22 @@ export default function Dashboard({ user, onLogout }) {
     [agendamentos, hoje]
   );
 
+  // ✅ faturamento por data escolhida
+  const agendamentosDoDiaFaturamento = useMemo(
+    () => agendamentos.filter(a => sameDay(a.data, faturamentoData)),
+    [agendamentos, faturamentoData]
+  );
+
+  const concluidosDoDiaFaturamento = useMemo(
+    () => agendamentosDoDiaFaturamento.filter(a => a.status === 'concluido'),
+    [agendamentosDoDiaFaturamento]
+  );
+
+  const faturamentoDoDia = useMemo(
+    () => concluidosDoDiaFaturamento.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
+    [concluidosDoDiaFaturamento]
+  );
+
   const hojeValidos = useMemo(
     () => agendamentosHoje.filter(a => !String(a.status || '').includes('cancelado')),
     [agendamentosHoje]
@@ -553,14 +708,9 @@ export default function Dashboard({ user, onLogout }) {
     [agendamentosHoje]
   );
 
-  const faturamentoHoje = useMemo(
-    () => hojeConcluidos.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
-    [hojeConcluidos]
-  );
-
   const ticketMedioHoje = useMemo(
-    () => (hojeConcluidos.length ? (faturamentoHoje / hojeConcluidos.length) : 0),
-    [faturamentoHoje, hojeConcluidos.length]
+    () => (hojeConcluidos.length ? (hojeConcluidos.reduce((s, a) => s + Number(a.servicos?.preco || 0), 0) / hojeConcluidos.length) : 0),
+    [hojeConcluidos]
   );
 
   const cancelRateHoje = useMemo(() => {
@@ -589,13 +739,13 @@ export default function Dashboard({ user, onLogout }) {
   // ======= Status do profissional (luz verde/vermelha) =======
   const getProfStatus = (p) => {
     const ativo = (p.ativo === undefined) ? true : !!p.ativo;
-    if (!ativo) return { label: 'INATIVO', color: 'bg-red-500' };
+    if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' }; // ✅ vermelho
 
     const now = getNowSP();
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    // ✅ usa dias_trabalho (se vazio, assume todos) — NÃO MEXER
+    // ✅ usa dias_trabalho (se vazio, assume todos)
     const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
       ? p.dias_trabalho
       : [0,1,2,3,4,5,6];
@@ -603,13 +753,11 @@ export default function Dashboard({ user, onLogout }) {
     const trabalhaHoje = dias.includes(now.dow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
-    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
-
-    // ✅ ALTERAÇÃO #1: FECHADO agora é vermelho (coerente com vitrine)
-    return { label: 'FECHADO', color: 'bg-red-500' };
+    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' }; // ✅ verde
+    return { label: 'FECHADO', color: 'bg-red-500' }; // ✅ vermelho
   };
 
-  // ✅ Serviços agrupados por profissional (para aba Serviços)
+  // ✅ serviços agrupados por profissional (para dashboard)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
     for (const p of profissionais) map.set(p.id, []);
@@ -619,57 +767,6 @@ export default function Dashboard({ user, onLogout }) {
     }
     return map;
   }, [profissionais, servicos]);
-
-  // ✅ salvar informações do negócio
-  const salvarBizInfo = async () => {
-    if (!barbearia?.id) return;
-    try {
-      setSavingBiz(true);
-
-      const payload = {
-        nome: String(bizForm.nome || '').trim(),
-        descricao: String(bizForm.descricao || '').trim(),
-        endereco: String(bizForm.endereco || '').trim(),
-        telefone: String(bizForm.telefone || '').trim(),
-        instagram: String(bizForm.instagram || '').trim() || null,
-        facebook: String(bizForm.facebook || '').trim() || null,
-      };
-
-      if (!payload.nome) return alert('Nome da barbearia é obrigatório.');
-      if (!payload.descricao) return alert('Descrição é obrigatória.');
-      if (!payload.endereco) return alert('Endereço é obrigatório.');
-      if (!payload.telefone) return alert('Telefone é obrigatório.');
-
-      const { error: updErr } = await supabase
-        .from('barbearias')
-        .update(payload)
-        .eq('id', barbearia.id);
-
-      if (updErr) throw updErr;
-
-      alert('✅ Informações atualizadas!');
-      await loadData();
-    } catch (e) {
-      console.error('salvarBizInfo:', e);
-      alert('❌ Erro ao salvar informações: ' + (e?.message || ''));
-    } finally {
-      setSavingBiz(false);
-    }
-  };
-
-  const instagramLink = useMemo(() => {
-    const v = String(barbearia?.instagram || '').trim();
-    if (!v) return null;
-    const handle = v.startsWith('@') ? v.slice(1) : v;
-    return `https://instagram.com/${handle}`;
-  }, [barbearia?.instagram]);
-
-  const facebookLink = useMemo(() => {
-    const v = String(barbearia?.facebook || '').trim();
-    if (!v) return null;
-    // aceita username/id
-    return `https://facebook.com/${v}`;
-  }, [barbearia?.facebook]);
 
   // ====== UI ======
   if (loading) return (
@@ -698,7 +795,7 @@ export default function Dashboard({ user, onLogout }) {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16">
+    <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -770,9 +867,23 @@ export default function Dashboard({ user, onLogout }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
             <DollarSign className="w-8 h-8 text-green-400 mb-2" />
-            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoHoje.toFixed(2)}</div>
-            <div className="text-sm text-green-300 font-bold">Faturamento Hoje</div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-3xl font-black text-white mb-1">R$ {faturamentoDoDia.toFixed(2)}</div>
+
+              {/* ✅ filtro voltou + arredondado (apenas o input) */}
+              <input
+                type="date"
+                value={faturamentoData}
+                onChange={(e) => setFaturamentoData(e.target.value)}
+                className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-xs font-bold"
+                title="Filtrar faturamento por data"
+              />
+            </div>
+            <div className="text-sm text-green-300 font-bold">
+              Faturamento • {formatDateBRFromISO(faturamentoData)}
+            </div>
           </div>
+
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />
             <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
@@ -815,15 +926,7 @@ export default function Dashboard({ user, onLogout }) {
         {/* Tabs */}
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
-            {[
-              'visao-geral',
-              'agendamentos',
-              'cancelados',
-              'historico',
-              'servicos',
-              'profissionais',
-              'informacoes'
-            ].map(tab => (
+            {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -831,7 +934,7 @@ export default function Dashboard({ user, onLogout }) {
                   activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {tab === 'informacoes' ? 'informações' : tab.replace('-', ' ')}
+                {tab.replace('-', ' ')}
               </button>
             ))}
           </div>
@@ -892,7 +995,7 @@ export default function Dashboard({ user, onLogout }) {
                     </div>
                     <div>
                       <div className="text-xs text-gray-500 font-bold">Faturamento hoje</div>
-                      <div className="text-2xl font-black">R$ {faturamentoHoje.toFixed(2)}</div>
+                      <div className="text-2xl font-black">R$ {agendamentosHoje.filter(a => a.status === 'concluido').reduce((s, a) => s + Number(a.servicos?.preco || 0), 0).toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
@@ -957,9 +1060,10 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'cancelados' && (
               <div>
                 <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados (Hoje)</h2>
-                {hojeCancelados.length > 0 ? (
+                {agendamentosHoje.filter(a => String(a.status || '').includes('cancelado')).length > 0 ? (
                   <div className="space-y-4">
-                    {hojeCancelados
+                    {agendamentosHoje
+                      .filter(a => String(a.status || '').includes('cancelado'))
                       .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
                       .map(a => (
                         <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
@@ -976,7 +1080,7 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{new Date(a.data).toLocaleDateString('pt-BR')}</div>
+                              <div className="text-white font-bold">{formatDateBRFromISO(a.data)}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 font-bold">Horário</div>
@@ -1004,13 +1108,11 @@ export default function Dashboard({ user, onLogout }) {
 
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 font-bold">Dia:</span>
-
-                    {/* ✅ ALTERAÇÃO #3: input date arredondado */}
                     <input
                       type="date"
                       value={historicoData}
                       onChange={(e) => setHistoricoData(e.target.value)}
-                      className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-button text-white"
+                      className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-custom text-white"
                     />
                   </div>
                 </div>
@@ -1060,7 +1162,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS */}
+            {/* SERVIÇOS (separado por profissional) */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1077,14 +1179,14 @@ export default function Dashboard({ user, onLogout }) {
                   </button>
                 </div>
 
-                {profissionais.length > 0 ? (
+                {profissionais.length === 0 ? (
+                  <div className="text-gray-500 font-bold">Nenhum profissional cadastrado.</div>
+                ) : (
                   <div className="space-y-4">
                     {profissionais.map(p => {
-                      // ✅ ALTERAÇÃO #2: separação por profissional
-                      // ✅ e organização: maior preço primeiro (menor por último)
                       const lista = (servicosPorProf.get(p.id) || [])
                         .slice()
-                        .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0));
+                        .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0)); // ✅ maior -> menor
 
                       return (
                         <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-6">
@@ -1100,7 +1202,7 @@ export default function Dashboard({ user, onLogout }) {
                                   <div className="flex justify-between items-start mb-3">
                                     <div>
                                       <h3 className="text-lg font-black">{s.nome}</h3>
-                                      <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
+                                      <p className="text-xs text-gray-500 font-bold">{p.nome}</p>
                                     </div>
                                     <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
                                   </div>
@@ -1135,15 +1237,11 @@ export default function Dashboard({ user, onLogout }) {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-gray-500 font-bold">Sem serviços cadastrados para este profissional.</p>
+                            <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
                           )}
                         </div>
                       );
                     })}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500 mb-4">Nenhum profissional cadastrado</p>
                   </div>
                 )}
               </div>
@@ -1258,134 +1356,148 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* ✅ INFORMAÇÕES DO NEGÓCIO */}
-            {activeTab === 'informacoes' && (
+            {/* INFO NEGÓCIO */}
+            {activeTab === 'info-negocio' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-black">Informações do negócio</h2>
-
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2">Nome da barbearia</label>
-                    <input
-                      type="text"
-                      value={bizForm.nome}
-                      onChange={(e) => setBizForm(prev => ({ ...prev, nome: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2">Descrição</label>
-                    <textarea
-                      rows={3}
-                      value={bizForm.descricao}
-                      onChange={(e) => setBizForm(prev => ({ ...prev, descricao: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                    />
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold mb-2">Telefone</label>
-                      <input
-                        type="text"
-                        value={bizForm.telefone}
-                        onChange={(e) => setBizForm(prev => ({ ...prev, telefone: e.target.value }))}
-                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold mb-2">Endereço</label>
-                      <input
-                        type="text"
-                        value={bizForm.endereco}
-                        onChange={(e) => setBizForm(prev => ({ ...prev, endereco: e.target.value }))}
-                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold mb-2">Instagram (arroba ou usuário)</label>
-                      <input
-                        type="text"
-                        value={bizForm.instagram}
-                        onChange={(e) => setBizForm(prev => ({ ...prev, instagram: e.target.value }))}
-                        placeholder="@seuusuario"
-                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white placeholder-gray-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold mb-2">Facebook (username/id)</label>
-                      <input
-                        type="text"
-                        value={bizForm.facebook}
-                        onChange={(e) => setBizForm(prev => ({ ...prev, facebook: e.target.value }))}
-                        placeholder="seuusuario"
-                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white placeholder-gray-500"
-                      />
-                    </div>
-                  </div>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-2xl font-black">Informações do Negócio</h2>
 
                   <button
-                    onClick={salvarBizInfo}
-                    disabled={savingBiz}
-                    className={`w-full py-3 rounded-button font-black ${
-                      savingBiz
-                        ? 'bg-gray-900 border border-gray-800 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
+                    onClick={salvarInfoNegocio}
+                    disabled={infoSaving}
+                    className={`px-5 py-2.5 rounded-button font-black border flex items-center gap-2 ${
+                      infoSaving
+                        ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+                        : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
                     }`}
                   >
-                    {savingBiz ? 'SALVANDO...' : 'SALVAR INFORMAÇÕES'}
+                    <Save className="w-4 h-4" />
+                    {infoSaving ? 'SALVANDO...' : 'SALVAR'}
                   </button>
+                </div>
 
-                  <div className="text-xs text-gray-500 font-bold">
-                    Essas informações refletem diretamente na sua vitrine.
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm font-bold mb-2">Nome da Barbearia</label>
+                    <input
+                      value={formInfo.nome}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="Nome"
+                    />
                   </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm font-bold mb-2">Telefone</label>
+                    <input
+                      value={formInfo.telefone}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="(xx) xxxxx-xxxx"
+                    />
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
+                    <label className="block text-sm font-bold mb-2">Endereço</label>
+                    <input
+                      value={formInfo.endereco}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="Rua, número, bairro..."
+                    />
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
+                    <label className="block text-sm font-bold mb-2">Descrição</label>
+                    <textarea
+                      value={formInfo.descricao}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
+                      rows={3}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white resize-none"
+                      placeholder="Sobre o negócio..."
+                    />
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm font-bold mb-2">Instagram (ID ou @)</label>
+                    <input
+                      value={formInfo.instagram}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="@seuinstagram"
+                    />
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm font-bold mb-2">Facebook (ID ou nome)</label>
+                    <input
+                      value={formInfo.facebook}
+                      onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="facebook.com/..."
+                    />
+                  </div>
+                </div>
+
+                {/* ✅ GALERIAS */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-black flex items-center gap-2">
+                        <ImageIcon className="w-5 h-5 text-primary" />
+                        Galerias
+                      </h3>
+                      <p className="text-xs text-gray-500 font-bold mt-1">
+                        Adicione fotos do seu negócio. Isso será exibido na vitrine quando a gente atualizar a vitrine.
+                      </p>
+                    </div>
+
+                    <label className="inline-block">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => uploadGaleria(e.target.files)}
+                        disabled={galleryUploading}
+                      />
+                      <span
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-button font-black border cursor-pointer transition-all ${
+                          galleryUploading
+                            ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+                            : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
+                        }`}
+                      >
+                        <Plus className="w-4 h-4" />
+                        {galleryUploading ? 'ENVIANDO...' : 'ADICIONAR'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {Array.isArray(formInfo.galerias) && formInfo.galerias.length ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {formInfo.galerias.map((url) => (
+                        <div key={url} className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
+                          <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
+                          <button
+                            onClick={() => removerImagemGaleria(url)}
+                            className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 border border-gray-700 flex items-center justify-center hover:border-red-400"
+                            title="Remover"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-300" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 font-bold">Nenhuma imagem ainda.</div>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* ✅ Footer fixo com redes sociais */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-dark-100 border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-center gap-4">
-          {instagramLink ? (
-            <a
-              href={instagramLink}
-              target="_blank"
-              rel="noreferrer"
-              className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button flex items-center gap-2 text-sm font-bold text-gray-200"
-              title="Instagram"
-            >
-              <Instagram className="w-4 h-4 text-primary" /> Instagram
-            </a>
-          ) : null}
-
-          {facebookLink ? (
-            <a
-              href={facebookLink}
-              target="_blank"
-              rel="noreferrer"
-              className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary/50 rounded-button flex items-center gap-2 text-sm font-bold text-gray-200"
-              title="Facebook"
-            >
-              <Facebook className="w-4 h-4 text-blue-400" /> Facebook
-            </a>
-          ) : null}
-
-          {!instagramLink && !facebookLink ? (
-            <div className="text-xs text-gray-500 font-bold">
-              Adicione suas redes em “Informações”.
-            </div>
-          ) : null}
-        </div>
-      </footer>
 
       {/* Modal Serviço */}
       {showNovoServico && (
@@ -1526,7 +1638,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* ✅ Dias de trabalho REAL (dias_trabalho) — NÃO MEXER */}
+              {/* ✅ Dias de trabalho REAL (dias_trabalho) - NÃO MEXIDO */}
               <div>
                 <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-7 gap-2">
