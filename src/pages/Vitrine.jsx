@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft,
-  Zap, X, AlertCircle
+  Plus, Trash2, X, ExternalLink, Eye, Copy, Check, Calendar, DollarSign,
+  Users, TrendingUp, Award, LogOut, AlertCircle, Clock
 } from 'lucide-react';
 import { supabase } from '../supabase';
+
+const toNumberOrNull = (v) => {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const sameDay = (a, b) => String(a || '') === String(b || '');
 
 function timeToMinutes(t) {
   if (!t) return 0;
@@ -12,14 +20,21 @@ function timeToMinutes(t) {
   return (h * 60) + (m || 0);
 }
 
-function minutesToTime(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+// ✅ DATA “à prova de fuso” (SP)
+function getTodaySP() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date()); // YYYY-MM-DD
 }
 
-function addMinutes(time, delta) {
-  return minutesToTime(timeToMinutes(time) + delta);
+function formatDateBR(ymd) {
+  if (!ymd) return '';
+  const [y, m, d] = String(ymd).split('-');
+  if (!y || !m || !d) return String(ymd);
+  return `${d}/${m}/${y}`;
 }
 
 function getNowSP() {
@@ -40,137 +55,107 @@ function getNowSP() {
   const hh = get('hour');
   const mm = get('minute');
 
-  return {
-    date: `${y}-${mo}-${d}`,
-    minutes: (Number(hh) * 60) + Number(mm)
-  };
-}
+  const date = `${y}-${mo}-${d}`;
+  const minutes = (Number(hh) * 60) + Number(mm);
 
-// ✅ pega DOW (0=DOM..6=SÁB) para uma data YYYY-MM-DD em SP
-function getDowFromDateSP(dateStr) {
-  if (!dateStr) return null;
-
-  // meio-dia evita bug de fuso/UTC mudando o dia
-  const dt = new Date(`${dateStr}T12:00:00`);
+  // weekday em SP:
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
     weekday: 'short'
-  }).format(dt);
-
+  }).format(new Date());
   const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return map[weekday] ?? null;
+  const dow = map[weekday] ?? new Date().getDay();
+
+  return { date, minutes, dow };
 }
 
-function roundUpToNextStep(min, step = 30) {
-  return Math.ceil(min / step) * step;
-}
+const WEEKDAYS = [
+  { i: 0, label: 'DOM' },
+  { i: 1, label: 'SEG' },
+  { i: 2, label: 'TER' },
+  { i: 3, label: 'QUA' },
+  { i: 4, label: 'QUI' },
+  { i: 5, label: 'SEX' },
+  { i: 6, label: 'SÁB' },
+];
 
-const withTimeout = (promise, ms, label = 'timeout') => {
-  let t;
-  const timeout = new Promise((_, reject) => {
-    t = setTimeout(() => reject(new Error(`Timeout (${label}) em ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
-};
-
-// ✅ Sempre 5 estrelas (cheias + apagadas)
-function Stars5({ value = 0, size = 14 }) {
-  const v = Math.max(0, Math.min(5, Number(value || 0)));
-  return (
-    <div className="flex items-center gap-1">
-      {[1,2,3,4,5].map(i => (
-        <Star
-          key={i}
-          className={i <= v ? 'text-primary fill-current' : 'text-gray-700'}
-          style={{ width: size, height: size }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ✅ Resolve logo_url: se for URL, usa direto; se for path do bucket, monta publicUrl
-function resolveLogoUrl(logo_url) {
-  const raw = String(logo_url || '').trim();
-  if (!raw) return null;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-
-  try {
-    const { data } = supabase.storage.from('logos').getPublicUrl(raw);
-    return data?.publicUrl || null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeDiasTrabalho(arr) {
-  const base = Array.isArray(arr) ? arr : [];
-  const cleaned = base
-    .map(n => Number(n))
-    .filter(n => Number.isFinite(n))
-    .map(n => (n === 7 ? 0 : n))
-    .filter(n => n >= 0 && n <= 6);
-  return Array.from(new Set(cleaned)).sort((a, b) => a - b);
-}
-
-export default function Vitrine({ user, userType }) {
-  const { slug } = useParams();
-  const navigate = useNavigate();
+export default function Dashboard({ user, onLogout }) {
+  const [activeTab, setActiveTab] = useState('visao-geral');
 
   const [barbearia, setBarbearia] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
-  const [avaliacoes, setAvaliacoes] = useState([]);
+  const [agendamentos, setAgendamentos] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [isFavorito, setIsFavorito] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Agendamento (NOVO FLUXO)
-  const [showAgendamento, setShowAgendamento] = useState(false);
-  const [flow, setFlow] = useState({
-    step: 1,
-    profissional: null,
-    data: '',
-    horario: null, // { hora, tipo, slot?, maxMinutos }
-    servicosSelecionados: [], // ✅ agora é array
+  // ✅ HOJE em SP (fix do +1 dia)
+  const hoje = useMemo(() => getTodaySP(), []);
+
+  // Histórico (data selecionada)
+  const [historicoData, setHistoricoData] = useState(hoje);
+
+  // ✅ Faturamento por data (histórico)
+  const [faturamentoData, setFaturamentoData] = useState(hoje);
+
+  // Modais
+  const [showNovoServico, setShowNovoServico] = useState(false);
+  const [showNovoProfissional, setShowNovoProfissional] = useState(false);
+
+  // Edição
+  const [editingServicoId, setEditingServicoId] = useState(null);
+  const [editingProfissional, setEditingProfissional] = useState(null);
+
+  // Logo
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  // Forms
+  const [formServico, setFormServico] = useState({
+    nome: '',
+    duracao_minutos: '',
+    preco: '',
+    profissional_id: ''
   });
 
-  // Avaliar
-  const [showAvaliar, setShowAvaliar] = useState(false);
-  const [avaliarNota, setAvaliarNota] = useState(5);
-  const [avaliarTexto, setAvaliarTexto] = useState('');
-  const [avaliarLoading, setAvaliarLoading] = useState(false);
+  const [formProfissional, setFormProfissional] = useState({
+    nome: '',
+    anos_experiencia: '',
+    horario_inicio: '08:00',
+    horario_fim: '18:00',
+    dias_semana: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
+  });
 
-  const isProfessional = user && userType === 'professional';
-  const isClient = user && userType === 'client';
+  const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
+
+  // detecta se existe a coluna dias_semana (pra não quebrar se não tiver)
+  const supportsDiasSemana = useMemo(() => {
+    return profissionais.some(p => Object.prototype.hasOwnProperty.call(p, 'dias_semana'));
+  }, [profissionais]);
 
   useEffect(() => {
-    loadVitrine();
+    if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [user?.id]);
 
-  useEffect(() => {
-    if (user && barbearia?.id) checkFavorito();
-    else setIsFavorito(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, userType, barbearia?.id]);
+  const loadData = async () => {
+    if (!user?.id) {
+      setError('Sessão inválida. Faça login novamente.');
+      setLoading(false);
+      return;
+    }
 
-  const loadVitrine = async () => {
     setLoading(true);
     setError(null);
 
-    const watchdog = setTimeout(() => {
-      setLoading(false);
-      setError('Demorou demais para carregar. Tente novamente.');
-    }, 12000);
-
     try {
-      const { data: barbeariaData, error: barbeariaError } = await withTimeout(
-        supabase.from('barbearias').select('*').eq('slug', slug).maybeSingle(),
-        7000,
-        'barbearia'
-      );
+      const { data: barbeariaData, error: barbeariaError } = await supabase
+        .from('barbearias')
+        .select('*')
+        .eq('owner_id', user.id)
+        .maybeSingle();
 
       if (barbeariaError) throw barbeariaError;
 
@@ -178,1058 +163,1279 @@ export default function Vitrine({ user, userType }) {
         setBarbearia(null);
         setProfissionais([]);
         setServicos([]);
-        setAvaliacoes([]);
+        setAgendamentos([]);
+        setError('Nenhuma barbearia cadastrada.');
+        setLoading(false);
         return;
       }
 
       setBarbearia(barbeariaData);
 
-      const { data: profissionaisData, error: profErr } = await withTimeout(
-        supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
-        7000,
-        'profissionais'
-      );
+      // Profissionais
+      const { data: profissionaisData, error: profErr } = await supabase
+        .from('profissionais')
+        .select('*')
+        .eq('barbearia_id', barbeariaData.id)
+        .order('created_at', { ascending: false });
 
       if (profErr) throw profErr;
+
       const profs = profissionaisData || [];
       setProfissionais(profs);
 
-      const profissionalIds = profs.map(p => p.id);
-
-      if (profissionalIds.length > 0) {
-        const { data: servicosData, error: servErr } = await withTimeout(
-          supabase.from('servicos').select('*').in('profissional_id', profissionalIds).eq('ativo', true),
-          7000,
-          'servicos'
-        );
-
-        if (servErr) throw servErr;
-        setServicos(servicosData || []);
-      } else {
+      if (profs.length === 0) {
         setServicos([]);
+        setAgendamentos([]);
+        setLoading(false);
+        return;
       }
 
-      const { data: avaliacoesData, error: avalErr } = await withTimeout(
-        supabase
-          .from('avaliacoes')
-          .select(`*, users (nome)`)
-          .eq('barbearia_id', barbeariaData.id)
-          .order('created_at', { ascending: false })
-          .limit(10),
-        7000,
-        'avaliacoes'
-      );
+      const ids = profs.map(p => p.id);
 
-      if (avalErr) throw avalErr;
-      setAvaliacoes(avaliacoesData || []);
+      // Serviços
+      const { data: servicosData, error: servErr } = await supabase
+        .from('servicos')
+        .select('*, profissionais (nome)')
+        .in('profissional_id', ids)
+        .order('created_at', { ascending: false });
+
+      if (servErr) throw servErr;
+      setServicos(servicosData || []);
+
+      // Agendamentos (traz recente, UI filtra/ordena)
+      const { data: ags, error: agErr } = await supabase
+        .from('agendamentos')
+        .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+        .in('profissional_id', ids)
+        .order('data', { ascending: false })
+        .limit(400);
+
+      if (agErr) throw agErr;
+
+      // Auto-concluir passados (sem travar UI)
+      if (ags?.length) {
+        const agora = new Date();
+        const toUpdate = [];
+
+        for (const a of ags) {
+          if (a?.status === 'agendado' || a?.status === 'confirmado') {
+            const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
+            if (dataHoraFim < agora) toUpdate.push(a.id);
+          }
+        }
+
+        if (toUpdate.length) {
+          Promise.allSettled(
+            toUpdate.map(id =>
+              supabase
+                .from('agendamentos')
+                .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+                .eq('id', id)
+            )
+          ).then(() => {
+            supabase
+              .from('agendamentos')
+              .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+              .in('profissional_id', ids)
+              .order('data', { ascending: false })
+              .limit(400)
+              .then(({ data }) => setAgendamentos(data || []));
+          });
+        }
+      }
+
+      setAgendamentos(ags || []);
     } catch (e) {
-      console.error('Erro ao carregar vitrine:', e);
-      setError(e?.message || 'Erro ao carregar a vitrine.');
-      setBarbearia(null);
+      console.error('Erro ao carregar:', e);
+      setError(e?.message || 'Erro inesperado.');
     } finally {
-      clearTimeout(watchdog);
       setLoading(false);
     }
   };
 
-  const checkFavorito = async () => {
-    if (!user || userType !== 'client' || !barbearia?.id) {
-      setIsFavorito(false);
-      return;
-    }
+  const copyLink = () => {
+    if (!barbearia) return;
+    navigator.clipboard.writeText(`${window.location.origin}/v/${barbearia.slug}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  // ===================== LOGO (upload + salvar URL) =====================
+  const uploadLogoBarbearia = async (file) => {
+    if (!file) return;
+    if (!user?.id) return alert('Sessão inválida.');
+    if (!barbearia?.id) return alert('Barbearia não carregada.');
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('favoritos')
-          .select('id')
-          .eq('cliente_id', user.id)
-          .eq('barbearia_id', barbearia.id)
-          .eq('tipo', 'barbearia')
-          .maybeSingle(),
-        6000,
-        'favorito'
-      );
+      setLogoUploading(true);
+
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const filePath = `${user.id}/logo-${Date.now()}.${ext}`;
+
+      const { error: upErr } = await supabase
+        .storage
+        .from('logos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || 'image/png'
+        });
+
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase
+        .storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      const publicUrl = pub?.publicUrl;
+      if (!publicUrl) throw new Error('Não foi possível gerar a URL pública da logo.');
+
+      const { error: dbErr } = await supabase
+        .from('barbearias')
+        .update({ logo_url: publicUrl })
+        .eq('id', barbearia.id);
+
+      if (dbErr) throw dbErr;
+
+      alert('✅ Logo atualizada!');
+      await loadData();
+    } catch (e) {
+      console.error('Erro ao atualizar logo:', e);
+      alert('❌ Erro ao atualizar logo: ' + (e?.message || ''));
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  // ===================== SERVIÇOS =====================
+  const createServico = async (e) => {
+    e.preventDefault();
+    try {
+      if (!barbearia?.id) throw new Error('Barbearia não carregada.');
+
+      const payload = {
+        nome: String(formServico.nome || '').trim(),
+        profissional_id: formServico.profissional_id,
+        duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
+        preco: toNumberOrNull(formServico.preco),
+        ativo: true,
+        barbearia_id: barbearia.id,
+      };
+
+      if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
+      if (!payload.profissional_id) throw new Error('Selecione um profissional.');
+      if (!payload.duracao_minutos) throw new Error('Duração inválida.');
+      if (payload.preco == null) throw new Error('Preço inválido.');
+
+      const { error } = await supabase.from('servicos').insert([payload]);
+      if (error) throw error;
+
+      alert('✅ Serviço criado!');
+      setShowNovoServico(false);
+      setEditingServicoId(null);
+      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+      await loadData();
+    } catch (e2) {
+      console.error('createServico error:', e2);
+      alert('❌ Erro ao criar serviço: ' + (e2?.message || ''));
+    }
+  };
+
+  const updateServico = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        nome: String(formServico.nome || '').trim(),
+        duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
+        preco: toNumberOrNull(formServico.preco),
+        profissional_id: formServico.profissional_id
+      };
+
+      if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
+      if (!payload.profissional_id) throw new Error('Selecione um profissional.');
+      if (!payload.duracao_minutos) throw new Error('Duração inválida.');
+      if (payload.preco == null) throw new Error('Preço inválido.');
+
+      const { error } = await supabase
+        .from('servicos')
+        .update(payload)
+        .eq('id', editingServicoId);
 
       if (error) throw error;
-      setIsFavorito(!!data);
-    } catch {
-      setIsFavorito(false);
+
+      alert('✅ Serviço atualizado!');
+      setShowNovoServico(false);
+      setEditingServicoId(null);
+      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+      await loadData();
+    } catch (e2) {
+      console.error('updateServico error:', e2);
+      alert('❌ Erro ao atualizar serviço: ' + (e2?.message || ''));
     }
   };
 
-  const toggleFavorito = async () => {
-    if (!user) {
-      alert('Faça login para favoritar');
-      return;
+  const deleteServico = async (id) => {
+    if (!confirm('Excluir serviço?')) return;
+    try {
+      const { error } = await supabase.from('servicos').delete().eq('id', id);
+      if (error) throw error;
+      alert('✅ Serviço excluído!');
+      await loadData();
+    } catch (e2) {
+      console.error('deleteServico error:', e2);
+      alert('❌ Erro ao excluir serviço: ' + (e2?.message || ''));
     }
-    if (userType !== 'client') {
-      alert('Apenas CLIENTE pode favoritar barbearias.');
-      return;
+  };
+
+  // ===================== PROFISSIONAIS =====================
+  const createProfissional = async (e) => {
+    e.preventDefault();
+    try {
+      if (!barbearia?.id) throw new Error('Barbearia não carregada.');
+
+      const payload = {
+        barbearia_id: barbearia.id,
+        nome: String(formProfissional.nome || '').trim(),
+        anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
+        horario_inicio: formProfissional.horario_inicio,
+        horario_fim: formProfissional.horario_fim,
+      };
+
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
+
+      if (!payload.nome) throw new Error('Nome é obrigatório.');
+
+      const { error } = await supabase.from('profissionais').insert([payload]);
+      if (error) throw error;
+
+      alert('✅ Profissional adicionado!');
+      setShowNovoProfissional(false);
+      setEditingProfissional(null);
+      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+      await loadData();
+    } catch (e2) {
+      console.error('createProfissional error:', e2);
+      alert('❌ Erro ao adicionar profissional: ' + (e2?.message || ''));
     }
+  };
+
+  const updateProfissional = async (e) => {
+    e.preventDefault();
+    try {
+      if (!editingProfissional?.id) throw new Error('Profissional inválido.');
+
+      const payload = {
+        nome: String(formProfissional.nome || '').trim(),
+        anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
+        horario_inicio: formProfissional.horario_inicio,
+        horario_fim: formProfissional.horario_fim,
+      };
+
+      if (supportsDiasSemana) {
+        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
+      }
+
+      if (!payload.nome) throw new Error('Nome é obrigatório.');
+
+      const { error } = await supabase
+        .from('profissionais')
+        .update(payload)
+        .eq('id', editingProfissional.id);
+
+      if (error) throw error;
+
+      alert('✅ Profissional atualizado!');
+      setShowNovoProfissional(false);
+      setEditingProfissional(null);
+      await loadData();
+    } catch (e2) {
+      console.error('updateProfissional error:', e2);
+      alert('❌ Erro ao atualizar profissional: ' + (e2?.message || ''));
+    }
+  };
+
+  // ✅ Ativar / Inativar + motivo
+  const toggleAtivoProfissional = async (p) => {
+    try {
+      if (p.ativo === undefined) {
+        alert('⚠️ Falta a coluna "ativo" na tabela profissionais.');
+        return;
+      }
+
+      const novoAtivo = !p.ativo;
+
+      let motivo = null;
+      if (!novoAtivo) motivo = prompt('Motivo (opcional) para inativar este profissional:') || null;
+
+      const { error } = await supabase
+        .from('profissionais')
+        .update({
+          ativo: novoAtivo,
+          motivo_inativo: novoAtivo ? null : motivo
+        })
+        .eq('id', p.id);
+
+      if (error) throw error;
+
+      alert(novoAtivo ? '✅ Profissional ativado!' : '⛔ Profissional inativado!');
+      await loadData();
+    } catch (e) {
+      console.error('toggleAtivoProfissional:', e);
+      alert('❌ Erro ao alterar status: ' + (e?.message || ''));
+    }
+  };
+
+  const excluirProfissional = async (p) => {
+    const ok = confirm(`Excluir "${p.nome}"?\n\nATENÇÃO: isso remove o profissional definitivamente.`);
+    if (!ok) return;
 
     try {
-      if (isFavorito) {
-        const { error } = await supabase
-          .from('favoritos')
-          .delete()
-          .eq('cliente_id', user.id)
-          .eq('barbearia_id', barbearia.id)
-          .eq('tipo', 'barbearia');
+      const { error } = await supabase
+        .from('profissionais')
+        .delete()
+        .eq('id', p.id);
 
-        if (error) throw error;
-        setIsFavorito(false);
-      } else {
-        const { error } = await supabase
-          .from('favoritos')
-          .insert({
-            cliente_id: user.id,
-            tipo: 'barbearia',
-            barbearia_id: barbearia.id
-          });
+      if (error) throw error;
 
-        if (error) throw error;
-        setIsFavorito(true);
-      }
+      alert('✅ Profissional excluído!');
+      await loadData();
     } catch (e) {
-      console.error('Erro ao favoritar:', e);
-      alert('Erro ao favoritar. Tente novamente.');
+      console.error('excluirProfissional:', e);
+      alert('❌ Erro ao excluir: ' + (e?.message || ''));
     }
   };
 
-  const iniciarAgendamento = (profissional) => {
-    if (!user) {
-      if (confirm('Você precisa fazer login para agendar. Deseja fazer login agora?')) navigate('/login');
-      return;
-    }
-
-    if (userType !== 'client') {
-      alert('Você está logado como PROFISSIONAL. Para agendar, entre como CLIENTE.');
-      return;
-    }
-
-    setFlow({
-      step: 1,
-      profissional,
-      data: '',
-      horario: null,
-      servicosSelecionados: []
-    });
-    setShowAgendamento(true);
-  };
-
-  // Serviços do prof selecionado (modal)
-  const servicosDoProf = useMemo(() => {
-    if (!flow.profissional) return [];
-    return servicos.filter(s => s.profissional_id === flow.profissional.id);
-  }, [servicos, flow.profissional]);
-
-  const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
-
-  // ✅ regra: dia de trabalho do profissional (0..6)
-  const diaSelecionadoEhTrabalho = useMemo(() => {
-    if (!flow.profissional || !flow.data) return true; // sem data ainda
-    const dias = normalizeDiasTrabalho(flow.profissional.dias_trabalho);
-    // se não tiver nada salvo, assume todos (não quebra operação)
-    const diasEfetivos = dias.length ? dias : [0,1,2,3,4,5,6];
-    const dow = getDowFromDateSP(flow.data);
-    if (dow == null) return true;
-    return diasEfetivos.includes(dow);
-  }, [flow.profissional, flow.data]);
-
-  const calcularHorariosDisponiveis = async () => {
-    if (!flow.profissional || !flow.data) return;
-
-    // ✅ se o dia é fechado, nem calcula horários
-    if (!diaSelecionadoEhTrabalho) {
-      setHorariosDisponiveis([]);
-      return;
-    }
-
+  // ===================== AGENDAMENTOS =====================
+  const confirmarAtendimento = async (id) => {
     try {
-      const inicio = flow.profissional.horario_inicio || '08:00';
-      const fim = flow.profissional.horario_fim || '18:00';
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ status: 'concluido', concluido_em: new Date().toISOString() })
+        .eq('id', id);
 
-      const startDay = timeToMinutes(inicio);
-      const endDay = timeToMinutes(fim);
+      if (error) throw error;
 
-      const nowSP = getNowSP();
-      const isHoje = flow.data === nowSP.date;
-      const minNow = isHoje ? roundUpToNextStep(nowSP.minutes, 30) : -Infinity;
-
-      const { data: ags, error: agErr } = await withTimeout(
-        supabase.rpc('get_agendamentos_dia', {
-          p_profissional_id: flow.profissional.id,
-          p_data: flow.data
-        }),
-        7000,
-        'rpc-busy-slots'
-      );
-      if (agErr) throw agErr;
-
-      const { data: slots, error: slotErr } = await withTimeout(
-        supabase
-          .from('slots_temporarios')
-          .select('*')
-          .eq('profissional_id', flow.profissional.id)
-          .eq('data', flow.data)
-          .eq('ativo', true),
-        7000,
-        'slots'
-      );
-
-      if (slotErr) {
-        console.warn('slots_temporarios indisponível:', slotErr.message);
-      }
-
-      const agendamentosValidos = (ags || [])
-        .filter(a => !String(a.status || '').includes('cancelado'))
-        .map(a => ({
-          ini: timeToMinutes(a.hora_inicio),
-          fim: timeToMinutes(a.hora_fim)
-        }))
-        .sort((a, b) => a.ini - b.ini);
-
-      const slotsList = (slots || []).map(s => ({
-        ini: timeToMinutes(s.hora_inicio),
-        fim: timeToMinutes(s.hora_fim),
-        raw: s
-      }));
-
-      const horarios = [];
-      let cur = startDay;
-
-      while (cur < endDay) {
-        if (cur < minNow) {
-          cur += 30;
-          continue;
-        }
-
-        const hora = minutesToTime(cur);
-
-        const conflitaAgora = agendamentosValidos.some(a => cur >= a.ini && cur < a.fim);
-        if (conflitaAgora) {
-          cur += 30;
-          continue;
-        }
-
-        const nextBusyStart = agendamentosValidos
-          .filter(a => a.ini > cur)
-          .map(a => a.ini)
-          .sort((a, b) => a - b)[0];
-
-        let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
-
-        const slotExato = slotsList.find(s => s.ini === cur);
-        if (slotExato) {
-          freeEnd = Math.min(freeEnd, slotExato.fim);
-        }
-
-        const maxMinutos = freeEnd - cur;
-
-        if (maxMinutos > 0) {
-          horarios.push({
-            hora,
-            tipo: slotExato ? 'slot' : 'normal',
-            slot: slotExato ? slotExato.raw : null,
-            maxMinutos
-          });
-        }
-
-        cur += 30;
-      }
-
-      setHorariosDisponiveis(horarios);
-    } catch (e) {
-      console.error('Erro ao calcular horários:', e);
-      setHorariosDisponiveis([]);
+      alert('✅ Atendimento confirmado!');
+      await loadData();
+    } catch (e2) {
+      console.error('confirmarAtendimento error:', e2);
+      alert('❌ Erro: ' + (e2?.message || ''));
     }
   };
 
-  useEffect(() => {
-    if (showAgendamento && flow.step === 2) calcularHorariosDisponiveis();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAgendamento, flow.profissional?.id, flow.data, flow.step, diaSelecionadoEhTrabalho]);
+  // ======= Agendamentos Hoje (válidos/cancelados/concluídos) =======
+  const agendamentosHoje = useMemo(
+    () => agendamentos.filter(a => sameDay(a.data, hoje)),
+    [agendamentos, hoje]
+  );
 
-  // ✅ totais dos serviços selecionados
-  const totalSelecionado = useMemo(() => {
-    const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
-    const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
-    const val = lista.reduce((sum, s) => sum + Number(s?.preco || 0), 0);
-    return { duracao: dur, valor: val, qtd: lista.length };
-  }, [flow.servicosSelecionados]);
+  const hojeValidos = useMemo(
+    () => agendamentosHoje.filter(a => !String(a.status || '').includes('cancelado')),
+    [agendamentosHoje]
+  );
 
-  // ✅ serviços possíveis (não filtra por max individual; controla por soma)
-  const servicosPossiveis = useMemo(() => {
-    if (!flow.horario) return [];
-    return servicosDoProf
-      .filter(s => Number(s.duracao_minutos || 0) > 0)
-      .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
-  }, [servicosDoProf, flow.horario]);
+  const hojeCancelados = useMemo(
+    () => agendamentosHoje.filter(a => String(a.status || '').includes('cancelado')),
+    [agendamentosHoje]
+  );
 
-  // ✅ status ABERTO/FECHADO pro card (bolinha verde/vermelha)
+  const hojeConcluidos = useMemo(
+    () => agendamentosHoje.filter(a => a.status === 'concluido'),
+    [agendamentosHoje]
+  );
+
+  const faturamentoHoje = useMemo(
+    () => hojeConcluidos.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0),
+    [hojeConcluidos]
+  );
+
+  const ticketMedioHoje = useMemo(
+    () => (hojeConcluidos.length ? (faturamentoHoje / hojeConcluidos.length) : 0),
+    [faturamentoHoje, hojeConcluidos.length]
+  );
+
+  const cancelRateHoje = useMemo(() => {
+    const total = agendamentosHoje.length || 0;
+    const canc = hojeCancelados.length || 0;
+    return total ? (canc / total) * 100 : 0;
+  }, [agendamentosHoje.length, hojeCancelados.length]);
+
+  const proximoAgendamento = useMemo(() => {
+    const now = new Date();
+    const nowTime = now.toTimeString().slice(0, 5);
+
+    const futuros = hojeValidos
+      .filter(a => String(a.hora_inicio || '') >= nowTime)
+      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
+
+    return futuros[0] || null;
+  }, [hojeValidos]);
+
+  // ✅ Agendamentos futuros (inclui hoje e próximos) — ordenado do mais próximo pro mais distante
+  const agendamentosProximos = useMemo(() => {
+    return (agendamentos || [])
+      .filter(a => !String(a.status || '').includes('cancelado'))
+      .filter(a => String(a.data || '') >= String(hoje))
+      .sort((a, b) => {
+        const d = String(a.data || '').localeCompare(String(b.data || ''));
+        if (d !== 0) return d;
+        return String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || ''));
+      });
+  }, [agendamentos, hoje]);
+
+  // ✅ Histórico por data selecionada (agendamentos)
+  const agendamentosDiaSelecionado = useMemo(() => {
+    return agendamentos
+      .filter(a => sameDay(a.data, historicoData))
+      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
+  }, [agendamentos, historicoData]);
+
+  // ✅ Faturamento por data selecionada
+  const concluidosData = useMemo(() => {
+    return (agendamentos || [])
+      .filter(a => sameDay(a.data, faturamentoData))
+      .filter(a => a.status === 'concluido');
+  }, [agendamentos, faturamentoData]);
+
+  const faturamentoSelecionado = useMemo(() => {
+    return concluidosData.reduce((sum, a) => sum + Number(a.servicos?.preco || 0), 0);
+  }, [concluidosData]);
+
+  const ticketMedioSelecionado = useMemo(() => {
+    return concluidosData.length ? (faturamentoSelecionado / concluidosData.length) : 0;
+  }, [faturamentoSelecionado, concluidosData.length]);
+
+  // ======= Status do profissional (luz verde/amarela/vermelha) =======
   const getProfStatus = (p) => {
-    const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
-    if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
+    const ativo = (p.ativo === undefined) ? true : !!p.ativo;
+    if (!ativo) return { label: 'INATIVO', color: 'bg-red-500' };
 
     const now = getNowSP();
-    const ini = timeToMinutes(p?.horario_inicio || '08:00');
-    const fim = timeToMinutes(p?.horario_fim || '18:00');
+    const ini = timeToMinutes(p.horario_inicio || '08:00');
+    const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    const dias = normalizeDiasTrabalho(p?.dias_trabalho);
-    const diasEfetivos = dias.length ? dias : [0,1,2,3,4,5,6];
+    const dias = (Array.isArray(p.dias_semana) && p.dias_semana.length)
+      ? p.dias_semana
+      : [0,1,2,3,4,5,6];
 
-    // agora dow de hoje em SP
-    const hojeDow = getDowFromDateSP(now.date);
-    const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
+    const trabalhaHoje = dias.includes(now.dow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
     if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
-    return { label: 'FECHADO', color: 'bg-red-500' };
+    return { label: 'FECHADO', color: 'bg-yellow-500' };
   };
 
-  const confirmarAgendamento = async () => {
-    if (!user || userType !== 'client') {
-      alert('Você precisa estar logado como CLIENTE para agendar.');
-      return;
-    }
+  // ✅ Ordenação dos serviços: maior preço -> menor preço (exibição)
+  const servicosOrdenados = useMemo(() => {
+    return (servicos || [])
+      .slice()
+      .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0));
+  }, [servicos]);
 
-    try {
-      if (!flow.profissional || !flow.data || !flow.horario || !flow.servicosSelecionados?.length) {
-        alert('Dados incompletos. Refaça o agendamento.');
-        return;
-      }
-
-      // ✅ valida novamente dia de trabalho
-      if (!diaSelecionadoEhTrabalho) {
-        alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
-        setFlow(prev => ({ ...prev, step: 1, horario: null, servicosSelecionados: [] }));
-        return;
-      }
-
-      const horaInicioBase = flow.horario.hora;
-      const max = Number(flow.horario.maxMinutos || 0);
-      const durTotal = totalSelecionado.duracao;
-
-      if (!durTotal || durTotal > max) {
-        alert(`A soma dos serviços (${durTotal} min) não cabe nesse horário (máx ${max} min).`);
-        return;
-      }
-
-      // ✅ cria agendamentos SEQUENCIAIS (um por serviço)
-      let curInicio = horaInicioBase;
-      const insertedIds = [];
-
-      try {
-        for (const s of flow.servicosSelecionados) {
-          const dur = Number(s.duracao_minutos || 0);
-          if (!dur) continue;
-
-          const curFim = addMinutes(curInicio, dur);
-
-          const { data: inserted, error } = await withTimeout(
-            supabase
-              .from('agendamentos')
-              .insert({
-                profissional_id: flow.profissional.id,
-                cliente_id: user.id,
-                servico_id: s.id,
-                data: flow.data,
-                hora_inicio: curInicio,
-                hora_fim: curFim,
-                status: 'agendado'
-              })
-              .select('id')
-              .maybeSingle(),
-            7000,
-            'criar-agendamento'
-          );
-
-          if (error) throw error;
-          if (inserted?.id) insertedIds.push(inserted.id);
-
-          curInicio = curFim;
-        }
-      } catch (errInsert) {
-        // rollback best-effort
-        if (insertedIds.length) {
-          await supabase.from('agendamentos').delete().in('id', insertedIds);
-        }
-        throw errInsert;
-      }
-
-      alert('✅ Agendamento confirmado!');
-      setShowAgendamento(false);
-      navigate('/minha-area');
-    } catch (e) {
-      console.error('Erro ao agendar:', e);
-      alert('❌ Erro ao criar agendamento: ' + (e.message || ''));
-    }
-  };
-
-  const abrirAvaliar = () => {
-    if (!user) {
-      if (confirm('Você precisa fazer login para avaliar. Deseja fazer login agora?')) navigate('/login');
-      return;
-    }
-    if (userType !== 'client') {
-      alert('Apenas CLIENTE pode avaliar.');
-      return;
-    }
-    setAvaliarNota(5);
-    setAvaliarTexto('');
-    setShowAvaliar(true);
-  };
-
-  const enviarAvaliacao = async () => {
-    if (!user || userType !== 'client') return;
-
-    try {
-      setAvaliarLoading(true);
-
-      const payload = {
-        cliente_id: user.id,
-        barbearia_id: barbearia.id,
-        nota: avaliarNota,
-        comentario: avaliarTexto || null
-      };
-
-      const { error } = await withTimeout(
-        supabase.from('avaliacoes').insert(payload),
-        7000,
-        'enviar-avaliacao'
-      );
-
-      if (error) throw error;
-
-      setShowAvaliar(false);
-      await loadVitrine();
-      alert('✅ Avaliação enviada!');
-    } catch (e) {
-      console.error('Erro ao avaliar:', e);
-      alert('❌ Erro ao enviar avaliação: ' + (e.message || ''));
-    } finally {
-      setAvaliarLoading(false);
-    }
-  };
-
-  // ✅ logo no hero
-  const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
-
-  // ✅ serviços agrupados por profissional (para seção Serviços)
-  const servicosPorProf = useMemo(() => {
-    const map = new Map();
-    for (const p of profissionais) map.set(p.id, []);
-    for (const s of servicos) {
-      if (!map.has(s.profissional_id)) map.set(s.profissional_id, []);
-      map.get(s.profissional_id).push(s);
-    }
-    return map;
-  }, [profissionais, servicos]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-bold animate-pulse">Carregando...</div>
+  // ====== UI ======
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="text-primary text-xl font-bold">Carregando...</div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
-          <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-black text-white mb-2">Não foi possível carregar</h1>
-          <p className="text-gray-400 mb-6">{error}</p>
-          <button
-            onClick={loadVitrine}
-            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
-          >
-            Tentar novamente
-          </button>
-        </div>
+  if (error || !barbearia) return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-dark-100 border border-red-500/50 rounded-custom p-8 text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-white mb-2">Erro ao carregar</h1>
+        <p className="text-gray-400 mb-6">{error || 'Barbearia não encontrada'}</p>
+        <button onClick={loadData} className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold mb-3">
+          Tentar Novamente
+        </button>
+        <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold">
+          Sair
+        </button>
       </div>
-    );
-  }
-
-  if (!barbearia) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
-          <Link to="/" className="text-primary hover:text-yellow-500 font-bold">Voltar para Home</Link>
-        </div>
-      </div>
-    );
-  }
-
-  const mediaAvaliacoes = avaliacoes.length > 0
-    ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
-    : '5.0';
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
-      <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">VOLTAR</span>
-            </button>
+      <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-3">
+              {/* Logo redonda no header */}
+              <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+                {barbearia.logo_url ? (
+                  <img src={barbearia.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
+                    <Award className="w-7 h-7 text-black" />
+                  </div>
+                )}
+              </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={abrirAvaliar}
-                disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all bg-dark-200 border ${
-                  isProfessional ? 'border-gray-900 text-gray-600 cursor-not-allowed' : 'border-gray-800 text-gray-300 hover:border-primary'
-                }`}
-              >
-                <Star className="w-5 h-5 text-primary" />
-                <span className="hidden sm:inline">AVALIAR</span>
-              </button>
+              <div>
+                <h1 className="text-xl font-black">{barbearia.nome}</h1>
+                <p className="text-xs text-gray-500 font-bold -mt-1">DASHBOARD</p>
+              </div>
+            </div>
 
-              <button
-                onClick={toggleFavorito}
-                disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all ${
-                  isProfessional
-                    ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
-                    : isFavorito
-                      ? 'bg-red-500/20 border border-red-500/50 text-red-400'
-                      : 'bg-dark-200 border border-gray-800 text-gray-400 hover:text-red-400'
-                }`}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to={`/v/${barbearia.slug}`}
+                target="_blank"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button font-bold text-sm"
               >
-                <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
-                <span className="hidden sm:inline">
-                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
+                <Eye className="w-4 h-4" />Ver Vitrine
+              </Link>
+
+              {/* Botão LOGO no header */}
+              <label className="inline-block">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => uploadLogoBarbearia(e.target.files?.[0])}
+                  disabled={logoUploading}
+                />
+                <span
+                  className={`inline-block rounded-button font-black border transition-all ${
+                    logoUploading
+                      ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+                      : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
+                  }
+                  px-3 py-2 text-[11px]
+                  sm:px-4 sm:py-2 sm:text-sm
+                  `}
+                >
+                  <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
+                  <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
                 </span>
+              </label>
+
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
+              >
+                <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Sair</span>
               </button>
             </div>
           </div>
-
-          {/* ✅ REMOVIDO o aviso do profissional (como você pediu) */}
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative bg-gradient-to-br from-primary/20 via-black to-yellow-600/20 py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
-            {/* ✅ LOGO */}
-            {logoUrl ? (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-primary/30 bg-dark-100">
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
-                {barbearia.nome?.[0] || 'B'}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats do topo */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
+            <DollarSign className="w-8 h-8 text-green-400 mb-2" />
+            <div className="text-3xl font-black text-white mb-1">R$ {faturamentoHoje.toFixed(2)}</div>
+            <div className="text-sm text-green-300 font-bold">Faturamento Hoje</div>
+          </div>
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <Calendar className="w-8 h-8 text-blue-400 mb-2" />
+            <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
+            <div className="text-sm text-gray-400 font-bold">Agendamentos Hoje</div>
+          </div>
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <Users className="w-8 h-8 text-purple-400 mb-2" />
+            <div className="text-3xl font-black text-white mb-1">{profissionais.length}</div>
+            <div className="text-sm text-gray-400 font-bold">Profissionais</div>
+          </div>
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <TrendingUp className="w-8 h-8 text-primary mb-2" />
+            <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
+            <div className="text-sm text-gray-400 font-bold">Serviços (total)</div>
+          </div>
+        </div>
+
+        {/* Link Vitrine */}
+        <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
+          <h3 className="text-lg font-black mb-3 flex items-center gap-2">
+            <ExternalLink className="w-5 h-5 text-primary" />Link da Sua Vitrine
+          </h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={`${window.location.origin}/v/${barbearia.slug}`}
+              readOnly
+              className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white text-sm"
+            />
+            <button
+              onClick={copyLink}
+              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-bold text-sm flex items-center gap-2"
+            >
+              {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              {copied ? 'Copiado!' : 'Copiar'}
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
+          <div className="flex overflow-x-auto border-b border-gray-800">
+            {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-shrink-0 px-6 py-4 font-black text-sm transition-all capitalize ${
+                  activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {tab.replace('-', ' ')}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6">
+            {/* VISÃO GERAL */}
+            {activeTab === 'visao-geral' && (
+              <div className="space-y-6">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <div className="text-xs text-gray-500 font-bold mb-2">Cancelamentos Hoje</div>
+                    <div className="text-3xl font-black text-white">{hojeCancelados.length}</div>
+                    <div className="text-sm text-gray-400 font-bold mt-1">
+                      Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <div className="text-xs text-gray-500 font-bold mb-2">Concluídos Hoje</div>
+                    <div className="text-3xl font-black text-white">{hojeConcluidos.length}</div>
+                    <div className="text-sm text-gray-400 font-bold mt-1">
+                      Ticket médio: <span className="text-primary">R$ {ticketMedioHoje.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <div className="text-xs text-gray-500 font-bold mb-2">Próximo agendamento</div>
+                    {proximoAgendamento ? (
+                      <>
+                        <div className="text-3xl font-black text-primary">{proximoAgendamento.hora_inicio}</div>
+                        <div className="text-sm text-gray-300 font-bold mt-1">
+                          {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
+                        </div>
+                        <div className="text-xs text-gray-500 font-bold mt-1">
+                          {proximoAgendamento.servicos?.nome}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-500 font-bold">Nenhum futuro hoje</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ✅ Histórico de faturamento por data */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h3 className="text-lg font-black">Faturamento por data</h3>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 font-bold">Data:</span>
+                      <input
+                        type="date"
+                        value={faturamentoData}
+                        onChange={(e) => setFaturamentoData(e.target.value)}
+                        className="px-3 py-2 bg-dark-100 border border-gray-800 rounded-custom text-white text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Faturamento ({formatDateBR(faturamentoData)})</div>
+                      <div className="text-2xl font-black text-white">R$ {faturamentoSelecionado.toFixed(2)}</div>
+                    </div>
+
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Concluídos</div>
+                      <div className="text-2xl font-black text-white">{concluidosData.length}</div>
+                    </div>
+
+                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                      <div className="text-xs text-gray-500 font-bold mb-1">Ticket médio</div>
+                      <div className="text-2xl font-black text-primary">R$ {ticketMedioSelecionado.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ Próximos agendamentos (inclui hoje e futuros) */}
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <h3 className="text-lg font-black mb-3">Próximos agendamentos</h3>
+
+                  {agendamentosProximos.length ? (
+                    <div className="space-y-3">
+                      {agendamentosProximos.slice(0, 20).map(a => (
+                        <div key={a.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-black text-white">
+                                {a.users?.nome || 'Cliente'} • {a.profissionais?.nome}
+                              </div>
+                              <div className="text-sm text-gray-400 font-bold">
+                                {formatDateBR(a.data)} • {a.hora_inicio} • {a.servicos?.nome}
+                              </div>
+                            </div>
+
+                            <div className="text-primary font-black">
+                              R$ {Number(a.servicos?.preco || 0).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {agendamentosProximos.length > 20 && (
+                        <div className="text-xs text-gray-500 font-bold">
+                          Mostrando 20 de {agendamentosProximos.length}. Veja o restante na aba “Agendamentos”.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 font-bold">Nenhum agendamento futuro.</div>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-500 font-bold">
+                  Dica: você consegue bater o olho e ver o que vem “pra frente”, sem perder o controle do dia.
+                </div>
               </div>
             )}
 
-            <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
-              <p className="text-base sm:text-lg text-gray-400 mb-4">{barbearia.descricao}</p>
+            {/* AGENDAMENTOS (HOJE + FUTUROS) */}
+            {activeTab === 'agendamentos' && (
+              <div>
+                <h2 className="text-2xl font-black mb-6">Agendamentos (Hoje e Próximos)</h2>
 
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                <div className="flex items-center gap-2">
-                  <Stars5 value={Math.round(Number(mediaAvaliacoes || 0))} size={18} />
-                  <span className="text-xl font-black text-primary">{mediaAvaliacoes}</span>
-                  <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
-                </div>
+                {agendamentosProximos.length > 0 ? (
+                  <div className="space-y-4">
+                    {agendamentosProximos.map(a => (
+                      <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
+                            <p className="text-sm text-gray-400">
+                              {a.servicos?.nome} • {a.profissionais?.nome}
+                            </p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                            a.status === 'concluido' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {a.status === 'concluido' ? 'Concluído' : 'Agendado'}
+                          </div>
+                        </div>
 
-                {barbearia.endereco && (
-                  <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    <span>{barbearia.endereco}</span>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Data</div>
+                            <div className="text-sm font-bold">{formatDateBR(a.data)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Horário</div>
+                            <div className="text-sm font-bold">{a.hora_inicio}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-bold">Valor</div>
+                            <div className="text-sm font-bold">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</div>
+                          </div>
+                        </div>
+
+                        {a.status !== 'concluido' && (
+                          <button
+                            onClick={() => confirmarAtendimento(a.id)}
+                            className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
+                          >
+                            ✓ Confirmar Atendimento
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
-
-                {barbearia.telefone && (
-                  <a
-                    href={`tel:${barbearia.telefone}`}
-                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
-                  >
-                    <Phone className="w-4 h-4" />
-                    {barbearia.telefone}
-                  </a>
+                ) : (
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento (hoje ou futuros)</p>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
+            )}
 
-      {/* Profissionais (sem serviços dentro) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
+            {/* CANCELADOS */}
+            {activeTab === 'cancelados' && (
+              <div>
+                <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados (Hoje)</h2>
+                {hojeCancelados.length > 0 ? (
+                  <div className="space-y-4">
+                    {hojeCancelados
+                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
+                      .map(a => (
+                        <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
+                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
+                            </div>
+                            <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
+                              Cancelado
+                            </div>
+                          </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {profissionais.map(prof => {
-              const totalServ = (servicosPorProf.get(prof.id) || []).length;
-              const status = getProfStatus(prof);
-
-              return (
-                <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
-                      {prof.nome?.[0] || 'P'}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
-
-                      {/* ✅ TAG ABERTO/FECHADO (bolinha verde/vermelha) */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                        <span className="text-xs text-gray-400 font-bold">{status.label}</span>
-                      </div>
-
-                      {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-bold mt-1">{prof.anos_experiencia} anos de experiência</p>
-                      )}
-                      <p className="text-xs text-gray-500 font-bold mt-2">
-                        Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
-                      </p>
-                      <p className="text-xs text-gray-600 font-bold mt-2">
-                        {totalServ} serviço(s) disponíveis
-                      </p>
-                    </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Data</div>
+                              <div className="text-white font-bold">{formatDateBR(a.data)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Horário</div>
+                              <div className="text-white font-bold">{a.hora_inicio}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 font-bold">Valor</div>
+                              <div className="text-white font-bold">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                   </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-12">Nenhum cancelamento hoje</p>
+                )}
+              </div>
+            )}
 
+            {/* HISTÓRICO */}
+            {activeTab === 'historico' && (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                  <h2 className="text-2xl font-black">Histórico de Agendamentos</h2>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-400 font-bold">Dia:</span>
+                    <input
+                      type="date"
+                      value={historicoData}
+                      onChange={(e) => setHistoricoData(e.target.value)}
+                      className="px-3 py-2 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    />
+                  </div>
+                </div>
+
+                {agendamentosDiaSelecionado.length > 0 ? (
+                  <div className="space-y-3">
+                    {agendamentosDiaSelecionado.map(a => {
+                      const isCancel = String(a.status || '').includes('cancelado');
+                      const isDone = a.status === 'concluido';
+
+                      return (
+                        <div
+                          key={a.id}
+                          className={`bg-dark-200 border rounded-custom p-4 ${
+                            isCancel ? 'border-red-500/30' : 'border-gray-800'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="font-black text-lg">{a.users?.nome || 'Cliente'}</div>
+                              <div className="text-sm text-gray-400 font-bold">
+                                {a.hora_inicio} • {a.servicos?.nome} • {a.profissionais?.nome}
+                              </div>
+                            </div>
+
+                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                              isCancel ? 'bg-red-500/20 border border-red-500/50 text-red-300'
+                              : isDone ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                              : 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
+                            }`}>
+                              {isCancel ? 'Cancelado' : isDone ? 'Concluído' : 'Agendado'}
+                            </div>
+                          </div>
+
+                          <div className="text-sm text-gray-300 font-bold">
+                            Valor: <span className="text-primary">R$ {Number(a.servicos?.preco || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-12 font-bold">
+                    Nenhum agendamento neste dia.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SERVIÇOS */}
+            {activeTab === 'servicos' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-black">Serviços</h2>
                   <button
-                    onClick={() => iniciarAgendamento(prof)}
-                    className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
-                      isProfessional
-                        ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
-                    }`}
-                    disabled={!!isProfessional}
+                    onClick={() => {
+                      setShowNovoServico(true);
+                      setEditingServicoId(null);
+                      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                   >
-                    <Calendar className="w-5 h-5" />
-                    AGENDAR
+                    <Plus className="w-5 h-5" />Novo Serviço
                   </button>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
 
-      {/* ✅ Serviços (seção separada) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
-
-          {profissionais.length === 0 ? (
-            <p className="text-gray-500 font-bold">Nenhum profissional cadastrado.</p>
-          ) : (
-            <div className="space-y-4">
-              {profissionais.map(p => {
-                const lista = (servicosPorProf.get(p.id) || []).slice().sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
-
-                return (
-                  <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="font-black text-lg">{p.nome}</div>
-                      <div className="text-xs text-gray-500 font-bold">{lista.length} serviço(s)</div>
-                    </div>
-
-                    {lista.length ? (
-                      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {lista.map(s => (
-                          <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                            <div className="font-black">{s.nome}</div>
-                            <div className="text-xs text-gray-500 font-bold mt-1">
-                              <Clock className="w-4 h-4 inline mr-1" />
-                              {s.duracao_minutos} min
-                            </div>
-                            <div className="text-primary font-black text-lg mt-2">R$ {s.preco}</div>
+                {servicosOrdenados.length > 0 ? (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {servicosOrdenados.map(s => (
+                      <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="text-lg font-black">{s.nome}</h3>
+                            <p className="text-xs text-gray-500 font-bold">{s.profissionais?.nome}</p>
                           </div>
-                        ))}
+                          <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingServicoId(s.id);
+                              setFormServico({
+                                nome: s.nome || '',
+                                duracao_minutos: String(s.duracao_minutos ?? ''),
+                                preco: String(s.preco ?? ''),
+                                profissional_id: s.profissional_id || ''
+                              });
+                              setShowNovoServico(true);
+                            }}
+                            className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            onClick={() => deleteServico(s.id)}
+                            className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                          >
+                            <Trash2 className="w-4 h-4 inline mr-1" />
+                            Excluir
+                          </button>
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
-                    )}
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ✅ Avaliações SEMPRE como seção final (footer de conversão) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
-            <button
-              onClick={abrirAvaliar}
-              disabled={!!isProfessional}
-              className={`px-5 py-2 border rounded-button font-normal text-sm transition-all ${
-                isProfessional
-                  ? 'bg-dark-100 border-gray-900 text-gray-600 cursor-not-allowed'
-                  : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
-              }`}
-            >
-              + AVALIAR
-            </button>
-          </div>
-
-          {avaliacoes.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {avaliacoes.map(av => (
-                <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {av.users?.nome?.[0] || 'A'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">{av.users?.nome || 'Cliente'}</p>
-                      <Stars5 value={av.nota} size={14} />
-                    </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-gray-500 mb-4">Nenhum serviço cadastrado</p>
+                    <button
+                      onClick={() => {
+                        setShowNovoServico(true);
+                        setEditingServicoId(null);
+                        setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    >
+                      Adicionar Primeiro Serviço
+                    </button>
                   </div>
-                  {av.comentario && <p className="text-sm text-gray-400">{av.comentario}</p>}
+                )}
+              </div>
+            )}
+
+            {/* PROFISSIONAIS */}
+            {activeTab === 'profissionais' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-black">Profissionais</h2>
+                  <button
+                    onClick={() => {
+                      setShowNovoProfissional(true);
+                      setEditingProfissional(null);
+                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                  >
+                    <Plus className="w-5 h-5" />Adicionar
+                  </button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500">Nenhuma avaliação ainda</p>
-          )}
-        </div>
-      </section>
 
-      {/* Modal Agendamento */}
-      {showAgendamento && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-dark-100 border-b border-gray-800 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-normal">Agendar com {flow.profissional?.nome}</h2>
-              <button onClick={() => setShowAgendamento(false)} className="text-gray-400 hover:text-white">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {profissionais.map(p => {
+                    const ativo = (p.ativo === undefined) ? true : !!p.ativo;
+                    const status = getProfStatus(p);
+
+                    return (
+                      <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-black text-xl">
+                            {p.nome?.[0] || 'P'}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-black flex items-center gap-2">
+                              {p.nome}
+                              {!ativo && (
+                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-black">
+                                  INATIVO
+                                </span>
+                              )}
+                            </h3>
+
+                            {/* luz status */}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
+                              <span className="text-xs text-gray-400 font-bold">{status.label}</span>
+                            </div>
+
+                            {p.anos_experiencia != null && (
+                              <p className="text-xs text-gray-500 font-bold mt-1">{p.anos_experiencia} anos</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-gray-400 mb-3">
+                          {servicos.filter(s => s.profissional_id === p.id).length} serviços
+                        </div>
+
+                        <div className="text-xs text-gray-500 mb-3">
+                          <Clock className="w-4 h-4 inline mr-1" />
+                          {p.horario_inicio} - {p.horario_fim}
+                        </div>
+
+                        {/* ✅ Ativar / Inativar / Excluir */}
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            onClick={() => toggleAtivoProfissional(p)}
+                            className={`flex-1 py-2 rounded-custom font-bold text-sm border ${
+                              ativo
+                                ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+                                : 'bg-green-500/10 border-green-500/30 text-green-300'
+                            }`}
+                          >
+                            {ativo ? 'Inativar' : 'Ativar'}
+                          </button>
+
+                          <button
+                            onClick={() => excluirProfissional(p)}
+                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom font-bold text-sm"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+
+                        {!ativo && (p.motivo_inativo || p.motivo_inativo === '') && (
+                          <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-custom p-2 mb-3">
+                            INATIVO {p.motivo_inativo ? `• ${p.motivo_inativo}` : ''}
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setEditingProfissional(p);
+                            setFormProfissional({
+                              nome: p.nome || '',
+                              anos_experiencia: String(p.anos_experiencia ?? ''),
+                              horario_inicio: p.horario_inicio || '08:00',
+                              horario_fim: p.horario_fim || '18:00',
+                              dias_semana: Array.isArray(p.dias_semana) && p.dias_semana.length ? p.dias_semana : [1,2,3,4,5,6],
+                            });
+                            setShowNovoProfissional(true);
+                          }}
+                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!supportsDiasSemana && (
+                  <div className="mt-6 text-xs text-gray-500 font-bold bg-dark-200 border border-gray-800 rounded-custom p-4">
+                    Observação: “Dias de trabalho” está pronto no painel, mas sua tabela <b>profissionais</b> ainda não tem a coluna <b>dias_semana</b>.
+                    Quando você criar essa coluna, o painel passa a salvar e refletir automaticamente.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Serviço */}
+      {showNovoServico && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-black">{editingServicoId ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+              <button
+                onClick={() => {
+                  setShowNovoServico(false);
+                  setEditingServicoId(null);
+                  setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                }}
+              >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="p-6">
-              {/* STEP 1: DATA */}
-              {flow.step === 1 && (
-                <div>
-                  <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
-                  <input
-                    type="date"
-                    min={new Date().toISOString().split('T')[0]}
-                    value={flow.data}
-                    onChange={(e) => setFlow(prev => ({ ...prev, data: e.target.value }))}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  />
+            <form onSubmit={editingServicoId ? updateServico : createServico} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold mb-2">Profissional</label>
+                <select
+                  value={formServico.profissional_id}
+                  onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  required
+                >
+                  <option value="">Selecione</option>
+                  {profissionais
+                    .filter(p => (p.ativo === undefined ? true : !!p.ativo))
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                </select>
+              </div>
 
-                  {/* ✅ Mensagem apenas quando dia fechado */}
-                  {flow.data && !diaSelecionadoEhTrabalho && (
-                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-custom p-3 text-red-300 text-sm font-bold">
-                      Este profissional está <b>FECHADO</b> nessa data. Escolha outro dia.
-                    </div>
-                  )}
+              <div>
+                <label className="block text-sm font-bold mb-2">Nome</label>
+                <input
+                  type="text"
+                  value={formServico.nome}
+                  onChange={(e) => setFormServico({ ...formServico, nome: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  required
+                />
+              </div>
 
-                  <button
-                    onClick={() => {
-                      if (!flow.data) return alert('Selecione uma data.');
-                      if (!diaSelecionadoEhTrabalho) return alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
-                      setFlow(prev => ({ ...prev, step: 2, horario: null, servicosSelecionados: [] }));
-                    }}
-                    className={`mt-4 w-full py-3 rounded-button font-black ${
-                      (!flow.data || !diaSelecionadoEhTrabalho)
-                        ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
-                    }`}
-                    disabled={!flow.data || !diaSelecionadoEhTrabalho}
-                  >
-                    CONTINUAR
-                  </button>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-bold mb-2">Duração (min)</label>
+                <input
+                  type="number"
+                  value={formServico.duracao_minutos}
+                  onChange={(e) => setFormServico({ ...formServico, duracao_minutos: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  required
+                />
+              </div>
 
-              {/* STEP 2: HORÁRIO */}
-              {flow.step === 2 && (
-                <div>
-                  <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
-                    className="text-primary mb-4 font-bold"
-                  >
-                    Voltar
-                  </button>
+              <div>
+                <label className="block text-sm font-bold mb-2">Preço (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formServico.preco}
+                  onChange={(e) => setFormServico({ ...formServico, preco: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  required
+                />
+              </div>
 
-                  <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
-
-                  {!diaSelecionadoEhTrabalho ? (
-                    <p className="text-gray-500">Esse profissional está fechado nessa data.</p>
-                  ) : horariosDisponiveis.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                      {horariosDisponiveis.map((h, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 3, servicosSelecionados: [] }))}
-                          className="relative p-3 rounded-custom font-bold transition-all bg-dark-200 border border-gray-800 hover:border-primary"
-                        >
-                          {h.tipo === 'slot' && (
-                            <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
-                          )}
-                          <div className="text-lg">{h.hora}</div>
-                          <div className="text-[10px] text-gray-500">
-                            até {h.maxMinutos}min
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">Nenhum horário disponível nessa data.</p>
-                  )}
-
-                  <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
-                    <AlertCircle className="w-5 h-5 text-blue-400 inline mr-2" />
-                    <span className="text-sm text-blue-300">
-                      Horários com <Zap className="w-4 h-4 inline text-primary" /> são slots reaproveitados (cancelamentos).
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 3: SERVIÇOS (multi seleção + soma) */}
-              {flow.step === 3 && (
-                <div>
-                  <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                    className="text-primary mb-4"
-                  >
-                    VOLTAR
-                  </button>
-
-                  <h3 className="text-xl font-black mb-2">
-                    Escolha o(s) Serviço(s) <span className="text-sm text-gray-500">(cabe até {flow.horario?.maxMinutos} min)</span>
-                  </h3>
-
-                  {/* ✅ Resumo soma */}
-                  <div className="mb-4 bg-dark-200 border border-gray-800 rounded-custom p-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 font-bold">Selecionados:</span>
-                      <span className="font-bold">{totalSelecionado.qtd}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-bold">Duração total:</span>
-                      <span className={`font-bold ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
-                        {totalSelecionado.duracao} min
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-bold">Valor total:</span>
-                      <span className="font-bold text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  {servicosPossiveis.length > 0 ? (
-                    <div className="space-y-3">
-                      {servicosPossiveis.map(s => {
-                        const selected = (flow.servicosSelecionados || []).some(x => x.id === s.id);
-
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => {
-                              const cur = Array.isArray(flow.servicosSelecionados) ? [...flow.servicosSelecionados] : [];
-                              const max = Number(flow.horario?.maxMinutos || 0);
-
-                              let next;
-                              if (selected) {
-                                next = cur.filter(x => x.id !== s.id);
-                              } else {
-                                next = [...cur, s];
-                              }
-
-                              const durNext = next.reduce((sum, it) => sum + Number(it?.duracao_minutos || 0), 0);
-
-                              // ✅ trava soma que estoura
-                              if (durNext > max) {
-                                alert(`Não cabe: total ${durNext} min (máx ${max} min).`);
-                                return;
-                              }
-
-                              setFlow(prev => ({ ...prev, servicosSelecionados: next }));
-                            }}
-                            className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
-                          >
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="font-black flex items-center gap-2">
-                                  <span
-                                    className={`inline-block w-3.5 h-3.5 rounded border ${
-                                      selected ? 'bg-primary/30 border-primary/60' : 'bg-dark-100 border-gray-700'
-                                    }`}
-                                  />
-                                  {s.nome}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  <Clock className="w-4 h-4 inline mr-1" />
-                                  {s.duracao_minutos} min
-                                </p>
-                              </div>
-                              <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-gray-500">
-                      Nenhum serviço disponível.
-                      <div className="mt-3">
-                        <button
-                          onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button font-bold"
-                        >
-                          Escolher outro horário
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      if (!flow.servicosSelecionados?.length) return alert('Selecione pelo menos 1 serviço.');
-                      setFlow(prev => ({ ...prev, step: 4 }));
-                    }}
-                    className={`mt-4 w-full py-3 rounded-button font-black ${
-                      flow.servicosSelecionados?.length
-                        ? 'bg-gradient-to-r from-primary to-yellow-600 text-black'
-                        : 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
-                    }`}
-                    disabled={!flow.servicosSelecionados?.length}
-                  >
-                    CONTINUAR
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 4: CONFIRMAR */}
-              {flow.step === 4 && (
-                <div>
-                  <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
-
-                  <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Profissional:</span>
-                      <span className="font-bold">{flow.profissional?.nome}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Data:</span>
-                      <span className="font-bold">{new Date(flow.data).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Horário:</span>
-                      <span className="font-bold">{flow.horario?.hora}</span>
-                    </div>
-
-                    {/* ✅ Lista serviços selecionados */}
-                    <div className="pt-2 border-t border-gray-800">
-                      <div className="text-gray-500 font-bold text-sm mb-2">Serviços:</div>
-                      <div className="space-y-1">
-                        {(flow.servicosSelecionados || []).map(s => (
-                          <div key={s.id} className="flex justify-between text-sm">
-                            <span className="font-bold text-gray-200">{s.nome}</span>
-                            <span className="text-gray-400">{s.duracao_minutos} min • R$ {Number(s.preco || 0).toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Duração total:</span>
-                      <span className="font-bold">{totalSelecionado.duracao} min</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Valor total:</span>
-                      <span className="font-bold text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
-                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold"
-                    >
-                      VOLTAR
-                    </button>
-                    <button
-                      onClick={confirmarAgendamento}
-                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
-                    >
-                      CONFIRMAR
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+                {editingServicoId ? 'SALVAR' : 'CRIAR SERVIÇO'}
+              </button>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Modal Avaliar */}
-      {showAvaliar && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-black">Avaliar</h3>
-              <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
+      {/* Modal Profissional */}
+      {showNovoProfissional && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-black">{editingProfissional ? 'Editar Profissional' : 'Novo Profissional'}</h3>
+              <button
+                onClick={() => {
+                  setShowNovoProfissional(false);
+                  setEditingProfissional(null);
+                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+                }}
+              >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="mb-4">
-              <div className="text-sm text-gray-300 font-bold mb-2">Nota</div>
-              <div className="flex gap-2">
-                {[1,2,3,4,5].map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setAvaliarNota(n)}
-                    className={`w-10 h-10 rounded-custom border font-black transition-all ${
-                      avaliarNota >= n
-                        ? 'bg-primary/20 border-primary/50 text-primary'
-                        : 'bg-dark-200 border-gray-800 text-gray-500'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
+            <form onSubmit={editingProfissional ? updateProfissional : createProfissional} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold mb-2">Nome</label>
+                <input
+                  type="text"
+                  value={formProfissional.nome}
+                  onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  required
+                />
               </div>
-            </div>
 
-            <div className="mb-5">
-              <div className="text-sm text-gray-300 font-bold mb-2">Comentário (opcional)</div>
-              <textarea
-                value={avaliarTexto}
-                onChange={(e) => setAvaliarTexto(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none"
-                placeholder="Conte como foi sua experiência..."
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-bold mb-2">Anos de Experiência</label>
+                <input
+                  type="number"
+                  value={formProfissional.anos_experiencia}
+                  onChange={(e) => setFormProfissional({ ...formProfissional, anos_experiencia: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                />
+              </div>
 
-            <button
-              onClick={enviarAvaliacao}
-              disabled={avaliarLoading}
-              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black disabled:opacity-60"
-            >
-              {avaliarLoading ? 'ENVIANDO...' : 'ENVIAR AVALIAÇÃO'}
-            </button>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-2">Início</label>
+                  <input
+                    type="time"
+                    value={formProfissional.horario_inicio}
+                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Fim</label>
+                  <input
+                    type="time"
+                    value={formProfissional.horario_fim}
+                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    required
+                  />
+                </div>
+              </div>
 
-            <p className="text-xs text-gray-500 mt-3 font-bold">
-              Somente clientes logados podem avaliar.
-            </p>
+              {/* Dias de trabalho */}
+              <div>
+                <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
+                <div className="grid grid-cols-7 gap-2">
+                  {WEEKDAYS.map(d => {
+                    const active = (formProfissional.dias_semana || []).includes(d.i);
+                    return (
+                      <button
+                        type="button"
+                        key={d.i}
+                        onClick={() => {
+                          const cur = Array.isArray(formProfissional.dias_semana) ? [...formProfissional.dias_semana] : [];
+                          const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
+                          setFormProfissional(prev => ({ ...prev, dias_semana: next.sort((a,b)=>a-b) }));
+                        }}
+                        className={`py-2 rounded-custom border font-black text-xs transition-all ${
+                          active
+                            ? 'bg-primary/20 border-primary/50 text-primary'
+                            : 'bg-dark-200 border-gray-800 text-gray-500'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-gray-500 font-bold mt-2">
+                  Se a coluna <b>dias_semana</b> ainda não existir no banco, isso fica só no visual por enquanto.
+                </p>
+              </div>
+
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+                {editingProfissional ? 'SALVAR' : 'ADICIONAR'}
+              </button>
+            </form>
           </div>
         </div>
       )}
