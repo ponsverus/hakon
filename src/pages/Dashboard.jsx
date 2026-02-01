@@ -52,6 +52,7 @@ function getNowSP() {
   return { date, minutes, dow };
 }
 
+// ✅ DOM=0 ... SÁB=6
 const WEEKDAYS = [
   { i: 0, label: 'DOM' },
   { i: 1, label: 'SEG' },
@@ -61,6 +62,18 @@ const WEEKDAYS = [
   { i: 5, label: 'SEX' },
   { i: 6, label: 'SÁB' },
 ];
+
+// ✅ Normaliza e GARANTE que domingo seja 0 (e não 7)
+function normalizeDiasTrabalho(arr) {
+  const base = Array.isArray(arr) ? arr : [];
+  const cleaned = base
+    .map(n => Number(n))
+    .filter(n => Number.isFinite(n))
+    .map(n => (n === 7 ? 0 : n))
+    .filter(n => n >= 0 && n <= 6);
+
+  return Array.from(new Set(cleaned)).sort((a, b) => a - b);
+}
 
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
@@ -98,20 +111,16 @@ export default function Dashboard({ user, onLogout }) {
     profissional_id: ''
   });
 
+  // ✅ agora é dias_trabalho (coluna real)
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
     anos_experiencia: '',
     horario_inicio: '08:00',
     horario_fim: '18:00',
-    dias_semana: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
+    dias_trabalho: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
   });
 
   const profissionalIds = useMemo(() => profissionais.map(p => p.id), [profissionais]);
-
-  // detecta se existe a coluna dias_semana (pra não quebrar se não tiver)
-  const supportsDiasSemana = useMemo(() => {
-    return profissionais.some(p => Object.prototype.hasOwnProperty.call(p, 'dias_semana'));
-  }, [profissionais]);
 
   useEffect(() => {
     if (user?.id) loadData();
@@ -248,7 +257,7 @@ export default function Dashboard({ user, onLogout }) {
       setLogoUploading(true);
 
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-      const filePath = `${user.id}/logo-${Date.now()}.${ext}`; // <= precisa cair na policy own_folder
+      const filePath = `${user.id}/logo-${Date.now()}.${ext}`;
 
       const { error: upErr } = await supabase
         .storage
@@ -372,18 +381,16 @@ export default function Dashboard({ user, onLogout }) {
     try {
       if (!barbearia?.id) throw new Error('Barbearia não carregada.');
 
+      const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
+
       const payload = {
         barbearia_id: barbearia.id,
         nome: String(formProfissional.nome || '').trim(),
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
+        dias_trabalho: dias.length ? dias : [1,2,3,4,5,6],
       };
-
-      // só tenta salvar dias_semana se a coluna existir (pra não quebrar)
-      if (supportsDiasSemana) {
-        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
-      }
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
@@ -393,7 +400,7 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Profissional adicionado!');
       setShowNovoProfissional(false);
       setEditingProfissional(null);
-      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
@@ -406,16 +413,15 @@ export default function Dashboard({ user, onLogout }) {
     try {
       if (!editingProfissional?.id) throw new Error('Profissional inválido.');
 
+      const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
+
       const payload = {
         nome: String(formProfissional.nome || '').trim(),
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
+        dias_trabalho: dias, // ✅ agora salva domingo=0
       };
-
-      if (supportsDiasSemana) {
-        payload.dias_semana = Array.isArray(formProfissional.dias_semana) ? formProfissional.dias_semana : [1,2,3,4,5,6];
-      }
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
 
@@ -568,9 +574,9 @@ export default function Dashboard({ user, onLogout }) {
     const ini = timeToMinutes(p.horario_inicio || '08:00');
     const fim = timeToMinutes(p.horario_fim || '18:00');
 
-    // se não tiver dias_semana, assume todos
-    const dias = (Array.isArray(p.dias_semana) && p.dias_semana.length)
-      ? p.dias_semana
+    // ✅ usa dias_trabalho (se vazio, assume todos)
+    const dias = (Array.isArray(p.dias_trabalho) && p.dias_trabalho.length)
+      ? p.dias_trabalho
       : [0,1,2,3,4,5,6];
 
     const trabalhaHoje = dias.includes(now.dow);
@@ -658,7 +664,6 @@ export default function Dashboard({ user, onLogout }) {
                   sm:px-4 sm:py-2 sm:text-sm
                   `}
                 >
-                  {/* Mobile: curto e discreto / Desktop: mais explícito */}
                   <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
                   <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
                 </span>
@@ -1045,7 +1050,7 @@ export default function Dashboard({ user, onLogout }) {
                     onClick={() => {
                       setShowNovoProfissional(true);
                       setEditingProfissional(null);
-                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+                      setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
                   >
@@ -1130,7 +1135,7 @@ export default function Dashboard({ user, onLogout }) {
                               anos_experiencia: String(p.anos_experiencia ?? ''),
                               horario_inicio: p.horario_inicio || '08:00',
                               horario_fim: p.horario_fim || '18:00',
-                              dias_semana: Array.isArray(p.dias_semana) && p.dias_semana.length ? p.dias_semana : [1,2,3,4,5,6],
+                              dias_trabalho: Array.isArray(p.dias_trabalho) && p.dias_trabalho.length ? p.dias_trabalho : [1,2,3,4,5,6],
                             });
                             setShowNovoProfissional(true);
                           }}
@@ -1142,13 +1147,6 @@ export default function Dashboard({ user, onLogout }) {
                     );
                   })}
                 </div>
-
-                {!supportsDiasSemana && (
-                  <div className="mt-6 text-xs text-gray-500 font-bold bg-dark-200 border border-gray-800 rounded-custom p-4">
-                    Observação: “Dias de trabalho” está pronto no painel, mas sua tabela <b>profissionais</b> ainda não tem a coluna <b>dias_semana</b>.
-                    Quando você criar essa coluna, o painel passa a salvar e refletir automaticamente.
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1242,14 +1240,13 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => {
                   setShowNovoProfissional(false);
                   setEditingProfissional(null);
-                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_semana: [1,2,3,4,5,6] });
+                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
                 }}
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            {/* ✅ FIX do bug: submit correto (SALVAR quando editando, ADICIONAR quando novo) */}
             <form onSubmit={editingProfissional ? updateProfissional : createProfissional} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold mb-2">Nome</label>
@@ -1295,20 +1292,20 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* Dias de trabalho (só “ativa de verdade” quando existir coluna dias_semana) */}
+              {/* ✅ Dias de trabalho REAL (dias_trabalho) */}
               <div>
                 <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-7 gap-2">
                   {WEEKDAYS.map(d => {
-                    const active = (formProfissional.dias_semana || []).includes(d.i);
+                    const active = (formProfissional.dias_trabalho || []).includes(d.i);
                     return (
                       <button
                         type="button"
                         key={d.i}
                         onClick={() => {
-                          const cur = Array.isArray(formProfissional.dias_semana) ? [...formProfissional.dias_semana] : [];
+                          const cur = Array.isArray(formProfissional.dias_trabalho) ? [...formProfissional.dias_trabalho] : [];
                           const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
-                          setFormProfissional(prev => ({ ...prev, dias_semana: next.sort((a,b)=>a-b) }));
+                          setFormProfissional(prev => ({ ...prev, dias_trabalho: normalizeDiasTrabalho(next) }));
                         }}
                         className={`py-2 rounded-custom border font-black text-xs transition-all ${
                           active
@@ -1323,7 +1320,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <p className="text-[11px] text-gray-500 font-bold mt-2">
-                  Se a coluna <b>dias_semana</b> ainda não existir no banco, isso fica só no visual por enquanto.
+                  Domingo = 0, Segunda = 1, ... Sábado = 6.
                 </p>
               </div>
 
