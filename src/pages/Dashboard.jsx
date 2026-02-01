@@ -946,7 +946,7 @@ export default function Dashboard({ user, onLogout }) {
                 .toFixed(2)}
             </div>
 
-            <div className="text-sm text-green-300 font-bold">
+            <div className="text-sm text-green-400">
               {formatDateBRFromISO(hoje)}
             </div>
           </div>
@@ -984,10 +984,10 @@ export default function Dashboard({ user, onLogout }) {
             />
             <button
               onClick={copyLink}
-              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button font-bold text-sm flex items-center gap-2"
+              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm flex items-center gap-2"
             >
               {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-              {copied ? 'Copiado!' : 'Copiar'}
+              {copied ? 'COPIADO' : 'COPIAR'}
             </button>
           </div>
         </div>
@@ -1073,7 +1073,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="text-3xl font-black text-white mb-2">
                     R$ {faturamentoDoDiaSelecionado.toFixed(2)}
                   </div>
-                  <div className="text-sm text-gray-400 font-bold mb-4">
+                  <div className="text-sm text-gray-400 mb-4">
                     Concluídos em {formatDateBRFromISO(faturamentoData)}
                   </div>
 
