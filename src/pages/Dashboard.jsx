@@ -827,7 +827,7 @@ export default function Dashboard({ user, onLogout }) {
           Tentar Novamente
         </button>
         <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold">
-          Sair
+          SAIR
         </button>
       </div>
     </div>
