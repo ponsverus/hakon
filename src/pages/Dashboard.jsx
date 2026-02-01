@@ -1050,18 +1050,18 @@ export default function Dashboard({ user, onLogout }) {
                 {/* ✅ Faturamento + filtro de data (aqui na visão geral) */}
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h3 className="text-lg font-black flex items-center gap-2">
+                    <h3 className="text-lg font-normal flex items-center gap-2">
                       <span
                         style={{ fontFamily: 'Roboto Condensed, sans-serif' }}
                         className="font-normal text-2xl"
                       >
                         R$
                       </span>
-                      Faturamento
+                      FATURAMENTO
                     </h3>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400 font-bold">Dia:</span>
+                      <span className="text-sm text-gray-400">DIA:</span>
                       <DateFilterButton
                         value={faturamentoData}
                         onChange={(e) => setFaturamentoData(e.target.value)}
@@ -1082,14 +1082,14 @@ export default function Dashboard({ user, onLogout }) {
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {faturamentoPorProfissional.map(([nome, valor]) => (
                         <div key={nome} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                          <div className="text-xs text-gray-500 font-bold mb-1">Profissional</div>
-                          <div className="font-black text-white">{nome}</div>
-                          <div className="text-primary font-black mt-1">R$ {Number(valor).toFixed(2)}</div>
+                          <div className="text-xs text-gray-500 mb-1">PROFISSIONAL</div>
+                          <div className="font-normal text-white">{nome}</div>
+                          <div className="text-primary font-normal mt-1">R$ {Number(valor).toFixed(2)}</div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500 font-bold">
+                    <div className="text-xs text-gray-500">
                       {profissionais.length < 2
                         ? 'Você tem 1 profissional — o detalhamento por profissional não aparece.'
                         : 'Sem faturamento concluído nessa data.'}
@@ -1098,22 +1098,22 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <h3 className="text-lg font-black mb-3">Resumo rápido</h3>
+                  <h3 className="text-lg font-normal mb-3">Resumo rápido</h3>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <div className="text-xs text-gray-500 font-bold">Total hoje</div>
+                      <div className="text-xs text-gray-500">Total hoje</div>
                       <div className="text-2xl font-black">{agendamentosHoje.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-bold">Válidos hoje</div>
+                      <div className="text-xs text-gray-500">Válidos hoje</div>
                       <div className="text-2xl font-black">{hojeValidos.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-bold">Cancelados hoje</div>
+                      <div className="text-xs text-gray-500">Cancelados hoje</div>
                       <div className="text-2xl font-black">{hojeCancelados.length}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-bold">Faturamento hoje</div>
+                      <div className="text-xs text-gray-500">Faturamento hoje</div>
                       <div className="text-2xl font-black">
                         R$ {agendamentosHoje
                           .filter(a => a.status === 'concluido')
