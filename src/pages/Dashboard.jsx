@@ -1588,7 +1588,7 @@ export default function Dashboard({ user, onLogout }) {
                         disabled={galleryUploading}
                       />
                       <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-button font-black border cursor-pointer transition-all ${
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-button font-normal border cursor-pointer transition-all ${
                           galleryUploading
                             ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
                             : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
