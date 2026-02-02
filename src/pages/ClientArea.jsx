@@ -129,11 +129,11 @@ export default function ClientArea({ user, onLogout }) {
   const getStatusText = (status) => {
     const statusMap = {
       agendado: 'AGENDADO',
-      confirmado: 'Confirmado',
-      concluido: 'Concluído',
-      cancelado_cliente: 'Cancelado',
-      cancelado_profissional: 'Cancelado',
-      nao_compareceu: 'Não compareceu'
+      confirmado: 'CONFIRMADO',
+      concluido: 'CONCLUÍDO',
+      cancelado_cliente: 'CANCELADO :(',
+      cancelado_profissional: 'CANCELADO',
+      nao_compareceu: 'SE ESQUECEU :('
     };
     return statusMap[status] || status;
   };
