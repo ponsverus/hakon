@@ -870,7 +870,7 @@ export default function Vitrine({ user, userType }) {
                     aria-label="Instagram"
                   >
                     <Instagram className="w-4 h-4" />
-                    InstagraM
+                    INSTAGRAM
                   </a>
                 )}
               </div>
