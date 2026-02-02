@@ -885,7 +885,7 @@ export default function Dashboard({ user, onLogout }) {
     'historico': 'HISTÓRICO',
     'servicos': 'SERVIÇOS',
     'profissionais': 'PROFISSIONAIS',
-    'info-negocio': 'INFORMAÇÕES DO NEGÓCIO',
+    'info-negocio': 'INFO DO NEGÓCIO',
   };
 
   return (
@@ -1128,7 +1128,7 @@ export default function Dashboard({ user, onLogout }) {
                   {/* ✅ (NOVO) destrinchar faturamento do dia */}
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">CORTES (CONCLUÍDOS)</div>
+                      <div className="text-xs text-gray-500 mb-1">CORTES CONCLUÍDOS</div>
                       <div className="text-xl font-normal text-white">{concluidosDoDiaFaturamento.length}</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
@@ -1137,7 +1137,7 @@ export default function Dashboard({ user, onLogout }) {
                       <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">CONVERSÃO</div>
+                      <div className="text-xs text-gray-500 mb-1">FECHAMENTO</div>
                       <div className="text-xl font-normal text-white">{taxaConversaoDoDiaFaturamento.toFixed(1)}%</div>
                       <div className="text-xs text-gray-500 mt-1">sobre {totalDoDiaFaturamento} agend.</div>
                     </div>
@@ -1226,7 +1226,7 @@ export default function Dashboard({ user, onLogout }) {
                               </div>
                             ) : isFuturo ? (
                               <div className="px-3 py-1 rounded-button text-xs font-bold bg-yellow-500/20 text-yellow-300">
-                                Futuro
+                                FUTURO
                               </div>
                             ) : (
                               <div className="px-3 py-1 rounded-button text-xs font-bold bg-blue-500/20 text-blue-400">
@@ -1316,10 +1316,9 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'historico' && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-                  <h2 className="text-2xl font-black">Histórico de Agendamentos</h2>
+                  <h2 className="text-2xl font-normal">Histórico de Agendamentos</h2>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-400 font-bold">Dia:</span>
+                  <div className="flex items-center gap-2"> 
                     <DateFilterButton
                       value={historicoData}
                       onChange={(e) => setHistoricoData(e.target.value)}
@@ -1344,7 +1343,7 @@ export default function Dashboard({ user, onLogout }) {
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <div className="font-black text-lg">{a.users?.nome || 'Cliente'}</div>
-                              <div className="text-sm text-gray-400 font-bold">
+                              <div className="text-sm text-gray-400">
                                 {a.hora_inicio} • {a.servicos?.nome} • {a.profissionais?.nome}
                               </div>
                             </div>
@@ -1366,8 +1365,8 @@ export default function Dashboard({ user, onLogout }) {
                     })}
                   </div>
                 ) : (
-                  <div className="text-gray-500 text-center py-12 font-bold">
-                    Nenhum agendamento neste dia.
+                  <div className="text-gray-500 text-center py-12">
+                    :(
                   </div>
                 )}
               </div>
@@ -1377,21 +1376,21 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-black">Serviços</h2>
+                  <h2 className="text-2xl font-normal">Serviços</h2>
                   <button
                     onClick={() => {
                       setShowNovoServico(true);
                       setEditingServicoId(null);
                       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
                     }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button"
                   >
-                    <Plus className="w-5 h-5" />Novo Serviço
+                    <Plus className="w-5 h-5" />NOVO SERVIÇO
                   </button>
                 </div>
 
                 {profissionais.length === 0 ? (
-                  <div className="text-gray-500 font-bold">Nenhum profissional cadastrado.</div>
+                  <div className="text-gray-500">Nenhum profissional cadastrado.</div>
                 ) : (
                   <div className="space-y-4">
                     {profissionais.map(p => {
@@ -1403,7 +1402,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-6">
                           <div className="flex items-center justify-between mb-4">
                             <div className="font-black text-lg">{p.nome}</div>
-                            <div className="text-xs text-gray-500 font-bold">{lista.length} serviço(s)</div>
+                            <div className="text-xs text-gray-500">{lista.length} serviço(s)</div>
                           </div>
 
                           {lista.length ? (
@@ -1413,9 +1412,9 @@ export default function Dashboard({ user, onLogout }) {
                                   <div className="flex justify-between items-start mb-3">
                                     <div>
                                       <h3 className="text-lg font-black">{s.nome}</h3>
-                                      <p className="text-xs text-gray-500 font-bold">{p.nome}</p>
+                                      <p className="text-xs text-gray-500">{p.nome}</p>
                                     </div>
-                                    <div className="text-2xl font-black text-primary">R$ {s.preco}</div>
+                                    <div className="text-2xl font-normal text-primary">R$ {s.preco}</div>
                                   </div>
                                   <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
 
@@ -1431,16 +1430,16 @@ export default function Dashboard({ user, onLogout }) {
                                         });
                                         setShowNovoServico(true);
                                       }}
-                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm"
                                     >
-                                      Editar
+                                      EDITAR
                                     </button>
 
                                     <button
                                       onClick={() => deleteServico(s.id)}
-                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom text-sm"
                                     >
-                                      Excluir
+                                      EXCLUIR
                                     </button>
                                   </div>
                                 </div>
@@ -1461,7 +1460,7 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'profissionais' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-black">Profissionais</h2>
+                  <h2 className="text-2xl font-normal">Profissionais</h2>
                   <button
                     onClick={() => {
                       setShowNovoProfissional(true);
@@ -1474,9 +1473,9 @@ export default function Dashboard({ user, onLogout }) {
                         dias_trabalho: [1, 2, 3, 4, 5, 6]
                       });
                     }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button"
                   >
-                    <Plus className="w-5 h-5" />Adicionar
+                    <Plus className="w-5 h-5" />ADICIONAR
                   </button>
                 </div>
 
@@ -1488,14 +1487,14 @@ export default function Dashboard({ user, onLogout }) {
                     return (
                       <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-black text-xl">
+                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-normal font-normal text-xl">
                             {p.nome?.[0] || 'P'}
                           </div>
                           <div className="flex-1">
                             <h3 className="font-black flex items-center gap-2">
                               {p.nome}
                               {!ativo && (
-                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-black">
+                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-normal">
                                   INATIVO
                                 </span>
                               )}
@@ -1526,20 +1525,20 @@ export default function Dashboard({ user, onLogout }) {
                         <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => toggleAtivoProfissional(p)}
-                            className={`flex-1 py-2 rounded-custom font-bold text-sm border ${
+                            className={`flex-1 py-2 rounded-custom text-sm border ${
                               ativo
                                 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
                                 : 'bg-green-500/10 border-green-500/30 text-green-300'
                             }`}
                           >
-                            {ativo ? 'Inativar' : 'Ativar'}
+                            {ativo ? 'INATIVAR' : 'ATIVAR'}
                           </button>
 
                           <button
                             onClick={() => excluirProfissional(p)}
-                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom font-bold text-sm"
+                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom text-sm"
                           >
-                            Excluir
+                            EXCLUIR
                           </button>
                         </div>
 
@@ -1561,9 +1560,9 @@ export default function Dashboard({ user, onLogout }) {
                             });
                             setShowNovoProfissional(true);
                           }}
-                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
+                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm"
                         >
-                          Editar
+                          EDITAR
                         </button>
                       </div>
                     );
@@ -1576,12 +1575,12 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'info-negocio' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-black">Informações do Negócio</h2>
+                  <h2 className="text-2xl font-normal">Informações do Negócio</h2>
 
                   <button
                     onClick={salvarInfoNegocio}
                     disabled={infoSaving}
-                    className={`px-5 py-2.5 rounded-button font-black border flex items-center gap-2 ${
+                    className={`px-5 py-2.5 rounded-button font-normal border flex items-center gap-2 ${
                       infoSaving
                         ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
                         : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
@@ -1594,7 +1593,7 @@ export default function Dashboard({ user, onLogout }) {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm font-bold mb-2">Nome da Barbearia</label>
+                    <label className="block text-sm mb-2">Nome da Barbearia</label>
                     <input
                       value={formInfo.nome}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
@@ -1604,7 +1603,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm font-bold mb-2">Telefone</label>
+                    <label className="block text-sm mb-2">Telefone</label>
                     <input
                       value={formInfo.telefone}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
@@ -1614,7 +1613,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm font-bold mb-2">Endereço</label>
+                    <label className="block text-sm mb-2">Endereço</label>
                     <input
                       value={formInfo.endereco}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
@@ -1624,7 +1623,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm font-bold mb-2">Descrição</label>
+                    <label className="block text-sm mb-2">Descrição</label>
                     <textarea
                       value={formInfo.descricao}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
@@ -1635,7 +1634,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm font-bold mb-2">Instagram (ID ou @)</label>
+                    <label className="block text-sm mb-2">Instagram (ID ou @)</label>
                     <input
                       value={formInfo.instagram}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
@@ -1645,7 +1644,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm font-bold mb-2">Facebook (ID ou nome)</label>
+                    <label className="block text-sm mb-2">Facebook (ID ou nome)</label>
                     <input
                       value={formInfo.facebook}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
@@ -1662,8 +1661,8 @@ export default function Dashboard({ user, onLogout }) {
                       <h3 className="text-lg font-black">
                         GALERIA
                       </h3>
-                      <p className="text-xs text-gray-500 font-bold mt-1">
-                        Adicione fotos do seu negócio. Isso será exibido na vitrine quando a gente atualizar a vitrine.
+                      <p className="text-xs text-gray-500 mt-1">
+                        Adicione fotos do seu negócio :)
                       </p>
                     </div>
 
