@@ -84,7 +84,7 @@ function formatDateBRFromISO(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-// ✅ INPUT DATE “BOTÃO” (sem setinha) + bolinha amarela só visual
+// ✅ INPUT DATE "BOTÃO" (sem setinha) + bolinha amarela só visual
 function DateFilterButton({ value, onChange, title }) {
   return (
     <div className="relative inline-flex">
@@ -114,8 +114,10 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
+  // ✅ FIX CRÍTICO: usar getNowSP() ao invés de new Date().toISOString()
+  const hoje = useMemo(() => getNowSP().date, []);
+
   // Histórico (data selecionada)
-  const hoje = new Date().toISOString().split('T')[0];
   const [historicoData, setHistoricoData] = useState(hoje);
 
   // ✅ Filtro de faturamento (AGORA usado na VISÃO GERAL)
@@ -1120,7 +1122,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <div className="text-sm text-gray-500 font-bold">
-                  Dica: essa visão geral “reflete movimento real” e te ajuda a bater o olho e entender o dia.
+                  Dica: essa visão geral "reflete movimento real" e te ajuda a bater o olho e entender o dia.
                 </div>
               </div>
             )}
