@@ -342,12 +342,12 @@ export default function Home({ user, userType, onLogout }) {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
-              { icon: TrendingUp, title: 'agendamento inteligente', text: 'Cancelou? Reaproveitamos automaticamente com serviços menores. Sem desperdício.' },
-              { icon: Shield, title: 'sua vitrine, suas regras', text: 'URL personalizada, múltiplos profissionais, controle total. Zero marketplace, zero comissão.' },
-              { icon: Users, title: 'multiprofissional', text: 'Adicione quantos profissionais quiser. Cada um com agenda independente.' },
-              { icon: Clock, title: 'tempo real', text: 'Sistema calcula disponibilidade a cada segundo. Cliente vê só o que realmente cabe.' },
-              { icon: Star, title: 'avaliações reais', text: 'Clientes avaliam seu negócio e profissionais. Credibilidade que converte.' },
-              { icon: CheckCircle, title: 'controle total', text: 'Histórico completo, faturamento separado, seus dados são seus.' }
+              { icon: TrendingUp, title: 'AGENDAMENTO INTELIGENTE', text: 'Cancelou? Reaproveitamos automaticamente com serviços menores. Sem desperdício.' },
+              { icon: Shield, title: 'SUA VITRINE, SUAS REGRAS', text: 'URL personalizada, múltiplos profissionais, controle total. Zero marketplace, zero comissão.' },
+              { icon: Users, title: 'MULTIPROFISSIONAL', text: 'Adicione quantos profissionais quiser. Cada um com agenda independente.' },
+              { icon: Clock, title: 'TEMPO REAL', text: 'Sistema calcula disponibilidade a cada segundo. Cliente vê só o que realmente cabe.' },
+              { icon: Star, title: 'AVALIAÇÕES REAIS', text: 'Clientes avaliam seu negócio e profissionais. Credibilidade que converte.' },
+              { icon: CheckCircle, title: 'CONTROLE TOTAL', text: 'Histórico completo, faturamento separado, seus dados são seus.' }
             ].map(({ icon: Icon, title, text }, i) => (
               <div
                 key={i}
