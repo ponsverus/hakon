@@ -616,11 +616,11 @@ export default function ClientArea({ user, onLogout }) {
             {activeTab === 'dados' && (
               <div className="space-y-6">
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <div className="text-xs text-gray-500 font-bold mb-2">SEUS DADOS</div>
+                  <div className="text-xs text-gray-500 mb-2">SEUS DADOS</div>
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold mb-2">Email</label>
+                      <label className="block text-sm mb-2">EMAIL</label>
                       <input
                         type="email"
                         value={novoEmail}
@@ -635,14 +635,11 @@ export default function ClientArea({ user, onLogout }) {
                         className="mt-3 w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         SALVAR EMAIL
-                      </button>
-                      <div className="text-[11px] text-gray-500 font-bold mt-2">
-                        Se o Supabase exigir confirmação, você vai receber um email para validar a mudança.
-                      </div>
+                      </button>                    
                     </div>
 
                     <div>
-                      <label className="block text-sm font-bold mb-2">Nova senha</label>
+                      <label className="block text-sm mb-2">NOVA SENHA</label>
                       <input
                         type="password"
                         value={novaSenha}
@@ -651,7 +648,7 @@ export default function ClientArea({ user, onLogout }) {
                         placeholder="••••••••"
                       />
 
-                      <label className="block text-sm font-bold mb-2 mt-3">Confirmar senha</label>
+                      <label className="block text-sm mb-2 mt-3">CONFIRMAR SENHA</label>
                       <input
                         type="password"
                         value={confirmarSenha}
@@ -668,15 +665,11 @@ export default function ClientArea({ user, onLogout }) {
                       >
                         SALVAR SENHA
                       </button>
-
-                      <div className="text-[11px] text-gray-500 font-bold mt-2">
-                        Você consegue trocar sua senha aqui a qualquer momento.
-                      </div>
                     </div>
                   </div>
 
                   {!!dadosMsg && (
-                    <div className="mt-4 bg-dark-100 border border-gray-800 rounded-custom p-3 text-sm font-bold text-gray-300">
+                    <div className="mt-4 bg-dark-100 border border-gray-800 rounded-custom p-3 text-sm text-gray-300">
                       {dadosMsg}
                     </div>
                   )}
