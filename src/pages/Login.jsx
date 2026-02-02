@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Award, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -56,23 +56,61 @@ async function fetchProfileTypeWithRetryAndHeal(authUser) {
 }
 
 export default function Login({ onLogin }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1=tipo, 2=login, 3=recuperar, 4=atualizar senha
   const [userType, setUserType] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showNewPassword2, setShowNewPassword2] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
   const [formData, setFormData] = useState({ email: '', password: '' });
+
+  // recuperação
+  const [recoverEmail, setRecoverEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPassword2, setNewPassword2] = useState('');
+
   const navigate = useNavigate();
 
   const handleTypeSelection = (type) => {
     setUserType(type);
     setStep(2);
+    setError('');
+    setInfo('');
   };
+
+  // ✅ Detecta retorno do link de recuperação e habilita tela de trocar senha
+  useEffect(() => {
+    const checkRecovery = async () => {
+      try {
+        // se o usuário chegou aqui via link do Supabase, normalmente vem com tokens na URL
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+
+        // heurística segura: se tem sessão e a URL contém "type=recovery" ou "access_token"
+        const href = window.location.href || '';
+        const isRecoveryUrl =
+          href.includes('type=recovery') || href.includes('access_token') || href.includes('refresh_token');
+
+        if (session && isRecoveryUrl) {
+          setStep(4);
+          setError('');
+          setInfo('');
+        }
+      } catch {
+        // silencioso
+      }
+    };
+
+    checkRecovery();
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     try {
@@ -117,6 +155,63 @@ export default function Login({ onLogin }) {
     else navigate('/cadastro/profissional');
   };
 
+  // ✅ Envia email de recuperação de senha
+  const handleRecoverPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    setLoading(true);
+
+    try {
+      const email = String(recoverEmail || formData.email || '').trim();
+      if (!email) throw new Error('Informe seu email.');
+
+      // IMPORTANTE: adicione esta URL em Auth > URL Configuration (Redirect URLs) no Supabase
+      const redirectTo = `${window.location.origin}/login`;
+
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (resetErr) throw resetErr;
+
+      setInfo('ENVIAMOS UM LINK PARA O SEU EMAIL. ABRA E FINALIZE A TROCA DE SENHA.');
+    } catch (err) {
+      setError(err.message || 'Erro ao enviar link de recuperação');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Atualiza a senha após abrir o link de recuperação
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    setLoading(true);
+
+    try {
+      if (!newPassword || newPassword.length < 6) {
+        throw new Error('A senha deve ter no mínimo 6 caracteres.');
+      }
+      if (newPassword !== newPassword2) {
+        throw new Error('As senhas não coincidem.');
+      }
+
+      const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (updErr) throw updErr;
+
+      setInfo('SENHA ATUALIZADA COM SUCESSO. FAÇA LOGIN NOVAMENTE.');
+      setNewPassword('');
+      setNewPassword2('');
+
+      // encerra sessão de recovery e volta pro login
+      await supabase.auth.signOut();
+      setStep(userType ? 2 : 1);
+    } catch (err) {
+      setError(err.message || 'Erro ao atualizar senha');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -153,7 +248,11 @@ export default function Login({ onLogin }) {
           {step === 2 && (
             <>
               <button
-                onClick={() => setStep(1)}
+                onClick={() => {
+                  setStep(1);
+                  setError('');
+                  setInfo('');
+                }}
                 className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -196,11 +295,30 @@ export default function Login({ onLogin }) {
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecoverEmail(formData.email || '');
+                      setStep(3);
+                      setError('');
+                      setInfo('');
+                    }}
+                    className="mt-2 text-xs text-gray-400 hover:text-primary transition-colors font-bold"
+                  >
+                    ESQUECI A SENHA
+                  </button>
                 </div>
 
                 {error && (
                   <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
                     {error}
+                  </div>
+                )}
+
+                {info && (
+                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
+                    {info}
                   </div>
                 )}
 
@@ -222,6 +340,134 @@ export default function Login({ onLogin }) {
                     CRIAR CONTA →
                   </button>
                 </div>
+              </form>
+            </>
+          )}
+
+          {/* ✅ Recuperar senha (envio de link) */}
+          {step === 3 && (
+            <>
+              <button
+                onClick={() => {
+                  setStep(2);
+                  setError('');
+                  setInfo('');
+                }}
+                className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Voltar
+              </button>
+
+              <h2 className="text-xl font-black mb-6 text-center">
+                RECUPERAR SENHA
+              </h2>
+
+              <form onSubmit={handleRecoverPassword} className="space-y-4">
+                <div>
+                  <label className="text-sm font-bold mb-2 block">Email</label>
+                  <input
+                    type="email"
+                    value={recoverEmail}
+                    onChange={(e) => setRecoverEmail(e.target.value)}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
+                    {error}
+                  </div>
+                )}
+
+                {info && (
+                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
+                    {info}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
+                >
+                  {loading ? 'ENVIANDO...' : 'ENVIAR LINK'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {/* ✅ Atualizar senha (após clicar no link) */}
+          {step === 4 && (
+            <>
+              <h2 className="text-xl font-black mb-6 text-center">
+                TROCAR SENHA
+              </h2>
+
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
+                <div>
+                  <label className="text-sm font-bold mb-2 block">Nova senha</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-bold mb-2 block">Confirmar nova senha</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword2 ? 'text' : 'password'}
+                      value={newPassword2}
+                      onChange={(e) => setNewPassword2(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword2(!showNewPassword2)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      {showNewPassword2 ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
+                    {error}
+                  </div>
+                )}
+
+                {info && (
+                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
+                    {info}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
+                >
+                  {loading ? 'SALVANDO...' : 'SALVAR NOVA SENHA'}
+                </button>
               </form>
             </>
           )}
