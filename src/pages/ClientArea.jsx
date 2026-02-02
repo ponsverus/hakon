@@ -261,10 +261,10 @@ export default function ClientArea({ user, onLogout }) {
     return (
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-xs sm:text-sm text-gray-400 font-bold uppercase tracking-wide">
+          <div className="text-xs sm:text-sm text-gray-400 uppercase tracking-wide">
             {titulo}
           </div>
-          <div className="text-xs text-gray-500 font-bold">
+          <div className="text-xs text-gray-500">
             {lista.length}
           </div>
         </div>
@@ -284,13 +284,13 @@ export default function ClientArea({ user, onLogout }) {
                   <p className="text-sm text-gray-400 mb-2">
                     PROFISSIONAL: {agendamento.profissionais?.nome}
                   </p>
-                  <p className="text-sm text-primary font-bold">
+                  <p className="text-sm text-primary">
                     {agendamento.servicos?.nome}
                   </p>
                 </div>
 
                 <div
-                  className={`shrink-0 inline-flex px-3 py-1 rounded-button text-xs font-bold border ${getStatusColor(agendamento.status)}`}
+                  className={`shrink-0 inline-flex px-3 py-1 rounded-button text-xs border ${getStatusColor(agendamento.status)}`}
                 >
                   {getStatusText(agendamento.status)}
                 </div>
@@ -543,7 +543,7 @@ export default function ClientArea({ user, onLogout }) {
                     <p className="text-gray-400 mb-4">Nenhum agendamento ainda</p>
                     <Link
                       to="/"
-                      className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold hover:shadow-lg transition-all"
+                      className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button hover:shadow-lg transition-all"
                     >
                       Fazer Primeiro Agendamento
                     </Link>
@@ -582,7 +582,7 @@ export default function ClientArea({ user, onLogout }) {
                             <Heart className="w-6 h-6 text-primary fill-current mb-3" />
 
                             <h3 className="text-lg font-black text-white mb-1">{nomeFav}</h3>
-                            <p className="text-xs text-gray-500 font-bold uppercase">{favorito.tipo}</p>
+                            <p className="text-xs text-gray-500 uppercase">{favorito.tipo}</p>
                           </div>
 
                           {slug && (
@@ -603,7 +603,7 @@ export default function ClientArea({ user, onLogout }) {
                     <p className="text-gray-400 mb-4">Nenhum favorito ainda</p>
                     <Link
                       to="/"
-                      className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold hover:shadow-lg transition-all"
+                      className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button hover:shadow-lg transition-all"
                     >
                       EXPLORAR BARBEARIAS
                     </Link>
