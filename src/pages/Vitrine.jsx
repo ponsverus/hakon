@@ -827,7 +827,7 @@ export default function Vitrine({ user, userType }) {
               <button
                 onClick={toggleFavorito}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 sm:py-2 rounded-button transition-all uppercase ${
+                className={`flex items-center gap-2 px-4 py-1.8 sm:py-2 rounded-button transition-all uppercase ${
                   isProfessional
                     ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
                     : isFavorito
