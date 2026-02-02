@@ -1203,7 +1203,7 @@ export default function Dashboard({ user, onLogout }) {
             {/* AGENDAMENTOS (HOJE + FUTUROS) */}
             {activeTab === 'agendamentos' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Agendamentos</h2>
+                <h2 className="text-2xl font-normal mb-6">Agendamentos</h2>
                 {agendamentosHojeEFuturos.length > 0 ? (
                   <div className="space-y-4">
                     {agendamentosHojeEFuturos.map(a => {
@@ -1221,15 +1221,15 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
 
                             {a.status === 'concluido' ? (
-                              <div className="px-3 py-1 rounded-button text-xs font-bold bg-green-500/20 text-green-400">
+                              <div className="px-3 py-1 rounded-button text-xs bg-green-500/20 text-green-400">
                                 Concluído
                               </div>
                             ) : isFuturo ? (
-                              <div className="px-3 py-1 rounded-button text-xs font-bold bg-yellow-500/20 text-yellow-300">
+                              <div className="px-3 py-1 rounded-button text-xs bg-yellow-500/20 text-yellow-300">
                                 FUTURO
                               </div>
                             ) : (
-                              <div className="px-3 py-1 rounded-button text-xs font-bold bg-blue-500/20 text-blue-400">
+                              <div className="px-3 py-1 rounded-button text-xs bg-blue-500/20 text-blue-400">
                                 Agendado
                               </div>
                             )}
@@ -1237,25 +1237,25 @@ export default function Dashboard({ user, onLogout }) {
 
                           <div className="grid grid-cols-3 gap-4 mb-4">
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-sm font-bold">{formatDateBRFromISO(a.data)}</div>
+                              <div className="text-xs text-gray-500">Data</div>
+                              <div className="text-sm">{formatDateBRFromISO(a.data)}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Horário</div>
-                              <div className="text-sm font-bold">{a.hora_inicio}</div>
+                              <div className="text-xs text-gray-500">Horário</div>
+                              <div className="text-sm">{a.hora_inicio}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Valor</div>
-                              <div className="text-sm font-bold">R$ {a.servicos?.preco}</div>
+                              <div className="text-xs text-gray-500">Valor</div>
+                              <div className="text-sm">R$ {a.servicos?.preco}</div>
                             </div>
                           </div>
 
                           {a.status !== 'concluido' && isHoje && (
                             <button
                               onClick={() => confirmarAtendimento(a.id)}
-                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
+                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom text-sm"
                             >
-                              ✓ Confirmar Atendimento
+                              CONFIRMAR ATENDIMENTO
                             </button>
                           )}
                         </div>
@@ -1263,7 +1263,7 @@ export default function Dashboard({ user, onLogout }) {
                     })}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento (hoje ou futuro)</p>
+                  <p className="text-gray-500 text-center py-12">Nenhum agendamento (hoje ou futuro) :(</p>
                 )}
               </div>
             )}
@@ -1271,7 +1271,7 @@ export default function Dashboard({ user, onLogout }) {
             {/* CANCELADOS */}
             {activeTab === 'cancelados' && (
               <div>
-                <h2 className="text-2xl font-black mb-6">Agendamentos Cancelados (Hoje)</h2>
+                <h2 className="text-2xl font-normal mb-6">Agendamentos Cancelados (Hoje)</h2>
                 {agendamentosHoje.filter(a => String(a.status || '').includes('cancelado')).length > 0 ? (
                   <div className="space-y-4">
                     {agendamentosHoje
@@ -1284,23 +1284,23 @@ export default function Dashboard({ user, onLogout }) {
                               <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
                               <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
                             </div>
-                            <div className="px-3 py-1 rounded-button text-xs font-bold bg-red-500/20 border border-red-500/50 text-red-400">
-                              Cancelado
+                            <div className="px-3 py-1 rounded-button text-xs bg-red-500/20 border border-red-500/50 text-red-400">
+                              CANCELADO :(
                             </div>
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Data</div>
-                              <div className="text-white font-bold">{formatDateBRFromISO(a.data)}</div>
+                              <div className="text-xs text-gray-500">Data</div>
+                              <div className="text-white">{formatDateBRFromISO(a.data)}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Horário</div>
-                              <div className="text-white font-bold">{a.hora_inicio}</div>
+                              <div className="text-xs text-gray-500">Horário</div>
+                              <div className="text-white">{a.hora_inicio}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500 font-bold">Valor</div>
-                              <div className="text-white font-bold">R$ {a.servicos?.preco}</div>
+                              <div className="text-xs text-gray-500">Valor</div>
+                              <div className="text-white">R$ {a.servicos?.preco}</div>
                             </div>
                           </div>
                         </div>
