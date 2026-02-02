@@ -168,11 +168,11 @@ export default function Home({ user, userType, onLogout }) {
                 {isLogged ? (
                   <>
                     <Link
-                      to={userType === 'professional' ? '/dashboard' : '/minha-area'}
+                      to={userType === 'professional' ? '/DASHBOARD' : '/MINHA ÁREA'}
                       onClick={() => setMobileMenuOpen(false)}
                       className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
                     >
-                      {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
+                      {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
                     </Link>
 
                     <button
