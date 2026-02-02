@@ -295,7 +295,7 @@ export default function Home({ user, userType, onLogout }) {
             <p className="text-xl text-gray-400">Em 3 passos simples, você está pronto para faturar mais</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+          <div className="grid md:grid-cols-3 gap-10 md:gap-14">
             {[
               { num: 1, title: 'CADASTRE SEU NEGÓCIO', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
               { num: 2, title: 'COMPARTILHE SUA VITRINE', text: 'Receba um link único (ex: hakon.app/v/seu-negocio). Compartilhe no Instagram, WhatsApp e redes sociais.' },
