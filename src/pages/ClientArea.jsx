@@ -22,6 +22,13 @@ export default function ClientArea({ user, onLogout }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Dados (email/senha)
+  const [novoEmail, setNovoEmail] = useState(user?.email || '');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [savingDados, setSavingDados] = useState(false);
+  const [dadosMsg, setDadosMsg] = useState('');
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,6 +36,10 @@ export default function ClientArea({ user, onLogout }) {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    setNovoEmail(user?.email || '');
+  }, [user?.email]);
 
   const loadData = async () => {
     try {
@@ -264,8 +275,9 @@ export default function ClientArea({ user, onLogout }) {
               key={agendamento.id}
               className="bg-dark-200 border border-gray-800 rounded-custom p-4 sm:p-5"
             >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                <div className="flex-1">
+              {/* ✅ FIX: status no topo à direita também no mobile (sem “virar faixa”) */}
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-black text-white mb-1">
                     {agendamento.profissionais?.barbearias?.nome}
                   </h3>
@@ -277,7 +289,9 @@ export default function ClientArea({ user, onLogout }) {
                   </p>
                 </div>
 
-                <div className={`inline-flex px-3 py-1 rounded-button text-xs font-bold border ${getStatusColor(agendamento.status)}`}>
+                <div
+                  className={`shrink-0 inline-flex px-3 py-1 rounded-button text-xs font-bold border ${getStatusColor(agendamento.status)}`}
+                >
                   {getStatusText(agendamento.status)}
                 </div>
               </div>
@@ -306,7 +320,7 @@ export default function ClientArea({ user, onLogout }) {
               {(agendamento.status === 'agendado' || agendamento.status === 'confirmado') && (
                 <button
                   onClick={() => cancelarAgendamento(agendamento.id)}
-                  className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-custom text-sm transition-all"
+                  className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-button text-sm transition-all"
                 >
                   CANCELAR AGENDAMENTO
                 </button>
@@ -316,6 +330,62 @@ export default function ClientArea({ user, onLogout }) {
         </div>
       </div>
     );
+  };
+
+  // ====== DADOS (email/senha) ======
+  const salvarEmail = async () => {
+    setDadosMsg('');
+    const email = String(novoEmail || '').trim();
+    if (!email || !email.includes('@')) {
+      setDadosMsg('❌ Email inválido.');
+      return;
+    }
+
+    try {
+      setSavingDados(true);
+
+      // Atualiza email (Supabase pode exigir confirmação por email)
+      const { error } = await supabase.auth.updateUser({ email });
+      if (error) throw error;
+
+      setDadosMsg('✅ Solicitação enviada. Verifique seu email para confirmar a alteração.');
+    } catch (e) {
+      console.error('Erro ao alterar email:', e);
+      setDadosMsg('❌ Erro ao alterar email: ' + (e?.message || ''));
+    } finally {
+      setSavingDados(false);
+    }
+  };
+
+  const salvarSenha = async () => {
+    setDadosMsg('');
+    const pass = String(novaSenha || '');
+    const conf = String(confirmarSenha || '');
+
+    if (pass.length < 6) {
+      setDadosMsg('❌ A senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (pass !== conf) {
+      setDadosMsg('❌ As senhas não coincidem.');
+      return;
+    }
+
+    try {
+      setSavingDados(true);
+
+      const { error } = await supabase.auth.updateUser({ password: pass });
+      if (error) throw error;
+
+      setNovaSenha('');
+      setConfirmarSenha('');
+      setDadosMsg('✅ Senha atualizada!');
+    } catch (e) {
+      console.error('Erro ao alterar senha:', e);
+      setDadosMsg('❌ Erro ao alterar senha: ' + (e?.message || ''));
+    } finally {
+      setSavingDados(false);
+    }
   };
 
   if (loading) {
@@ -385,8 +455,6 @@ export default function ClientArea({ user, onLogout }) {
             <h2 className="text-3xl sm:text-4xl font-normal mb-2">Olá, {nome} :)</h2>
             <p className="text-gray-400 text-sm sm:text-base">Gerencie seus agendamentos e favoritos</p>
           </div>
-
-          {/* ✅ mantém sem botão duplicado no mobile (como estava aprovado) */}
         </div>
 
         {/* Quick Actions */}
@@ -432,6 +500,7 @@ export default function ClientArea({ user, onLogout }) {
             >
               AGENDAMENTOS
             </button>
+
             <button
               onClick={() => setActiveTab('favoritos')}
               className={`flex-1 py-4 px-6 font-normal transition-all text-sm sm:text-base ${
@@ -441,6 +510,18 @@ export default function ClientArea({ user, onLogout }) {
               }`}
             >
               FAVORITOS
+            </button>
+
+            {/* ✅ NOVA COLUNA: DADOS */}
+            <button
+              onClick={() => setActiveTab('dados')}
+              className={`flex-1 py-4 px-6 font-normal transition-all text-sm sm:text-base ${
+                activeTab === 'dados'
+                  ? 'bg-primary/20 text-primary border-b-2 border-primary'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              DADOS
             </button>
           </div>
 
@@ -497,9 +578,9 @@ export default function ClientArea({ user, onLogout }) {
                           </button>
 
                           <div className="mb-3">
-                            <div className="w-12 h-12 bg-primary/20 rounded-custom flex items-center justify-center mb-3">
-                              <Heart className="w-6 h-6 text-primary fill-current" />
-                            </div>
+                            {/* ✅ removeu o “quadrado/contorno” do coração */}
+                            <Heart className="w-6 h-6 text-primary fill-current mb-3" />
+
                             <h3 className="text-lg font-black text-white mb-1">{nomeFav}</h3>
                             <p className="text-xs text-gray-500 font-bold uppercase">{favorito.tipo}</p>
                           </div>
@@ -507,7 +588,7 @@ export default function ClientArea({ user, onLogout }) {
                           {slug && (
                             <Link
                               to={`/v/${slug}`}
-                              className="block w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-custom text-sm text-center transition-all"
+                              className="block w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm text-center transition-all"
                             >
                               VER VITRINE
                             </Link>
@@ -528,6 +609,78 @@ export default function ClientArea({ user, onLogout }) {
                     </Link>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tab Dados */}
+            {activeTab === 'dados' && (
+              <div className="space-y-6">
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                  <div className="text-xs text-gray-500 font-bold mb-2">SEUS DADOS</div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={novoEmail}
+                        onChange={(e) => setNovoEmail(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                        placeholder="seu@email.com"
+                      />
+                      <button
+                        type="button"
+                        disabled={savingDados}
+                        onClick={salvarEmail}
+                        className="mt-3 w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        SALVAR EMAIL
+                      </button>
+                      <div className="text-[11px] text-gray-500 font-bold mt-2">
+                        Se o Supabase exigir confirmação, você vai receber um email para validar a mudança.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold mb-2">Nova senha</label>
+                      <input
+                        type="password"
+                        value={novaSenha}
+                        onChange={(e) => setNovaSenha(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                        placeholder="••••••••"
+                      />
+
+                      <label className="block text-sm font-bold mb-2 mt-3">Confirmar senha</label>
+                      <input
+                        type="password"
+                        value={confirmarSenha}
+                        onChange={(e) => setConfirmarSenha(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                        placeholder="••••••••"
+                      />
+
+                      <button
+                        type="button"
+                        disabled={savingDados}
+                        onClick={salvarSenha}
+                        className="mt-3 w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-300 rounded-button text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        SALVAR SENHA
+                      </button>
+
+                      <div className="text-[11px] text-gray-500 font-bold mt-2">
+                        Você consegue trocar sua senha aqui a qualquer momento.
+                      </div>
+                    </div>
+                  </div>
+
+                  {!!dadosMsg && (
+                    <div className="mt-4 bg-dark-100 border border-gray-800 rounded-custom p-3 text-sm font-bold text-gray-300">
+                      {dadosMsg}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
