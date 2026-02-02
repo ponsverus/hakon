@@ -270,7 +270,7 @@ export default function ClientArea({ user, onLogout }) {
                     {agendamento.profissionais?.barbearias?.nome}
                   </h3>
                   <p className="text-sm text-gray-400 mb-2">
-                    Profissional: {agendamento.profissionais?.nome}
+                    PROFISSIONAL: {agendamento.profissionais?.nome}
                   </p>
                   <p className="text-sm text-primary font-bold">
                     {agendamento.servicos?.nome}
@@ -284,20 +284,20 @@ export default function ClientArea({ user, onLogout }) {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
                 <div>
-                  <div className="text-xs text-gray-500 font-bold mb-1">Data</div>
-                  <div className="text-sm text-white font-bold">
+                  <div className="text-xs text-gray-500 mb-1">DATA</div>
+                  <div className="text-sm text-white">
                     {formatDateBRFromISO(agendamento.data)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 font-bold mb-1">Horário</div>
-                  <div className="text-sm text-white font-bold">
+                  <div className="text-xs text-gray-500 mb-1">HORÁRIO</div>
+                  <div className="text-sm text-white">
                     {agendamento.hora_inicio}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 font-bold mb-1">Valor</div>
-                  <div className="text-sm text-white font-bold">
+                  <div className="text-xs text-gray-500 mb-1">VALOR</div>
+                  <div className="text-sm text-white">
                     R$ {agendamento.servicos?.preco}
                   </div>
                 </div>
@@ -452,9 +452,9 @@ export default function ClientArea({ user, onLogout }) {
                   agendamentosPorStatus.cancelados.length ||
                   agendamentosPorStatus.concluidos.length) ? (
                   <div>
-                    {renderSecaoAgendamentos('Em aberto', agendamentosPorStatus.abertos)}
-                    {renderSecaoAgendamentos('Cancelados', agendamentosPorStatus.cancelados)}
-                    {renderSecaoAgendamentos('Concluídos', agendamentosPorStatus.concluidos)}
+                    {renderSecaoAgendamentos('EM ABERTO', agendamentosPorStatus.abertos)}
+                    {renderSecaoAgendamentos('CANCELADOS :(', agendamentosPorStatus.cancelados)}
+                    {renderSecaoAgendamentos('CONCLUÍDOS', agendamentosPorStatus.concluidos)}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -507,9 +507,9 @@ export default function ClientArea({ user, onLogout }) {
                           {slug && (
                             <Link
                               to={`/v/${slug}`}
-                              className="block w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-custom font-bold text-sm text-center transition-all"
+                              className="block w-full py-2 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-custom text-sm text-center transition-all"
                             >
-                              Ver Vitrine
+                              VER VITRINE
                             </Link>
                           )}
                         </div>
@@ -524,7 +524,7 @@ export default function ClientArea({ user, onLogout }) {
                       to="/"
                       className="inline-block px-6 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold hover:shadow-lg transition-all"
                     >
-                      Explorar Barbearias
+                      EXPLORAR BARBEARIAS
                     </Link>
                   </div>
                 )}
