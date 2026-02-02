@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Award, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -28,10 +28,7 @@ async function ensureProfileRow(authUser) {
   // precisa da policy users_insert_self / users_update_self
   await supabase
     .from('users')
-    .upsert(
-      [{ id: userId, email, type, nome }],
-      { onConflict: 'id' }
-    );
+    .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
 }
 
 async function fetchProfileTypeWithRetryAndHeal(authUser) {
@@ -55,62 +52,66 @@ async function fetchProfileTypeWithRetryAndHeal(authUser) {
   return null;
 }
 
+function isPasswordRecoveryUrl() {
+  const href = window.location.href || '';
+  const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  return (
+    href.includes('type=recovery') ||
+    search.includes('type=recovery') ||
+    hash.includes('type=recovery') ||
+    search.includes('code=') ||
+    hash.includes('access_token=')
+  );
+}
+
 export default function Login({ onLogin }) {
-  const [step, setStep] = useState(1); // 1=tipo, 2=login, 3=recuperar, 4=atualizar senha
+  const [step, setStep] = useState(1);
   const [userType, setUserType] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showNewPassword2, setShowNewPassword2] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
 
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const navigate = useNavigate();
 
-  // recuperação
-  const [recoverEmail, setRecoverEmail] = useState('');
+  // ====== RECOVERY ======
+  const [isRecovery, setIsRecovery] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [newPassword2, setNewPassword2] = useState('');
+  const [recoveryError, setRecoveryError] = useState('');
 
-  const navigate = useNavigate();
+  // ====== RESET EMAIL (ESQUECI) ======
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+
+  useEffect(() => {
+    // Detecta recovery por URL (hash/query) ou pelo evento do Supabase
+    const byUrl = isPasswordRecoveryUrl();
+    if (byUrl) {
+      setIsRecovery(true);
+      setStep(2); // mantém no card
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true);
+        setStep(2);
+      }
+    });
+
+    return () => subscription?.unsubscribe();
+  }, []);
 
   const handleTypeSelection = (type) => {
     setUserType(type);
     setStep(2);
-    setError('');
-    setInfo('');
   };
-
-  // ✅ Detecta retorno do link de recuperação e habilita tela de trocar senha
-  useEffect(() => {
-    const checkRecovery = async () => {
-      try {
-        // se o usuário chegou aqui via link do Supabase, normalmente vem com tokens na URL
-        const { data } = await supabase.auth.getSession();
-        const session = data?.session;
-
-        // heurística segura: se tem sessão e a URL contém "type=recovery" ou "access_token"
-        const href = window.location.href || '';
-        const isRecoveryUrl =
-          href.includes('type=recovery') || href.includes('access_token') || href.includes('refresh_token');
-
-        if (session && isRecoveryUrl) {
-          setStep(4);
-          setError('');
-          setInfo('');
-        }
-      } catch {
-        // silencioso
-      }
-    };
-
-    checkRecovery();
-  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setInfo('');
     setLoading(true);
 
     try {
@@ -155,62 +156,68 @@ export default function Login({ onLogin }) {
     else navigate('/cadastro/profissional');
   };
 
-  // ✅ Envia email de recuperação de senha
-  const handleRecoverPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setInfo('');
-    setLoading(true);
+  // ✅ envia e-mail de recuperação
+  const handleForgotPassword = async () => {
+    setResetMsg('');
+    setResetLoading(true);
 
     try {
-      const email = String(recoverEmail || formData.email || '').trim();
-      if (!email) throw new Error('Informe seu email.');
+      const email = String(formData.email || '').trim();
+      if (!email) throw new Error('Digite seu e-mail acima para recuperar a senha.');
 
-      // IMPORTANTE: adicione esta URL em Auth > URL Configuration (Redirect URLs) no Supabase
+      // Importante: redirectTo deve apontar para uma rota do seu app.
+      // Aqui usamos /login para cair no fluxo de recovery que criamos.
       const redirectTo = `${window.location.origin}/login`;
 
       const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       if (resetErr) throw resetErr;
 
-      setInfo('ENVIAMOS UM LINK PARA O SEU EMAIL. ABRA E FINALIZE A TROCA DE SENHA.');
-    } catch (err) {
-      setError(err.message || 'Erro ao enviar link de recuperação');
+      setResetMsg('✅ Link enviado! Verifique seu e-mail para redefinir a senha.');
+    } catch (e) {
+      setResetMsg(`❌ ${e?.message || 'Erro ao enviar link de recuperação.'}`);
     } finally {
-      setLoading(false);
+      setResetLoading(false);
     }
   };
 
-  // ✅ Atualiza a senha após abrir o link de recuperação
-  const handleUpdatePassword = async (e) => {
+  // ✅ define nova senha durante recovery
+  const handleSetNewPassword = async (e) => {
     e.preventDefault();
-    setError('');
-    setInfo('');
-    setLoading(true);
+    setRecoveryError('');
+    setRecoveryLoading(true);
 
     try {
       if (!newPassword || newPassword.length < 6) {
-        throw new Error('A senha deve ter no mínimo 6 caracteres.');
+        throw new Error('A senha precisa ter pelo menos 6 caracteres.');
       }
       if (newPassword !== newPassword2) {
-        throw new Error('As senhas não coincidem.');
+        throw new Error('As senhas não conferem.');
       }
 
-      const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
-      if (updErr) throw updErr;
+      const { error: upErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (upErr) throw upErr;
 
-      setInfo('SENHA ATUALIZADA COM SUCESSO. FAÇA LOGIN NOVAMENTE.');
+      alert('✅ Senha atualizada! Faça login novamente.');
+      await supabase.auth.signOut(); // limpa sessão de recovery
+      setIsRecovery(false);
       setNewPassword('');
       setNewPassword2('');
-
-      // encerra sessão de recovery e volta pro login
-      await supabase.auth.signOut();
-      setStep(userType ? 2 : 1);
-    } catch (err) {
-      setError(err.message || 'Erro ao atualizar senha');
+      setStep(1);
+      setUserType(null);
+      navigate('/login');
+    } catch (e) {
+      setRecoveryError(e?.message || 'Erro ao atualizar senha.');
     } finally {
-      setLoading(false);
+      setRecoveryLoading(false);
     }
   };
+
+  // Se estiver em recovery, não faz sentido escolher tipo (é redefinição)
+  const title = useMemo(() => {
+    if (isRecovery) return 'Definir Nova Senha';
+    if (step === 1) return 'Entrar como:';
+    return `Entrar como ${userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}`;
+  }, [isRecovery, step, userType]);
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
@@ -221,254 +228,177 @@ export default function Login({ onLogin }) {
         </Link>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
-          {step === 1 && (
-            <>
-              <h2 className="text-xl font-black text-center mb-6">Entrar como:</h2>
+          <h2 className="text-xl font-black text-center mb-6">{title}</h2>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => handleTypeSelection('client')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500 transition-all"
-                >
-                  <User className="mx-auto mb-2 text-blue-400" />
-                  <div className="font-black">CLIENTE</div>
-                </button>
-
-                <button
-                  onClick={() => handleTypeSelection('professional')}
-                  className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary transition-all"
-                >
-                  <Award className="mx-auto mb-2 text-primary" />
-                  <div className="font-black">PROFISSIONAL</div>
-                </button>
+          {/* ====== RECOVERY FORM ====== */}
+          {isRecovery ? (
+            <form onSubmit={handleSetNewPassword} className="space-y-4">
+              <div>
+                <label className="text-sm font-bold mb-2 block">Nova senha</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                  placeholder="••••••••"
+                  required
+                />
               </div>
-            </>
-          )}
 
-          {step === 2 && (
-            <>
+              <div>
+                <label className="text-sm font-bold mb-2 block">Confirmar nova senha</label>
+                <input
+                  type="password"
+                  value={newPassword2}
+                  onChange={(e) => setNewPassword2(e.target.value)}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              {recoveryError && (
+                <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
+                  {recoveryError}
+                </div>
+              )}
+
               <button
-                onClick={() => {
+                type="submit"
+                disabled={recoveryLoading}
+                className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
+              >
+                {recoveryLoading ? 'SALVANDO...' : 'SALVAR NOVA SENHA'}
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setIsRecovery(false);
                   setStep(1);
-                  setError('');
-                  setInfo('');
+                  setUserType(null);
+                  navigate('/login');
                 }}
-                className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
+                className="w-full py-3 bg-dark-200 border border-gray-800 rounded-button font-bold text-gray-300 hover:border-primary transition-all"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Trocar tipo
+                VOLTAR AO LOGIN
               </button>
-
-              <h2 className="text-xl font-black mb-6 text-center">
-                Entrar como {userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}
-              </h2>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="seu@email.com"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Senha</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
-                      placeholder="••••••••"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
+            </form>
+          ) : (
+            <>
+              {/* ====== STEP 1: ESCOLHER TIPO ====== */}
+              {step === 1 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleTypeSelection('client')}
+                    className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500 transition-all"
+                  >
+                    <User className="mx-auto mb-2 text-blue-400" />
+                    <div className="font-black">CLIENTE</div>
+                  </button>
 
                   <button
-                    type="button"
-                    onClick={() => {
-                      setRecoverEmail(formData.email || '');
-                      setStep(3);
-                      setError('');
-                      setInfo('');
-                    }}
-                    className="mt-2 text-xs text-gray-400 hover:text-primary transition-colors font-bold"
+                    onClick={() => handleTypeSelection('professional')}
+                    className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary transition-all"
                   >
-                    ESQUECI A SENHA
+                    <Award className="mx-auto mb-2 text-primary" />
+                    <div className="font-black">PROFISSIONAL</div>
                   </button>
                 </div>
+              )}
 
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
-                    {error}
-                  </div>
-                )}
-
-                {info && (
-                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
-                    {info}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
-                >
-                  {loading ? 'ENTRANDO...' : 'ENTRAR'}
-                </button>
-
-                <div className="text-center pt-4 border-t border-gray-800">
-                  <p className="text-sm text-gray-400 mb-2">Não tem conta?</p>
+              {/* ====== STEP 2: LOGIN ====== */}
+              {step === 2 && (
+                <>
                   <button
-                    type="button"
-                    onClick={handleSignupRedirect}
-                    className="text-primary font-black hover:text-yellow-500 transition-colors"
+                    onClick={() => setStep(1)}
+                    className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
                   >
-                    CRIAR CONTA →
+                    <ArrowLeft className="w-4 h-4" />
+                    Trocar tipo
                   </button>
-                </div>
-              </form>
-            </>
-          )}
 
-          {/* ✅ Recuperar senha (envio de link) */}
-          {step === 3 && (
-            <>
-              <button
-                onClick={() => {
-                  setStep(2);
-                  setError('');
-                  setInfo('');
-                }}
-                className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Voltar
-              </button>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                      <label className="text-sm font-bold mb-2 block">Email</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                        placeholder="seu@email.com"
+                        required
+                      />
+                    </div>
 
-              <h2 className="text-xl font-black mb-6 text-center">
-                RECUPERAR SENHA
-              </h2>
+                    <div>
+                      <label className="text-sm font-bold mb-2 block">Senha</label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
+                          placeholder="••••••••"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
 
-              <form onSubmit={handleRecoverPassword} className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Email</label>
-                  <input
-                    type="email"
-                    value={recoverEmail}
-                    onChange={(e) => setRecoverEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="seu@email.com"
-                    required
-                  />
-                </div>
+                    {/* ✅ ESQUECEU A SENHA */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        disabled={resetLoading}
+                        className="text-sm text-primary hover:text-yellow-500 transition-colors font-bold"
+                      >
+                        {resetLoading ? 'ENVIANDO...' : 'ESQUECEU A SENHA?'}
+                      </button>
 
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
-                    {error}
-                  </div>
-                )}
+                      {/* mensagem curta do reset */}
+                      {resetMsg && (
+                        <span className="text-xs text-gray-400 text-right max-w-[60%]">
+                          {resetMsg}
+                        </span>
+                      )}
+                    </div>
 
-                {info && (
-                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
-                    {info}
-                  </div>
-                )}
+                    {error && (
+                      <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
+                        {error}
+                      </div>
+                    )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
-                >
-                  {loading ? 'ENVIANDO...' : 'ENVIAR LINK'}
-                </button>
-              </form>
-            </>
-          )}
-
-          {/* ✅ Atualizar senha (após clicar no link) */}
-          {step === 4 && (
-            <>
-              <h2 className="text-xl font-black mb-6 text-center">
-                TROCAR SENHA
-              </h2>
-
-              <form onSubmit={handleUpdatePassword} className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Nova senha</label>
-                  <div className="relative">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
-                      placeholder="••••••••"
-                      required
-                    />
                     <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
                     >
-                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {loading ? 'ENTRANDO...' : 'ENTRAR'}
                     </button>
-                  </div>
-                </div>
 
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Confirmar nova senha</label>
-                  <div className="relative">
-                    <input
-                      type={showNewPassword2 ? 'text' : 'password'}
-                      value={newPassword2}
-                      onChange={(e) => setNewPassword2(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all pr-12"
-                      placeholder="••••••••"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword2(!showNewPassword2)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                    >
-                      {showNewPassword2 ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/40 p-3 text-red-400 text-sm rounded-custom font-bold">
-                    {error}
-                  </div>
-                )}
-
-                {info && (
-                  <div className="bg-green-500/10 border border-green-500/40 p-3 text-green-300 text-sm rounded-custom font-bold">
-                    {info}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
-                >
-                  {loading ? 'SALVANDO...' : 'SALVAR NOVA SENHA'}
-                </button>
-              </form>
+                    <div className="text-center pt-4 border-t border-gray-800">
+                      <p className="text-sm text-gray-400 mb-2">Não tem conta?</p>
+                      <button
+                        type="button"
+                        onClick={handleSignupRedirect}
+                        className="text-primary font-black hover:text-yellow-500 transition-colors"
+                      >
+                        CRIAR CONTA →
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </>
           )}
         </div>
