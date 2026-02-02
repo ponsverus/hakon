@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle, MessageCircle } from 'lucide-react';
+import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabase';
 
 export default function Home({ user, userType, onLogout }) {
@@ -49,6 +49,7 @@ export default function Home({ user, userType, onLogout }) {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // ✅ FIX: SearchBox agora NÃO afeta estado ao receber prop mobile
   const SearchBox = ({ mobile }) => (
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
@@ -377,20 +378,8 @@ export default function Home({ user, userType, onLogout }) {
             ))}
           </div>
 
-          {/* Botão de Sugestão WhatsApp */}
-          <div className="flex justify-center mb-8">
-            <a
-              href="https://wa.me/5533999037979?text=Ol%C3%A1%2C%20vim%20para%20sugerir%20algo%20para%20o%20app%20%28da%20home%29"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2 bg-transparent border border-primary text-primary rounded-button text-sm hover:bg-primary/10 transition-all"
-            >
-              <MessageCircle className="w-4 h-4" />
-              DAR SUGESTÃO
-            </a>
-          </div>
-
-          <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center gap-4">
+          {/* ✅ Removido botão de sugestão e linha separadora */}
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
                 <span className="text-black font-normal text-xl">H</span>
