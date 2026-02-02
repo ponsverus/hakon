@@ -856,7 +856,7 @@ export default function Dashboard({ user, onLogout }) {
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
         <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <div className="text-primary text-xl font-bold">Carregando...</div>
+        <div className="text-primary text-xl">CARREGANDO...</div>
       </div>
     </div>
   );
@@ -867,10 +867,10 @@ export default function Dashboard({ user, onLogout }) {
         <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
         <h1 className="text-2xl font-black text-white mb-2">Erro ao carregar</h1>
         <p className="text-gray-400 mb-6">{error || 'Barbearia não encontrada'}</p>
-        <button onClick={loadData} className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold mb-3">
-          Tentar Novamente
+        <button onClick={loadData} className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button mb-3">
+          TENTAR NOVAMENTE
         </button>
-        <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button font-bold">
+        <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button">
           SAIR
         </button>
       </div>
@@ -928,7 +928,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div>
                 <h1 className="text-xl font-black">{barbearia.nome}</h1>
-                <p className="text-xs text-gray-500 font-bold -mt-1">DASHBOARD</p>
+                <p className="text-xs text-gray-500 -mt-1">DASHBOARD</p>
               </div>
             </div>
 
@@ -936,7 +936,7 @@ export default function Dashboard({ user, onLogout }) {
               <Link
                 to={`/v/${barbearia.slug}`}
                 target="_blank"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button font-bold text-sm"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm"
               >
                 <Eye className="w-4 h-4" />VER VITRINE
               </Link>
@@ -951,7 +951,7 @@ export default function Dashboard({ user, onLogout }) {
                   disabled={logoUploading}
                 />
                 <span
-                  className={`inline-flex items-center justify-center text-center rounded-button font-black border transition-all ${
+                  className={`inline-flex items-center justify-center text-center rounded-button font-normal border transition-all ${
                     logoUploading
                       ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
                       : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
@@ -967,7 +967,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button text-sm"
               >
                 <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">SAIR</span>
@@ -1014,7 +1014,7 @@ export default function Dashboard({ user, onLogout }) {
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <TrendingUp className="w-8 h-8 text-primary mb-2" />
-            <div className="text-3xl font-black text-white mb-1">{servicos.length}</div>
+            <div className="text-3xl font-normal text-white mb-1">{servicos.length}</div>
             <div className="text-sm text-gray-400">SERVIÇOS</div>
           </div>
         </div>
@@ -1065,7 +1065,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
                     <div className="text-3xl font-black text-white">{hojeCancelados.length}</div>
-                    <div className="text-sm text-gray-400 font-bold mt-1">
+                    <div className="text-sm text-gray-400 mt-1">
                       Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
                     </div>
                   </div>
@@ -1086,7 +1086,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div className="text-sm text-gray-300 mt-1">
                           {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
                         </div>
-                        <div className="text-xs text-gray-500 font-bold mt-1">
+                        <div className="text-xs text-gray-500 mt-1">
                           {proximoAgendamento.servicos?.nome}
                         </div>
                       </>
@@ -1118,7 +1118,7 @@ export default function Dashboard({ user, onLogout }) {
                     </div>
                   </div>
 
-                  <div className="text-3xl font-black text-white mb-2">
+                  <div className="text-3xl font-normal text-white mb-2">
                     R$ {faturamentoDoDiaSelecionado.toFixed(2)}
                   </div>
                   <div className="text-sm text-gray-400 mb-4">
@@ -1194,7 +1194,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div className="text-sm text-gray-500 font-bold">
+                <div className="text-sm text-gray-500">
                   Dica: essa visão geral "reflete movimento real" e te ajuda a bater o olho e entender o dia.
                 </div>
               </div>
@@ -1348,7 +1348,7 @@ export default function Dashboard({ user, onLogout }) {
                               </div>
                             </div>
 
-                            <div className={`px-3 py-1 rounded-button text-xs font-bold ${
+                            <div className={`px-3 py-1 rounded-button text-xs ${
                               isCancel ? 'bg-red-500/20 border border-red-500/50 text-red-300'
                               : isDone ? 'bg-green-500/20 border border-green-500/50 text-green-300'
                               : 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
@@ -1357,7 +1357,7 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
                           </div>
 
-                          <div className="text-sm text-gray-300 font-bold">
+                          <div className="text-sm text-gray-300">
                             Valor: <span className="text-primary">R$ {a.servicos?.preco ?? '0.00'}</span>
                           </div>
                         </div>
@@ -1446,7 +1446,7 @@ export default function Dashboard({ user, onLogout }) {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
+                            <p className="text-gray-500">Sem serviços ativos para este profissional.</p>
                           )}
                         </div>
                       );
@@ -1503,11 +1503,11 @@ export default function Dashboard({ user, onLogout }) {
                             {/* luz status */}
                             <div className="flex items-center gap-2 mt-1">
                               <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                              <span className="text-xs text-gray-400 font-bold">{status.label}</span>
+                              <span className="text-xs text-gray-400">{status.label}</span>
                             </div>
 
                             {p.anos_experiencia != null && (
-                              <p className="text-xs text-gray-500 font-bold mt-1">{p.anos_experiencia} anos</p>
+                              <p className="text-xs text-gray-500 mt-1">{p.anos_experiencia} anos</p>
                             )}
                           </div>
                         </div>
