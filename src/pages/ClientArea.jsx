@@ -128,7 +128,7 @@ export default function ClientArea({ user, onLogout }) {
 
   const getStatusText = (status) => {
     const statusMap = {
-      agendado: 'Agendado',
+      agendado: 'AGENDADO',
       confirmado: 'Confirmado',
       concluido: 'Concluído',
       cancelado_cliente: 'Cancelado',
