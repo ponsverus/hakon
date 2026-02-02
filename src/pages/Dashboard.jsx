@@ -586,7 +586,7 @@ export default function Dashboard({ user, onLogout }) {
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
-      alert('❌ Erro ao adicionar profissional: ' +DD (e2?.message || ''));
+      alert('❌ Erro ao adicionar profissional: ' + (e2?.message || ''));
     }
   };
 
@@ -916,7 +916,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button font-bold text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button text-sm"
               >
                 <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">SAIR</span>
@@ -997,7 +997,7 @@ export default function Dashboard({ user, onLogout }) {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-shrink-0 px-6 py-4 font-black text-sm transition-all capitalize ${
+                className={`flex-shrink-0 px-6 py-4 font-normal text-sm transition-all capitalize ${
                   activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -1163,9 +1163,9 @@ export default function Dashboard({ user, onLogout }) {
                           {a.status !== 'concluido' && (
                             <button
                               onClick={() => confirmarAtendimento(a.id)}
-                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom font-bold text-sm"
+                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom text-sm"
                             >
-                              ✓ Confirmar Atendimento
+                              CONFIRMAR ATENDIMENTO
                             </button>
                           )}
                         </div>
@@ -1293,9 +1293,9 @@ export default function Dashboard({ user, onLogout }) {
                       setEditingServicoId(null);
                       setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
                     }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-normal rounded-button"
                   >
-                    <Plus className="w-5 h-5" />Novo Serviço
+                    <Plus className="w-5 h-5" />NOVO SERVIÇO
                   </button>
                 </div>
 
@@ -1342,7 +1342,7 @@ export default function Dashboard({ user, onLogout }) {
                                       }}
                                       className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
                                     >
-                                      Editar
+                                      EDITAR
                                     </button>
 
                                     <button
@@ -1386,7 +1386,7 @@ export default function Dashboard({ user, onLogout }) {
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-normal rounded-button"
                   >
-                    <Plus className="w-5 h-5" />A
+                    <Plus className="w-5 h-5" />ADICIONAR
                   </button>
                 </div>
 
@@ -1447,9 +1447,9 @@ export default function Dashboard({ user, onLogout }) {
 
                           <button
                             onClick={() => excluirProfissional(p)}
-                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom font-bold text-sm"
+                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom text-sm"
                           >
-                            Excluir
+                            EXCLUIR
                           </button>
                         </div>
 
@@ -1473,7 +1473,7 @@ export default function Dashboard({ user, onLogout }) {
                           }}
                           className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom font-bold text-sm"
                         >
-                          Editar
+                          EDITAR
                         </button>
                       </div>
                     );
@@ -1694,7 +1694,7 @@ export default function Dashboard({ user, onLogout }) {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal">
                 {editingServicoId ? 'SALVAR' : 'CRIAR SERVIÇO'}
               </button>
             </form>
@@ -1796,7 +1796,7 @@ export default function Dashboard({ user, onLogout }) {
                 </p>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal">
                 {editingProfissional ? 'SALVAR' : 'ADICIONAR'}
               </button>
             </form>
