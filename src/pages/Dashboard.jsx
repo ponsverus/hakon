@@ -1347,17 +1347,17 @@ export default function Dashboard({ user, onLogout }) {
 
                                     <button
                                       onClick={() => deleteServico(s.id)}
-                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom font-bold text-sm"
+                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom text-sm"
                                     >
                                       <Trash2 className="w-4 h-4 inline mr-1" />
-                                      Excluir
+                                      EXCLUIR
                                     </button>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
+                            <p className="text-gray-500">Sem serviços ativos para este profissional.</p>
                           )}
                         </div>
                       );
@@ -1384,9 +1384,9 @@ export default function Dashboard({ user, onLogout }) {
                         dias_trabalho: [1, 2, 3, 4, 5, 6]
                       });
                     }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-bold"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-normal rounded-button"
                   >
-                    <Plus className="w-5 h-5" />Adicionar
+                    <Plus className="w-5 h-5" />A
                   </button>
                 </div>
 
@@ -1398,14 +1398,14 @@ export default function Dashboard({ user, onLogout }) {
                     return (
                       <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-black text-xl">
+                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-black font-normal text-xl">
                             {p.nome?.[0] || 'P'}
                           </div>
                           <div className="flex-1">
                             <h3 className="font-black flex items-center gap-2">
                               {p.nome}
                               {!ativo && (
-                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-black">
+                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-normal">
                                   INATIVO
                                 </span>
                               )}
@@ -1418,7 +1418,7 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
 
                             {p.anos_experiencia != null && (
-                              <p className="text-xs text-gray-500 font-bold mt-1">{p.anos_experiencia} anos</p>
+                              <p className="text-xs text-gray-500 mt-1">{p.anos_experiencia} anos</p>
                             )}
                           </div>
                         </div>
