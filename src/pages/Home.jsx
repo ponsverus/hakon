@@ -121,7 +121,7 @@ export default function Home({ user, userType, onLogout }) {
               {isLogged ? (
                 <>
                   <Link
-                    to={userType === 'professional' ? '/dashboard' : '/minha-area'}
+                    to={userType === 'professional' ? '/DASHBOARD' : '/MINHA ÁREA'}
                     className="px-5 py-2 text-sm text-white hover:text-primary transition-colors"
                   >
                     {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
