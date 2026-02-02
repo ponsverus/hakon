@@ -216,7 +216,7 @@ export default function Login({ onLogin }) {
   const title = useMemo(() => {
     if (isRecovery) return 'Definir Nova Senha';
     if (step === 1) return 'ENTRAR COMO:';
-    return `Entrar como ${userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}`;
+    return `ENTRAR COMO ${userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}`;
   }, [isRecovery, step, userType]);
 
   return (
