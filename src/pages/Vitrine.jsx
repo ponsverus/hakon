@@ -1084,11 +1084,11 @@ export default function Vitrine({ user, userType }) {
                   {/* ✅ Tag/Etiqueta mostrando se avaliou barbearia ou profissional */}
                   <div className="mb-2">
                     {av.profissional_id && av.profissionais?.nome ? (
-                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded text-xs text-primary font-normal">
+                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded-button text-xs text-primary font-normal uppercase">
                         Profissional: {av.profissionais.nome}
                       </span>
                     ) : (
-                      <span className="inline-block px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs text-blue-400 font-normal">
+                      <span className="inline-block px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-button text-xs text-blue-400 font-normal uppercase">
                         Barbearia
                       </span>
                     )}
