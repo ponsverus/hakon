@@ -234,6 +234,8 @@ export default function Vitrine({ user, userType }) {
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
+  const [avaliarTipo, setAvaliarTipo] = useState('barbearia'); // 'barbearia' ou 'profissional'
+  const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
   const isClient = user && userType === 'client';
@@ -305,7 +307,7 @@ export default function Vitrine({ user, userType }) {
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
-          .select(`*, users (nome)`)
+          .select(`*, users (nome), profissionais (nome)`)
           .eq('barbearia_id', barbeariaData.id)
           .order('created_at', { ascending: false })
           .limit(10),
@@ -670,6 +672,8 @@ export default function Vitrine({ user, userType }) {
     }
     setAvaliarNota(5);
     setAvaliarTexto('');
+    setAvaliarTipo('barbearia');
+    setAvaliarProfissionalId(null);
     setShowAvaliar(true);
   };
 
@@ -683,7 +687,8 @@ export default function Vitrine({ user, userType }) {
         cliente_id: user.id,
         barbearia_id: barbearia.id,
         nota: avaliarNota,
-        comentario: avaliarTexto || null
+        comentario: avaliarTexto || null,
+        profissional_id: avaliarTipo === 'profissional' ? avaliarProfissionalId : null
       };
 
       const { error } = await withTimeout(
@@ -727,6 +732,30 @@ export default function Vitrine({ user, userType }) {
     }
     return map;
   }, [profissionais, servicos]);
+
+  // ✅ Cálculo de média de avaliações por profissional
+  const avaliacoesPorProf = useMemo(() => {
+    const map = new Map();
+    
+    for (const av of avaliacoes) {
+      if (av.profissional_id) {
+        if (!map.has(av.profissional_id)) {
+          map.set(av.profissional_id, []);
+        }
+        map.get(av.profissional_id).push(av);
+      }
+    }
+    
+    const medias = new Map();
+    for (const [profId, avs] of map.entries()) {
+      const media = avs.length > 0
+        ? (avs.reduce((sum, a) => sum + a.nota, 0) / avs.length).toFixed(1)
+        : null;
+      medias.set(profId, { media, count: avs.length });
+    }
+    
+    return medias;
+  }, [avaliacoes]);
 
   if (loading) {
     return (
@@ -891,6 +920,7 @@ export default function Vitrine({ user, userType }) {
             {profissionais.map(prof => {
               const totalServ = (servicosPorProf.get(prof.id) || []).length;
               const status = getProfStatus(prof);
+              const avalInfo = avaliacoesPorProf.get(prof.id);
 
               return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
@@ -900,6 +930,15 @@ export default function Vitrine({ user, userType }) {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
+
+                      {/* ✅ Nota individual do profissional */}
+                      {avalInfo && avalInfo.media && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <StarChar size={16} className="text-primary" />
+                          <span className="text-lg font-normal text-primary">{avalInfo.media}</span>
+                          <span className="text-xs text-gray-500">({avalInfo.count})</span>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
@@ -1036,11 +1075,25 @@ export default function Vitrine({ user, userType }) {
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-normal">
                       {av.users?.nome?.[0] || 'A'}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <p className="text-sm font-normal">{av.users?.nome || 'Cliente'}</p>
                       <Stars5Char value={av.nota} size={14} />
                     </div>
                   </div>
+
+                  {/* ✅ Tag/Etiqueta mostrando se avaliou barbearia ou profissional */}
+                  <div className="mb-2">
+                    {av.profissional_id && av.profissionais?.nome ? (
+                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded text-xs text-primary font-normal">
+                        Profissional: {av.profissionais.nome}
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs text-blue-400 font-normal">
+                        Barbearia
+                      </span>
+                    )}
+                  </div>
+
                   {av.comentario && <p className="text-sm text-gray-400 font-normal">{av.comentario}</p>}
                 </div>
               ))}
@@ -1328,6 +1381,58 @@ export default function Vitrine({ user, userType }) {
               </button>
             </div>
 
+            {/* ✅ Seleção: Barbearia ou Profissional */}
+            <div className="mb-4">
+              <div className="text-sm text-gray-300 font-normal mb-2">Você está avaliando</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setAvaliarTipo('barbearia');
+                    setAvaliarProfissionalId(null);
+                  }}
+                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
+                    avaliarTipo === 'barbearia'
+                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                      : 'bg-dark-200 border-gray-800 text-gray-400'
+                  }`}
+                >
+                  Barbearia
+                </button>
+                <button
+                  onClick={() => setAvaliarTipo('profissional')}
+                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
+                    avaliarTipo === 'profissional'
+                      ? 'bg-primary/20 border-primary/50 text-primary'
+                      : 'bg-dark-200 border-gray-800 text-gray-400'
+                  }`}
+                >
+                  Profissional
+                </button>
+              </div>
+            </div>
+
+            {/* ✅ Se escolheu profissional, mostrar lista de profissionais */}
+            {avaliarTipo === 'profissional' && (
+              <div className="mb-4">
+                <div className="text-sm text-gray-300 font-normal mb-2">Qual profissional?</div>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {profissionais.map(prof => (
+                    <button
+                      key={prof.id}
+                      onClick={() => setAvaliarProfissionalId(prof.id)}
+                      className={`w-full text-left px-4 py-3 rounded-custom border transition-all font-normal ${
+                        avaliarProfissionalId === prof.id
+                          ? 'bg-primary/20 border-primary/50 text-primary'
+                          : 'bg-dark-200 border-gray-800 text-gray-400 hover:border-primary/30'
+                      }`}
+                    >
+                      {prof.nome}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mb-4">
               <div className="text-sm text-gray-300 font-normal mb-2">Nota</div>
               <div className="flex gap-2">
@@ -1360,14 +1465,16 @@ export default function Vitrine({ user, userType }) {
 
             <button
               onClick={enviarAvaliacao}
-              disabled={avaliarLoading}
+              disabled={avaliarLoading || (avaliarTipo === 'profissional' && !avaliarProfissionalId)}
               className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button disabled:opacity-60 uppercase font-normal"
             >
               {avaliarLoading ? 'Enviando...' : 'Enviar avaliação'}
             </button>
 
             <p className="text-xs text-gray-500 mt-3 font-normal">
-              Somente clientes logados podem avaliar.
+              {avaliarTipo === 'profissional' && !avaliarProfissionalId
+                ? 'Selecione um profissional para continuar'
+                : 'Somente clientes logados podem avaliar.'}
             </p>
           </div>
         </div>
