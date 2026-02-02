@@ -297,9 +297,9 @@ export default function Home({ user, userType, onLogout }) {
 
           <div className="grid md:grid-cols-3 gap-8 md:gap-12">
             {[
-              { num: 1, title: 'Cadastre seu Negócio', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
-              { num: 2, title: 'Compartilhe sua Vitrine', text: 'Receba um link único (ex: hakon.app/v/seu-negocio). Compartilhe no Instagram, WhatsApp e redes sociais.' },
-              { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só atende.' }
+              { num: 1, title: 'CADASTRE SEU NEGÓCIO', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
+              { num: 2, title: 'COMPARTILHE SUA VITRINE', text: 'Receba um link único (ex: hakon.app/v/seu-negocio). Compartilhe no Instagram, WhatsApp e redes sociais.' },
+              { num: 3, title: 'RECEBA AGENDAMENTOS', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
                 {/* ✅ FIX DESKTOP: subir bolinha numerada (apenas md+) */}
@@ -307,7 +307,7 @@ export default function Home({ user, userType, onLogout }) {
                   {num}
                 </div>
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-14 md:pt-10">
-                  <h3 className="text-2xl font-black mb-3 text-white">{title}</h3>
+                  <h3 className="text-2xl font-normal mb-3 text-white">{title}</h3>
                   <p className="text-gray-400 leading-relaxed">{text}</p>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function Home({ user, userType, onLogout }) {
                 <Zap className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h3 className="text-2xl font-black mb-2 text-white">Agendamento Inteligente</h3>
+                <h3 className="text-2xl font-normal mb-2 text-white">AGENDAMENTO INTELIGENTE</h3>
                 <p className="text-gray-300 leading-relaxed">
                   Cliente cancelou um atendimento de 30 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento de 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
                 </p>
