@@ -148,7 +148,7 @@ function resolveInstagram(instaRaw) {
   return `https://instagram.com/${handle}`;
 }
 
-// ✅ DatePicker “botão” com bolinha amarela (sem seta)
+// ✅ DatePicker "botão" com bolinha amarela (sem seta)
 function DatePickerButton({
   value,
   onChange,
@@ -845,7 +845,8 @@ export default function Vitrine({ user, userType }) {
 
                 {barbearia.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <MapPin className="w-4 h-4" />
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
+                    <MapPin className="w-4 h-4" strokeWidth={1.5} />
                     <span className="font-normal">{barbearia.endereco}</span>
                   </div>
                 )}
@@ -855,7 +856,8 @@ export default function Vitrine({ user, userType }) {
                     href={`tel:${barbearia.telefone}`}
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                   >
-                    <Phone className="w-4 h-4" />
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
+                    <Phone className="w-4 h-4" strokeWidth={1.5} />
                     {barbearia.telefone}
                   </a>
                 )}
@@ -869,7 +871,8 @@ export default function Vitrine({ user, userType }) {
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                     aria-label="Instagram"
                   >
-                    <Instagram className="w-4 h-4" />
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
+                    <Instagram className="w-4 h-4" strokeWidth={1.5} />
                     Instagram
                   </a>
                 )}
@@ -1065,7 +1068,7 @@ export default function Vitrine({ user, userType }) {
                 <div>
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
 
-                  {/* ✅ calendário estilo “botão” com bolinha amarela (sem seta) */}
+                  {/* ✅ calendário estilo "botão" com bolinha amarela (sem seta) */}
                   <DatePickerButton
                     value={flow.data}
                     min={minDateSP}
@@ -1198,18 +1201,15 @@ export default function Vitrine({ user, userType }) {
 
                               setFlow(prev => ({ ...prev, servicosSelecionados: next }));
                             }}
-                            className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
+                            className={`w-full rounded-custom p-4 transition-all text-left border-2 ${
+                              selected
+                                ? 'bg-primary/10 border-primary'
+                                : 'bg-dark-200 border-gray-800 hover:border-primary/50'
+                            }`}
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <p className="font-black flex items-center gap-2">
-                                  <span
-                                    className={`inline-block w-3.5 h-3.5 rounded border ${
-                                      selected ? 'bg-primary/30 border-primary/60' : 'bg-dark-100 border-gray-700'
-                                    }`}
-                                  />
-                                  {s.nome}
-                                </p>
+                                <p className="font-black">{s.nome}</p>
                                 <p className="text-sm text-gray-500 font-normal">
                                   <Clock className="w-4 h-4 inline mr-1" />
                                   {s.duracao_minutos} min
