@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabase';
 
@@ -45,6 +45,20 @@ function FullScreenError({ message, onRetry }) {
   );
 }
 
+// ✅ Detecta fluxo de recovery/reset (evita redirecionar e evita travar com fatalError)
+function isPasswordRecoveryUrl() {
+  const href = window.location.href || '';
+  const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  return (
+    href.includes('type=recovery') ||
+    search.includes('type=recovery') ||
+    hash.includes('type=recovery') ||
+    search.includes('code=') ||
+    hash.includes('access_token=')
+  );
+}
+
 // --- BUSCA TIPO COM RETRY + CACHE ---
 async function fetchTypeFromDB(userId) {
   const { data, error } = await supabase
@@ -65,8 +79,6 @@ async function ensureProfileRow(authUser) {
   const type = isValidType(meta.type) ? meta.type : 'client';
   const nome = meta.nome || null;
 
-  // Observação: email pode ser null em alguns provedores. Se seu schema exige NOT NULL,
-  // mantenha como string vazia NÃO, melhor manter o schema aceitando null ou garantir email.
   await supabase
     .from('users')
     .upsert([{ id: userId, email: email || '', type, nome }], { onConflict: 'id' });
@@ -77,7 +89,6 @@ async function getUserTypeRobust(authUser) {
   const cached = localStorage.getItem(cacheKey);
   if (isValidType(cached)) return cached;
 
-  // tenta 3 vezes buscar do banco
   let lastErr = null;
   for (let i = 0; i < 3; i++) {
     try {
@@ -86,7 +97,7 @@ async function getUserTypeRobust(authUser) {
         localStorage.setItem(cacheKey, t);
         return t;
       }
-      // se não achou, tenta criar linha e buscar de novo
+
       await ensureProfileRow(authUser);
       const t2 = await fetchTypeFromDB(authUser.id);
       if (t2) {
@@ -96,12 +107,10 @@ async function getUserTypeRobust(authUser) {
       return null;
     } catch (e) {
       lastErr = e;
-      // espera um pouco e tenta de novo (evita instabilidade / rede / RLS cache)
       await sleep(400 * (i + 1));
     }
   }
 
-  // se falhar tudo, não desloga, só retorna null e deixa UI decidir
   throw lastErr || new Error('Falha ao obter tipo do usuário.');
 }
 
@@ -141,8 +150,6 @@ export default function App() {
 
       setUser(sessionUser);
 
-      // Aqui é a diferença: NÃO fazemos signOut se falhar.
-      // Se falhar, mostramos erro e mantemos a sessão.
       try {
         const type = await getUserTypeRobust(sessionUser);
         setUserType(type);
@@ -187,7 +194,6 @@ export default function App() {
 
       setUser(sessionUser);
 
-      // Em SIGNED_IN / TOKEN_REFRESHED, tenta pegar type sem derrubar
       try {
         const type = await getUserTypeRobust(sessionUser);
         setUserType(type);
@@ -211,7 +217,6 @@ export default function App() {
     setUser(userData);
     setUserType(isValidType(type) ? type : null);
 
-    // cache imediato ajuda no F5
     if (userData?.id && isValidType(type)) {
       localStorage.setItem(`hakon:type:${userData.id}`, type);
     }
@@ -229,7 +234,8 @@ export default function App() {
 
   if (booting) return <FullScreenLoading />;
 
-  if (fatalError) {
+  // ✅ Durante recovery, não travar a tela inteira com fatalError
+  if (fatalError && !isPasswordRecoveryUrl()) {
     return <FullScreenError message={fatalError} onRetry={hydrate} />;
   }
 
@@ -245,9 +251,13 @@ export default function App() {
         <Route
           path="/login"
           element={
-            isLoggedIn && userType
-              ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
-              : <Login onLogin={handleLogin} />
+            // ✅ Durante recovery, sempre renderiza Login (para definir nova senha)
+            isPasswordRecoveryUrl()
+              ? <Login onLogin={handleLogin} />
+              : (isLoggedIn && userType
+                  ? <Navigate to={userType === 'professional' ? '/dashboard' : '/minha-area'} />
+                  : <Login onLogin={handleLogin} />
+                )
           }
         />
 
