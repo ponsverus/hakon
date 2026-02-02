@@ -1002,13 +1002,13 @@ export default function Dashboard({ user, onLogout }) {
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Calendar className="w-8 h-8 text-blue-400 mb-2" />
-            <div className="text-3xl font-black text-white mb-1">{hojeValidos.length}</div>
+            <div className="text-3xl font-normal text-white mb-1">{hojeValidos.length}</div>
             <div className="text-sm text-gray-400">AGENDAMENTOS HOJE</div>
           </div>
 
           <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
             <Users className="w-8 h-8 text-purple-400 mb-2" />
-            <div className="text-3xl font-black text-white mb-1">{profissionais.length}</div>
+            <div className="text-3xl font-normal text-white mb-1">{profissionais.length}</div>
             <div className="text-sm text-gray-400">PROFISSIONAIS</div>
           </div>
 
@@ -1064,7 +1064,7 @@ export default function Dashboard({ user, onLogout }) {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
-                    <div className="text-3xl font-black text-white">{hojeCancelados.length}</div>
+                    <div className="text-3xl font-normal text-white">{hojeCancelados.length}</div>
                     <div className="text-sm text-gray-400 mt-1">
                       Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
                     </div>
@@ -1214,7 +1214,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
-                              <p className="font-black text-lg">{a.users?.nome || 'Cliente'}</p>
+                              <p className="font-normal text-lg">{a.users?.nome || 'Cliente'}</p>
                               <p className="text-sm text-gray-400">
                                 {a.servicos?.nome} • {a.profissionais?.nome}
                               </p>
@@ -1263,7 +1263,7 @@ export default function Dashboard({ user, onLogout }) {
                     })}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum agendamento (hoje ou futuro) :(</p>
+                  <p className="text-gray-500 text-center py-12">Uhuul, nenhum agendamento (hoje ou futuro) :(</p>
                 )}
               </div>
             )}
