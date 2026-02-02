@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
+import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle, MessageCircle } from 'lucide-react';
 import { supabase } from '../supabase';
 
 export default function Home({ user, userType, onLogout }) {
@@ -107,7 +107,7 @@ export default function Home({ user, userType, onLogout }) {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl sm:text-2xl font-black">HAKON</h1>
-                <p className="text-xs text-primary -mt-1">BARBEARIA ELITE</p>
+                <p className="text-xs text-primary -mt-1">AGENDAMENTO INTELIGENTE</p>
               </div>
             </Link>
 
@@ -218,9 +218,9 @@ export default function Home({ user, userType, onLogout }) {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black mb-6 leading-tight">
-            TRANSFORME SUA<br />
+            TRANSFORME SEU<br />
             <span className="bg-gradient-to-r from-primary to-yellow-600 bg-clip-text text-transparent">
-              BARBEARIA EM OURO
+              NEGÓCIO EM OURO
             </span>
           </h1>
 
@@ -268,17 +268,18 @@ export default function Home({ user, userType, onLogout }) {
             <p className="text-xl text-gray-400">Em 3 passos simples, você está pronto para faturar mais</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-12">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
             {[
-              { num: 1, title: 'Cadastre sua Barbearia', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
-              { num: 2, title: 'Compartilhe sua Vitrine', text: 'Receba um link único (ex: hakon.app/v/sua-barbearia). Compartilhe no Instagram, WhatsApp e redes sociais.' },
+              { num: 1, title: 'Cadastre seu Negócio', text: 'Crie sua conta profissional, adicione serviços, defina horários e profissionais. Tudo em menos de 3 minutos.' },
+              { num: 2, title: 'Compartilhe sua Vitrine', text: 'Receba um link único (ex: hakon.app/v/seu-negocio). Compartilhe no Instagram, WhatsApp e redes sociais.' },
               { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
-                <div className="absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50">
+                {/* Círculo numerado - responsivo */}
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-top-4 md:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50 z-10">
                   {num}
                 </div>
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-10">
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-14 md:pt-10">
                   <h3 className="text-2xl font-black mb-3 text-white">{title}</h3>
                   <p className="text-gray-400 leading-relaxed">{text}</p>
                 </div>
@@ -294,7 +295,7 @@ export default function Home({ user, userType, onLogout }) {
               <div>
                 <h3 className="text-2xl font-black mb-2 text-white">Agendamento Inteligente</h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Cliente cancelou um corte de 30 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento do pezinho de cabelo 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
+                  Cliente cancelou um atendimento de 30 minutos às 14h? Nosso sistema <span className="text-primary font-bold">calcula em tempo real</span> quais serviços ainda cabem (ex: acabamento de 15 min) e mostra automaticamente na vitrine. <span className="text-primary font-bold">Zero esforço seu.</span>
                 </p>
               </div>
             </div>
@@ -318,7 +319,7 @@ export default function Home({ user, userType, onLogout }) {
               { icon: Shield, title: 'sua vitrine, suas regras', text: 'URL personalizada, múltiplos profissionais, controle total. Zero marketplace, zero comissão.' },
               { icon: Users, title: 'multiprofissional', text: 'Adicione quantos profissionais quiser. Cada um com agenda independente.' },
               { icon: Clock, title: 'tempo real', text: 'Sistema calcula disponibilidade a cada segundo. Cliente vê só o que realmente cabe.' },
-              { icon: Star, title: 'depoimentos reais', text: 'Clientes avaliam barbearia E profissionais. Credibilidade que converte.' },
+              { icon: Star, title: 'avaliações reais', text: 'Clientes avaliam seu negócio e profissionais. Credibilidade que converte.' },
               { icon: CheckCircle, title: 'controle total', text: 'Histórico completo, faturamento separado, seus dados são seus.' }
             ].map(({ icon: Icon, title, text }, i) => (
               <div
@@ -376,7 +377,20 @@ export default function Home({ user, userType, onLogout }) {
             ))}
           </div>
 
-          <div className="pt-8 border-t border-gray-800 flex justify-between items-center">
+          {/* Botão de Sugestão WhatsApp */}
+          <div className="flex justify-center mb-8">
+            <a
+              href="https://wa.me/5533999037979?text=Ol%C3%A1%2C%20vim%20para%20sugerir%20algo%20para%20o%20app%20%28da%20home%29"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
+            >
+              <MessageCircle className="w-5 h-5" />
+              DAR SUGESTÃO
+            </a>
+          </div>
+
+          <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
                 <span className="text-black font-black text-xl">H</span>
