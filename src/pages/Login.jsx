@@ -215,20 +215,20 @@ export default function Login({ onLogin }) {
   // Se estiver em recovery, não faz sentido escolher tipo (é redefinição)
   const title = useMemo(() => {
     if (isRecovery) return 'Definir Nova Senha';
-    if (step === 1) return 'Entrar como:';
+    if (step === 1) return 'ENTRAR COMO:';
     return `Entrar como ${userType === 'client' ? 'CLIENTE' : 'PROFISSIONAL'}`;
   }, [isRecovery, step, userType]);
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6 font-bold">
+        <Link to="/" className="flex items-center gap-2 text-gray-400 hover:text-primary mb-6">
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Home
+          VOLTAR PARA HOME
         </Link>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
-          <h2 className="text-xl font-black text-center mb-6">{title}</h2>
+          <h2 className="text-xl font-normal text-center mb-6">{title}</h2>
 
           {/* ====== RECOVERY FORM ====== */}
           {isRecovery ? (
@@ -266,7 +266,7 @@ export default function Login({ onLogin }) {
               <button
                 type="submit"
                 disabled={recoveryLoading}
-                className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
+                className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-normal rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
               >
                 {recoveryLoading ? 'SALVANDO...' : 'SALVAR NOVA SENHA'}
               </button>
@@ -295,7 +295,7 @@ export default function Login({ onLogin }) {
                     className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-blue-500 transition-all"
                   >
                     <User className="mx-auto mb-2 text-blue-400" />
-                    <div className="font-black">CLIENTE</div>
+                    <div className="font-normal">CLIENTE</div>
                   </button>
 
                   <button
@@ -303,7 +303,7 @@ export default function Login({ onLogin }) {
                     className="bg-dark-200 border border-gray-800 rounded-custom p-4 hover:border-primary transition-all"
                   >
                     <Award className="mx-auto mb-2 text-primary" />
-                    <div className="font-black">PROFISSIONAL</div>
+                    <div className="font-normal">PROFISSIONAL</div>
                   </button>
                 </div>
               )}
@@ -316,12 +316,12 @@ export default function Login({ onLogin }) {
                     className="text-sm text-gray-400 mb-4 flex items-center gap-1 hover:text-gray-300 transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    Trocar tipo
+                    TROCAR TIPO
                   </button>
 
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div>
-                      <label className="text-sm font-bold mb-2 block">Email</label>
+                      <label className="text-sm mb-2 block">EMAIL</label>
                       <input
                         type="email"
                         value={formData.email}
@@ -333,7 +333,7 @@ export default function Login({ onLogin }) {
                     </div>
 
                     <div>
-                      <label className="text-sm font-bold mb-2 block">Senha</label>
+                      <label className="text-sm mb-2 block">SENHA</label>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
@@ -381,19 +381,19 @@ export default function Login({ onLogin }) {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-black rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
+                      className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black font-normal rounded-button disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:hover:scale-100"
                     >
                       {loading ? 'ENTRANDO...' : 'ENTRAR'}
                     </button>
 
                     <div className="text-center pt-4 border-t border-gray-800">
-                      <p className="text-sm text-gray-400 mb-2">Não tem conta?</p>
+                      <p className="text-sm text-gray-400 mb-2">OU</p>
                       <button
                         type="button"
                         onClick={handleSignupRedirect}
-                        className="text-primary font-black hover:text-yellow-500 transition-colors"
+                        className="text-primary font-normal hover:text-yellow-500 transition-colors"
                       >
-                        CRIAR CONTA →
+                        CRIAR CONTA :)
                       </button>
                     </div>
                   </form>
