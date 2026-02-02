@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft,
-  Zap, X, AlertCircle, Instagram
+  Zap, X, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -120,9 +120,6 @@ function normalizeDiasTrabalho(arr) {
     .filter(n => n >= 0 && n <= 6);
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
-
-// ✅ (1) ÍCONES mais “finos” (linhas mais clean)
-const ICON_STROKE = 1.5;
 
 export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
@@ -687,17 +684,6 @@ export default function Vitrine({ user, userType }) {
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '5.0';
 
-  // ✅ Instagram URL (aceita "@", "instagram.com/...", ou só o ID)
-  const instagramHref = useMemo(() => {
-    const raw = String(barbearia?.instagram || '').trim();
-    if (!raw) return null;
-    const clean = raw.replace(/^@/, '').trim();
-    if (!clean) return null;
-    if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
-    if (clean.includes('instagram.com/')) return `https://${clean.replace(/^https?:\/\//, '')}`;
-    return `https://instagram.com/${clean}`;
-  }, [barbearia?.instagram]);
-
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -737,7 +723,7 @@ export default function Vitrine({ user, userType }) {
               >
                 <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
                 <span className="hidden sm:inline">
-                  {isProfessional ? 'SOMENTE CLIENTE' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
+                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
                 </span>
               </button>
             </div>
@@ -775,8 +761,8 @@ export default function Vitrine({ user, userType }) {
 
                 {barbearia.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    {/* ✅ ícone mais fino */}
-                    <MapPin className="w-4 h-4" strokeWidth={ICON_STROKE} />
+                    {/* ✅ LINHAS MAIS FINAS (MapPin) */}
+                    <MapPin className="w-4 h-4" strokeWidth={1.25} />
                     <span>{barbearia.endereco}</span>
                   </div>
                 )}
@@ -786,22 +772,9 @@ export default function Vitrine({ user, userType }) {
                     href={`tel:${barbearia.telefone}`}
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
                   >
-                    {/* ✅ ícone mais fino */}
-                    <Phone className="w-4 h-4" strokeWidth={ICON_STROKE} />
+                    {/* ✅ LINHAS MAIS FINAS (Phone) */}
+                    <Phone className="w-4 h-4" strokeWidth={1.25} />
                     {barbearia.telefone}
-                  </a>
-                )}
-
-                {instagramHref && (
-                  <a
-                    href={instagramHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
-                  >
-                    {/* ✅ ícone mais fino */}
-                    <Instagram className="w-4 h-4" strokeWidth={ICON_STROKE} />
-                    <span>{String(barbearia.instagram || '').trim()}</span>
                   </a>
                 )}
               </div>
@@ -1114,17 +1087,18 @@ export default function Vitrine({ user, userType }) {
 
                               setFlow(prev => ({ ...prev, servicosSelecionados: next }));
                             }}
-                            // ✅ (2) Remove a “caixinha” interna e deixa o CARD inteiro como seletor
+                            // ✅ REMOVIDO a “caixinha” e o quadro inteiro vira o seletor (visual pelo amarelo)
                             className={`w-full border rounded-custom p-4 transition-all text-left ${
                               selected
-                                ? 'bg-primary/10 border-primary/50'
+                                ? 'bg-primary/10 border-primary'
                                 : 'bg-dark-200 border-gray-800 hover:border-primary'
                             }`}
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                {/* ✅ removida a caixinha pequena */}
-                                <p className="font-black">{s.nome}</p>
+                                <p className="font-black">
+                                  {s.nome}
+                                </p>
                                 <p className="text-sm text-gray-500">
                                   <Clock className="w-4 h-4 inline mr-1" />
                                   {s.duracao_minutos} min
