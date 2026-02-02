@@ -879,7 +879,7 @@ export default function Dashboard({ user, onLogout }) {
 
   // ✅ Tabs (rótulos corrigidos, caixa alta, sem bold)
   const TAB_LABELS = {
-    'visao-geral': 'VISÃO GERAL',
+    'visao-geral': 'GERAL',
     'agendamentos': 'AGENDAMENTOS',
     'cancelados': 'CANCELADOS',
     'historico': 'HISTÓRICO',
