@@ -51,7 +51,7 @@ export default function Home({ user, userType, onLogout }) {
 
   const SearchBox = ({ mobile }) => (
     <div className="relative w-full">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
       <input
         type="text"
         value={searchTerm}
@@ -66,10 +66,12 @@ export default function Home({ user, userType, onLogout }) {
             <Link
               key={i}
               to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
                 setSearchTerm('');
                 setResultadosBusca([]);
                 if (mobile) setMobileMenuOpen(false);
+                window.location.href = `/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`;
               }}
               className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
             >
@@ -81,7 +83,7 @@ export default function Home({ user, userType, onLogout }) {
       )}
 
       {buscando && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
           <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
@@ -134,12 +136,12 @@ export default function Home({ user, userType, onLogout }) {
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="px-5 py-2 text-sm font-bold text-white hover:text-primary transition-colors">
+                  <Link to="/login" className="px-5 py-2 text-sm text-white hover:text-primary transition-colors">
                     ENTRAR
                   </Link>
                   <Link
                     to="/cadastro"
-                    className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-black rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
+                    className="px-6 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black text-sm font-normal rounded-button hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
                   >
                     CADASTRAR GRÁTIS
                   </Link>
@@ -176,9 +178,9 @@ export default function Home({ user, userType, onLogout }) {
                     <button
                       type="button"
                       onClick={handleLogoutClick}
-                      className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom font-bold text-left"
+                      className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom text-left"
                     >
-                      Sair
+                      SAIR
                     </button>
                   </>
                 ) : (
@@ -186,7 +188,7 @@ export default function Home({ user, userType, onLogout }) {
                     <Link
                       to="/login"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
+                      className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom"
                     >
                       ENTRAR
                     </Link>
@@ -194,7 +196,7 @@ export default function Home({ user, userType, onLogout }) {
                     <Link
                       to="/cadastro"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-center"
+                      className="mx-4 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal text-center"
                     >
                       CADASTRAR GRÁTIS
                     </Link>
@@ -383,9 +385,9 @@ export default function Home({ user, userType, onLogout }) {
               href="https://wa.me/5533999037979?text=Ol%C3%A1%2C%20vim%20para%20sugerir%20algo%20para%20o%20app%20%28da%20home%29"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-transparent border-2 border-primary text-primary rounded-button text-sm hover:bg-primary/10 transition-all"
             >
-              <MessageCircle className="w-5 h-5" />
+              <MessageCircle className="w-4 h-4" />
               DAR SUGESTÃO
             </a>
           </div>
@@ -393,13 +395,13 @@ export default function Home({ user, userType, onLogout }) {
           <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
-                <span className="text-black font-black text-xl">H</span>
+                <span className="text-black font-normal text-xl">H</span>
               </div>
               <div>
                 <div className="text-white font-black text-sm">HAKON</div>                
               </div>
             </div>
-            <div className="text-gray-600 text-sm font-bold">© 2026 HAKON. Todos os direitos reservados.</div>
+            <div className="text-gray-600 text-sm">© 2026 HAKON. Todos os direitos reservados.</div>
           </div>
         </div>
       </footer>
