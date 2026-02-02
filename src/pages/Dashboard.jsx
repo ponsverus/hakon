@@ -586,7 +586,7 @@ export default function Dashboard({ user, onLogout }) {
       await loadData();
     } catch (e2) {
       console.error('createProfissional error:', e2);
-      alert('❌ Erro ao adicionar profissional: ' + (e2?.message || ''));
+      alert('❌ Erro ao adicionar profissional: ' +DD (e2?.message || ''));
     }
   };
 
@@ -1436,13 +1436,13 @@ export default function Dashboard({ user, onLogout }) {
                         <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => toggleAtivoProfissional(p)}
-                            className={`flex-1 py-2 rounded-custom font-bold text-sm border ${
+                            className={`flex-1 py-2 rounded-custom text-sm border ${
                               ativo
                                 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
                                 : 'bg-green-500/10 border-green-500/30 text-green-300'
                             }`}
                           >
-                            {ativo ? 'Inativar' : 'Ativar'}
+                            {ativo ? 'INATIVAR' : 'ATIVAR'}
                           </button>
 
                           <button
