@@ -1707,7 +1707,7 @@ export default function Dashboard({ user, onLogout }) {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-gray-500 font-bold">Nenhuma imagem ainda.</div>
+                    <div className="text-gray-500">Nenhuma imagem ainda :(</div>
                   )}
                 </div>
               </div>
@@ -1721,7 +1721,7 @@ export default function Dashboard({ user, onLogout }) {
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">{editingServicoId ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+              <h3 className="text-2xl font-normal">{editingServicoId ? 'EDITAR SERVIÇO' : 'NOVO SERVIÇO'}</h3>
               <button
                 onClick={() => {
                   setShowNovoServico(false);
@@ -1735,7 +1735,7 @@ export default function Dashboard({ user, onLogout }) {
 
             <form onSubmit={editingServicoId ? updateServico : createServico} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold mb-2">Profissional</label>
+                <label className="block text-sm mb-2">Profissional</label>
                 <select
                   value={formServico.profissional_id}
                   onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
@@ -1752,7 +1752,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Nome</label>
+                <label className="block text-sm mb-2">Nome</label>
                 <input
                   type="text"
                   value={formServico.nome}
@@ -1763,7 +1763,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Duração (min)</label>
+                <label className="block text-sm mb-2">Duração (min)</label>
                 <input
                   type="number"
                   value={formServico.duracao_minutos}
@@ -1774,7 +1774,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Preço (R$)</label>
+                <label className="block text-sm mb-2">Preço (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1785,7 +1785,7 @@ export default function Dashboard({ user, onLogout }) {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-normal rounded-button font-black">
                 {editingServicoId ? 'SALVAR' : 'CRIAR SERVIÇO'}
               </button>
             </form>
@@ -1798,7 +1798,7 @@ export default function Dashboard({ user, onLogout }) {
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">{editingProfissional ? 'Editar Profissional' : 'Novo Profissional'}</h3>
+              <h3 className="text-2xl font-normal">{editingProfissional ? 'EDITAR PROFISSIONAL' : 'NOVO PROFISSIONAL'}</h3>
               <button
                 onClick={() => {
                   setShowNovoProfissional(false);
@@ -1812,7 +1812,7 @@ export default function Dashboard({ user, onLogout }) {
 
             <form onSubmit={editingProfissional ? updateProfissional : createProfissional} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold mb-2">Nome</label>
+                <label className="block text-sm mb-2">Nome</label>
                 <input
                   type="text"
                   value={formProfissional.nome}
@@ -1823,7 +1823,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2">Anos de Experiência</label>
+                <label className="block text-sm mb-2">Anos de Experiência</label>
                 <input
                   type="number"
                   value={formProfissional.anos_experiencia}
@@ -1834,7 +1834,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold mb-2">Início</label>
+                  <label className="block text-sm mb-2">Início</label>
                   <input
                     type="time"
                     value={formProfissional.horario_inicio}
@@ -1844,7 +1844,7 @@ export default function Dashboard({ user, onLogout }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-2">Fim</label>
+                  <label className="block text-sm mb-2">Fim</label>
                   <input
                     type="time"
                     value={formProfissional.horario_fim}
@@ -1857,7 +1857,7 @@ export default function Dashboard({ user, onLogout }) {
 
               {/* ✅ Dias de trabalho REAL (dias_trabalho) - NÃO MEXIDO */}
               <div>
-                <label className="block text-sm font-bold mb-2">Dias de trabalho</label>
+                <label className="block text-sm mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-7 gap-2">
                   {WEEKDAYS.map(d => {
                     const active = (formProfissional.dias_trabalho || []).includes(d.i);
@@ -1870,7 +1870,7 @@ export default function Dashboard({ user, onLogout }) {
                           const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
                           setFormProfissional(prev => ({ ...prev, dias_trabalho: normalizeDiasTrabalho(next) }));
                         }}
-                        className={`py-2 rounded-custom border font-black text-xs transition-all ${
+                        className={`py-2 rounded-custom border font-normal text-xs transition-all ${
                           active
                             ? 'bg-primary/20 border-primary/50 text-primary'
                             : 'bg-dark-200 border-gray-800 text-gray-500'
@@ -1882,12 +1882,12 @@ export default function Dashboard({ user, onLogout }) {
                   })}
                 </div>
 
-                <p className="text-[11px] text-gray-500 font-bold mt-2">
-                  Domingo = 0, Segunda = 1, ... Sábado = 6.
+                <p className="text-[12px] text-gray-500 mt-2">
+                  Amarelo: aberto,.......Escuro: fechado
                 </p>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal">
                 {editingProfissional ? 'SALVAR' : 'ADICIONAR'}
               </button>
             </form>
