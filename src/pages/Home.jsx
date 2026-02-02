@@ -303,7 +303,7 @@ export default function Home({ user, userType, onLogout }) {
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
                 {/* ✅ FIX DESKTOP: subir bolinha numerada (apenas md+) */}
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-top-8 md:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50 z-10">
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-top-10 md:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50 z-10">
                   {num}
                 </div>
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-14 md:pt-10">
