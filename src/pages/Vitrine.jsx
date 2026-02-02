@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Calendar, MapPin, Clock, Phone, Heart, ArrowLeft,
+  Calendar, Star, MapPin, Clock, Phone, Heart, ArrowLeft,
   Zap, X, AlertCircle, Instagram
 } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -81,33 +81,17 @@ const withTimeout = (promise, ms, label = 'timeout') => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 };
 
-// ✅ 1 estrela (para header/nota geral e botão avaliar)
-function StarChar({ size = 18, className = 'text-primary' }) {
-  return (
-    <span
-      className={className}
-      style={{ fontSize: size, lineHeight: 1 }}
-      aria-hidden="true"
-    >
-      ★
-    </span>
-  );
-}
-
-// ✅ 5 estrelas com apagadas (para cards/lista de avaliações)
-function Stars5Char({ value = 0, size = 14 }) {
+// ✅ Sempre 5 estrelas (cheias + apagadas)
+function Stars5({ value = 0, size = 14 }) {
   const v = Math.max(0, Math.min(5, Number(value || 0)));
   return (
-    <div className="flex items-center gap-1" aria-label={`Nota ${v} de 5`}>
+    <div className="flex items-center gap-1">
       {[1, 2, 3, 4, 5].map(i => (
-        <span
+        <Star
           key={i}
-          style={{ fontSize: size, lineHeight: 1 }}
-          className={i <= v ? 'text-primary' : 'text-gray-700'}
-          aria-hidden="true"
-        >
-          ★
-        </span>
+          className={i <= v ? 'text-primary fill-current' : 'text-gray-700'}
+          style={{ width: size, height: size }}
+        />
       ))}
     </div>
   );
@@ -137,71 +121,8 @@ function normalizeDiasTrabalho(arr) {
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
 
-// ✅ Instagram: aceita @usuario, usuario ou URL
-function resolveInstagram(instaRaw) {
-  const raw = String(instaRaw || '').trim();
-  if (!raw) return null;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-
-  const handle = raw.replace(/^@/, '').replace(/\s+/g, '');
-  if (!handle) return null;
-  return `https://instagram.com/${handle}`;
-}
-
-// ✅ DatePicker “botão” com bolinha amarela (sem seta)
-function DatePickerButton({
-  value,
-  onChange,
-  min,
-  placeholder = 'SELECIONAR DATA',
-  className = ''
-}) {
-  const inputRef = useRef(null);
-
-  const label = value ? formatDateBR(value) : placeholder;
-
-  const openPicker = () => {
-    const el = inputRef.current;
-    if (!el) return;
-
-    // alguns browsers suportam showPicker()
-    if (typeof el.showPicker === 'function') {
-      el.showPicker();
-    } else {
-      el.click();
-      el.focus();
-    }
-  };
-
-  return (
-    <div className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={openPicker}
-        className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white flex items-center justify-between uppercase"
-      >
-        {/* números da data em text-base (como você pediu) */}
-        <span className={`text-base ${value ? 'text-white' : 'text-gray-400'}`}>
-          {label}
-        </span>
-
-        {/* bolinha amarela visual (não captura clique) */}
-        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0 pointer-events-none" />
-      </button>
-
-      {/* input real invisível para manter nativo e regra intacta */}
-      <input
-        ref={inputRef}
-        type="date"
-        min={min}
-        value={value}
-        onChange={onChange}
-        className="absolute inset-0 opacity-0 cursor-pointer"
-        aria-label="Selecionar data"
-      />
-    </div>
-  );
-}
+// ✅ (1) ÍCONES mais “finos” (linhas mais clean)
+const ICON_STROKE = 1.5;
 
 export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
@@ -222,8 +143,8 @@ export default function Vitrine({ user, userType }) {
     step: 1,
     profissional: null,
     data: '',
-    horario: null,
-    servicosSelecionados: [],
+    horario: null, // { hora, tipo, slot?, maxMinutos }
+    servicosSelecionados: [], // ✅ agora é array
   });
 
   // ✅ FIX: data mínima do datepicker em SP (sem UTC)
@@ -421,8 +342,9 @@ export default function Vitrine({ user, userType }) {
 
   // ✅ regra: dia de trabalho do profissional (0..6)
   const diaSelecionadoEhTrabalho = useMemo(() => {
-    if (!flow.profissional || !flow.data) return true;
+    if (!flow.profissional || !flow.data) return true; // sem data ainda
     const dias = normalizeDiasTrabalho(flow.profissional.dias_trabalho);
+    // se não tiver nada salvo, assume todos (não quebra operação)
     const diasEfetivos = dias.length ? dias : [0, 1, 2, 3, 4, 5, 6];
     const dow = getDowFromDateSP(flow.data);
     if (dow == null) return true;
@@ -432,6 +354,7 @@ export default function Vitrine({ user, userType }) {
   const calcularHorariosDisponiveis = async () => {
     if (!flow.profissional || !flow.data) return;
 
+    // ✅ se o dia é fechado, nem calcula horários
     if (!diaSelecionadoEhTrabalho) {
       setHorariosDisponiveis([]);
       return;
@@ -550,7 +473,7 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
-  // ✅ serviços possíveis
+  // ✅ serviços possíveis (ordem por preço: maior -> menor)
   const servicosPossiveis = useMemo(() => {
     if (!flow.horario) return [];
     return servicosDoProf
@@ -558,12 +481,12 @@ export default function Vitrine({ user, userType }) {
       .sort((a, b) => {
         const pa = Number(a.preco ?? 0);
         const pb = Number(b.preco ?? 0);
-        if (pb !== pa) return pb - pa;
+        if (pb !== pa) return pb - pa; // ✅ maior -> menor
         return String(a.nome || '').localeCompare(String(b.nome || ''));
       });
   }, [servicosDoProf, flow.horario]);
 
-  // ✅ status ABERTO/FECHADO pro card
+  // ✅ status ABERTO/FECHADO pro card (bolinha verde/vermelha)
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -575,6 +498,7 @@ export default function Vitrine({ user, userType }) {
     const dias = normalizeDiasTrabalho(p?.dias_trabalho);
     const diasEfetivos = dias.length ? dias : [0, 1, 2, 3, 4, 5, 6];
 
+    // agora dow de hoje em SP
     const hojeDow = getDowFromDateSP(now.date);
     const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
@@ -595,6 +519,7 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
+      // ✅ valida novamente dia de trabalho
       if (!diaSelecionadoEhTrabalho) {
         alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
         setFlow(prev => ({ ...prev, step: 1, horario: null, servicosSelecionados: [] }));
@@ -610,6 +535,7 @@ export default function Vitrine({ user, userType }) {
         return;
       }
 
+      // ✅ cria agendamentos SEQUENCIAIS (um por serviço)
       let curInicio = horaInicioBase;
       const insertedIds = [];
 
@@ -644,6 +570,7 @@ export default function Vitrine({ user, userType }) {
           curInicio = curFim;
         }
       } catch (errInsert) {
+        // rollback best-effort
         if (insertedIds.length) {
           await supabase.from('agendamentos').delete().in('id', insertedIds);
         }
@@ -708,15 +635,6 @@ export default function Vitrine({ user, userType }) {
   // ✅ logo no hero
   const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
 
-  // ✅ instagram no hero
-  const instagramUrl = useMemo(() => resolveInstagram(barbearia?.instagram), [barbearia?.instagram]);
-
-  // ✅ galerias (colmeia/masonry)
-  const galerias = useMemo(() => {
-    const arr = barbearia?.galerias;
-    return Array.isArray(arr) ? arr.filter(Boolean) : [];
-  }, [barbearia?.galerias]);
-
   // ✅ serviços agrupados por profissional (para seção Serviços)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
@@ -731,7 +649,7 @@ export default function Vitrine({ user, userType }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-normal animate-pulse">Carregando...</div>
+        <div className="text-primary text-2xl font-bold animate-pulse">Carregando...</div>
       </div>
     );
   }
@@ -745,7 +663,7 @@ export default function Vitrine({ user, userType }) {
           <p className="text-gray-400 mb-6">{error}</p>
           <button
             onClick={loadVitrine}
-            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-normal uppercase"
+            className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-bold"
           >
             Tentar novamente
           </button>
@@ -759,7 +677,7 @@ export default function Vitrine({ user, userType }) {
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
           <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
-          <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
+          <Link to="/" className="text-primary hover:text-yellow-500 font-bold">Voltar para Home</Link>
         </div>
       </div>
     );
@@ -769,6 +687,17 @@ export default function Vitrine({ user, userType }) {
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '5.0';
 
+  // ✅ Instagram URL (aceita "@", "instagram.com/...", ou só o ID)
+  const instagramHref = useMemo(() => {
+    const raw = String(barbearia?.instagram || '').trim();
+    if (!raw) return null;
+    const clean = raw.replace(/^@/, '').trim();
+    if (!clean) return null;
+    if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
+    if (clean.includes('instagram.com/')) return `https://${clean.replace(/^https?:\/\//, '')}`;
+    return `https://instagram.com/${clean}`;
+  }, [barbearia?.instagram]);
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -777,28 +706,28 @@ export default function Vitrine({ user, userType }) {
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors uppercase"
+              className="flex items-center gap-2 text-gray-400 hover:text-primary transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">Voltar</span>
+              <span className="hidden sm:inline">VOLTAR</span>
             </button>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={abrirAvaliar}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all bg-dark-200 border uppercase ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all bg-dark-200 border ${
                   isProfessional ? 'border-gray-900 text-gray-600 cursor-not-allowed' : 'border-gray-800 text-gray-300 hover:border-primary'
                 }`}
               >
-                <StarChar size={18} className="text-primary" />
-                <span className="hidden sm:inline">Avaliar</span>
+                <Star className="w-5 h-5 text-primary" />
+                <span className="hidden sm:inline">AVALIAR</span>
               </button>
 
               <button
                 onClick={toggleFavorito}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all uppercase ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all ${
                   isProfessional
                     ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
                     : isFavorito
@@ -808,11 +737,13 @@ export default function Vitrine({ user, userType }) {
               >
                 <Heart className={`w-5 h-5 ${isFavorito ? 'fill-current' : ''}`} />
                 <span className="hidden sm:inline">
-                  {isProfessional ? 'Somente Cliente' : (isFavorito ? 'Favoritado' : 'Favoritar')}
+                  {isProfessional ? 'SOMENTE CLIENTE' : (isFavorito ? 'FAVORITADO' : 'FAVORITAR')}
                 </span>
               </button>
             </div>
           </div>
+
+          {/* ✅ REMOVIDO o aviso do profissional (como você pediu) */}
         </div>
       </header>
 
@@ -833,44 +764,44 @@ export default function Vitrine({ user, userType }) {
 
             <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
-              <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{barbearia.descricao}</p>
+              <p className="text-base sm:text-lg text-gray-400 mb-4">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                {/* ✅ 1 estrela + nota */}
                 <div className="flex items-center gap-2">
-                  <StarChar size={18} className="text-primary" />
-                  <span className="text-xl font-normal text-primary">{mediaAvaliacoes}</span>
+                  <Stars5 value={Math.round(Number(mediaAvaliacoes || 0))} size={18} />
+                  <span className="text-xl font-black text-primary">{mediaAvaliacoes}</span>
                   <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
                 </div>
 
                 {barbearia.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    <span className="font-normal">{barbearia.endereco}</span>
+                    {/* ✅ ícone mais fino */}
+                    <MapPin className="w-4 h-4" strokeWidth={ICON_STROKE} />
+                    <span>{barbearia.endereco}</span>
                   </div>
                 )}
 
                 {barbearia.telefone && (
                   <a
                     href={`tel:${barbearia.telefone}`}
-                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
+                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
                   >
-                    <Phone className="w-4 h-4" />
+                    {/* ✅ ícone mais fino */}
+                    <Phone className="w-4 h-4" strokeWidth={ICON_STROKE} />
                     {barbearia.telefone}
                   </a>
                 )}
 
-                {/* ✅ Instagram (no mesmo bloco do telefone/localização) */}
-                {instagramUrl && (
+                {instagramHref && (
                   <a
-                    href={instagramUrl}
+                    href={instagramHref}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
-                    aria-label="Instagram"
+                    className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-bold transition-colors"
                   >
-                    <Instagram className="w-4 h-4" />
-                    INSTAGRAM
+                    {/* ✅ ícone mais fino */}
+                    <Instagram className="w-4 h-4" strokeWidth={ICON_STROKE} />
+                    <span>{String(barbearia.instagram || '').trim()}</span>
                   </a>
                 )}
               </div>
@@ -879,7 +810,7 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* Profissionais */}
+      {/* Profissionais (sem serviços dentro) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
@@ -898,18 +829,19 @@ export default function Vitrine({ user, userType }) {
                     <div className="flex-1">
                       <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
 
+                      {/* ✅ TAG ABERTO/FECHADO (bolinha verde/vermelha) */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                        <span className="text-xs text-gray-400 font-normal uppercase">{status.label}</span>
+                        <span className="text-xs text-gray-400 font-bold">{status.label}</span>
                       </div>
 
                       {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
+                        <p className="text-sm text-gray-500 font-bold mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
-                      <p className="text-xs text-gray-500 font-normal mt-2">
+                      <p className="text-xs text-gray-500 font-bold mt-2">
                         Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
-                      <p className="text-xs text-gray-600 font-normal mt-2">
+                      <p className="text-xs text-gray-600 font-bold mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
                     </div>
@@ -917,7 +849,7 @@ export default function Vitrine({ user, userType }) {
 
                   <button
                     onClick={() => iniciarAgendamento(prof)}
-                    className={`w-full py-3 rounded-button hover:shadow-lg transition-all flex items-center justify-center gap-2 uppercase font-normal ${
+                    className={`w-full py-3 rounded-button font-black hover:shadow-lg transition-all flex items-center justify-center gap-2 ${
                       isProfessional
                         ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
@@ -925,7 +857,7 @@ export default function Vitrine({ user, userType }) {
                     disabled={!!isProfessional}
                   >
                     <Calendar className="w-5 h-5" />
-                    Agendar
+                    AGENDAR
                   </button>
                 </div>
               );
@@ -934,16 +866,17 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* Serviços */}
+      {/* ✅ Serviços (seção separada) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
 
           {profissionais.length === 0 ? (
-            <p className="text-gray-500 font-normal">Nenhum profissional cadastrado.</p>
+            <p className="text-gray-500 font-bold">Nenhum profissional cadastrado.</p>
           ) : (
             <div className="space-y-4">
               {profissionais.map(p => {
+                // ✅ ORDEM por preço: maior -> menor (em cada card do profissional)
                 const lista = (servicosPorProf.get(p.id) || [])
                   .slice()
                   .sort((a, b) => {
@@ -957,7 +890,7 @@ export default function Vitrine({ user, userType }) {
                   <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="font-black text-lg">{p.nome}</div>
-                      <div className="text-xs text-gray-500 font-normal">{lista.length} serviço(s)</div>
+                      <div className="text-xs text-gray-500 font-bold">{lista.length} serviço(s)</div>
                     </div>
 
                     {lista.length ? (
@@ -965,7 +898,7 @@ export default function Vitrine({ user, userType }) {
                         {lista.map(s => (
                           <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
                             <div className="font-black">{s.nome}</div>
-                            <div className="text-xs text-gray-500 font-normal mt-1">
+                            <div className="text-xs text-gray-500 font-bold mt-1">
                               <Clock className="w-4 h-4 inline mr-1" />
                               {s.duracao_minutos} min
                             </div>
@@ -974,7 +907,7 @@ export default function Vitrine({ user, userType }) {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500 font-normal">Sem serviços ativos para este profissional.</p>
+                      <p className="text-gray-500 font-bold">Sem serviços ativos para este profissional.</p>
                     )}
                   </div>
                 );
@@ -984,30 +917,7 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* ✅ GALERIA — sem fundo, sem título, sem ícone */}
-      {galerias.length > 0 && (
-        <section className="py-12 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [column-fill:_balance]">
-              {galerias.map((url, idx) => (
-                <div
-                  key={`${url}-${idx}`}
-                  className="mb-3 w-full break-inside-avoid overflow-hidden rounded-custom border border-gray-800 bg-dark-100"
-                >
-                  <img
-                    src={url}
-                    alt="Galeria"
-                    className="w-full h-auto object-contain bg-black"
-                    loading="lazy"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Avaliações */}
+      {/* ✅ Avaliações SEMPRE como seção final (footer de conversão) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-6">
@@ -1015,13 +925,13 @@ export default function Vitrine({ user, userType }) {
             <button
               onClick={abrirAvaliar}
               disabled={!!isProfessional}
-              className={`px-5 py-2 border rounded-button text-sm transition-all uppercase font-normal ${
+              className={`px-5 py-2 border rounded-button font-normal text-sm transition-all ${
                 isProfessional
                   ? 'bg-dark-100 border-gray-900 text-gray-600 cursor-not-allowed'
                   : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
               }`}
             >
-              + Avaliar
+              + AVALIAR
             </button>
           </div>
 
@@ -1030,20 +940,20 @@ export default function Vitrine({ user, userType }) {
               {avaliacoes.map(av => (
                 <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-normal">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                       {av.users?.nome?.[0] || 'A'}
                     </div>
                     <div>
-                      <p className="text-sm font-normal">{av.users?.nome || 'Cliente'}</p>
-                      <Stars5Char value={av.nota} size={14} />
+                      <p className="text-sm font-bold">{av.users?.nome || 'Cliente'}</p>
+                      <Stars5 value={av.nota} size={14} />
                     </div>
                   </div>
-                  {av.comentario && <p className="text-sm text-gray-400 font-normal">{av.comentario}</p>}
+                  {av.comentario && <p className="text-sm text-gray-400">{av.comentario}</p>}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 font-normal">Nenhuma avaliação ainda</p>
+            <p className="text-gray-500">Nenhuma avaliação ainda</p>
           )}
         </div>
       </section>
@@ -1064,17 +974,18 @@ export default function Vitrine({ user, userType }) {
               {flow.step === 1 && (
                 <div>
                   <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
-
-                  {/* ✅ calendário estilo “botão” com bolinha amarela (sem seta) */}
-                  <DatePickerButton
-                    value={flow.data}
+                  <input
+                    type="date"
+                    // ✅ FIX: min em SP (sem UTC)
                     min={minDateSP}
-                    placeholder="Selecionar data"
+                    value={flow.data}
                     onChange={(e) => setFlow(prev => ({ ...prev, data: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   />
 
+                  {/* ✅ Mensagem apenas quando dia fechado */}
                   {flow.data && !diaSelecionadoEhTrabalho && (
-                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-custom p-3 text-red-300 text-sm font-normal">
+                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-custom p-3 text-red-300 text-sm font-bold">
                       Este profissional está <b>FECHADO</b> nessa data. Escolha outro dia.
                     </div>
                   )}
@@ -1085,14 +996,14 @@ export default function Vitrine({ user, userType }) {
                       if (!diaSelecionadoEhTrabalho) return alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
                       setFlow(prev => ({ ...prev, step: 2, horario: null, servicosSelecionados: [] }));
                     }}
-                    className={`mt-4 w-full py-3 rounded-button uppercase font-normal ${
+                    className={`mt-4 w-full py-3 rounded-button font-black ${
                       (!flow.data || !diaSelecionadoEhTrabalho)
                         ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
                     }`}
                     disabled={!flow.data || !diaSelecionadoEhTrabalho}
                   >
-                    Continuar
+                    CONTINUAR
                   </button>
                 </div>
               )}
@@ -1102,7 +1013,7 @@ export default function Vitrine({ user, userType }) {
                 <div>
                   <button
                     onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
-                    className="text-primary mb-4 font-normal uppercase"
+                    className="text-primary mb-4 font-bold"
                   >
                     Voltar
                   </button>
@@ -1110,66 +1021,67 @@ export default function Vitrine({ user, userType }) {
                   <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
 
                   {!diaSelecionadoEhTrabalho ? (
-                    <p className="text-gray-500 font-normal">Esse profissional está fechado nessa data.</p>
+                    <p className="text-gray-500">Esse profissional está fechado nessa data.</p>
                   ) : horariosDisponiveis.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {horariosDisponiveis.map((h, i) => (
                         <button
                           key={i}
                           onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 3, servicosSelecionados: [] }))}
-                          className="relative p-3 rounded-custom transition-all bg-dark-200 border border-gray-800 hover:border-primary uppercase font-normal"
+                          className="relative p-3 rounded-custom font-bold transition-all bg-dark-200 border border-gray-800 hover:border-primary"
                         >
                           {h.tipo === 'slot' && (
                             <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
                           )}
-                          <div className="text-lg normal-case">{h.hora}</div>
-                          <div className="text-[10px] text-gray-500 normal-case">
+                          <div className="text-lg">{h.hora}</div>
+                          <div className="text-[10px] text-gray-500">
                             até {h.maxMinutos}min
                           </div>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 font-normal">Nenhum horário disponível nessa data.</p>
+                    <p className="text-gray-500">Nenhum horário disponível nessa data.</p>
                   )}
 
                   <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
                     <AlertCircle className="w-5 h-5 text-blue-400 inline mr-2" />
-                    <span className="text-sm text-blue-300 font-normal">
+                    <span className="text-sm text-blue-300">
                       Horários com <Zap className="w-4 h-4 inline text-primary" /> são slots reaproveitados (cancelamentos).
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* STEP 3: SERVIÇOS */}
+              {/* STEP 3: SERVIÇOS (multi seleção + soma) */}
               {flow.step === 3 && (
                 <div>
                   <button
                     onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                    className="text-primary mb-4 uppercase font-normal"
+                    className="text-primary mb-4"
                   >
-                    Voltar
+                    VOLTAR
                   </button>
 
                   <h3 className="text-xl font-black mb-2">
-                    Escolha o(s) Serviço(s) <span className="text-sm text-gray-500 font-normal">(cabe até {flow.horario?.maxMinutos} min)</span>
+                    Escolha o(s) Serviço(s) <span className="text-sm text-gray-500">(cabe até {flow.horario?.maxMinutos} min)</span>
                   </h3>
 
+                  {/* ✅ Resumo soma */}
                   <div className="mb-4 bg-dark-200 border border-gray-800 rounded-custom p-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 font-normal">Selecionados:</span>
-                      <span className="font-normal">{totalSelecionado.qtd}</span>
+                      <span className="text-gray-500 font-bold">Selecionados:</span>
+                      <span className="font-bold">{totalSelecionado.qtd}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">Duração total:</span>
-                      <span className={`font-normal ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
+                      <span className="text-gray-500 font-bold">Duração total:</span>
+                      <span className={`font-bold ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
                         {totalSelecionado.duracao} min
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">Valor total:</span>
-                      <span className="font-normal text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="text-gray-500 font-bold">Valor total:</span>
+                      <span className="font-bold text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -1186,11 +1098,15 @@ export default function Vitrine({ user, userType }) {
                               const max = Number(flow.horario?.maxMinutos || 0);
 
                               let next;
-                              if (selected) next = cur.filter(x => x.id !== s.id);
-                              else next = [...cur, s];
+                              if (selected) {
+                                next = cur.filter(x => x.id !== s.id);
+                              } else {
+                                next = [...cur, s];
+                              }
 
                               const durNext = next.reduce((sum, it) => sum + Number(it?.duracao_minutos || 0), 0);
 
+                              // ✅ trava soma que estoura
                               if (durNext > max) {
                                 alert(`Não cabe: total ${durNext} min (máx ${max} min).`);
                                 return;
@@ -1198,19 +1114,18 @@ export default function Vitrine({ user, userType }) {
 
                               setFlow(prev => ({ ...prev, servicosSelecionados: next }));
                             }}
-                            className="w-full bg-dark-200 border border-gray-800 hover:border-primary rounded-custom p-4 transition-all text-left"
+                            // ✅ (2) Remove a “caixinha” interna e deixa o CARD inteiro como seletor
+                            className={`w-full border rounded-custom p-4 transition-all text-left ${
+                              selected
+                                ? 'bg-primary/10 border-primary/50'
+                                : 'bg-dark-200 border-gray-800 hover:border-primary'
+                            }`}
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <p className="font-black flex items-center gap-2">
-                                  <span
-                                    className={`inline-block w-3.5 h-3.5 rounded border ${
-                                      selected ? 'bg-primary/30 border-primary/60' : 'bg-dark-100 border-gray-700'
-                                    }`}
-                                  />
-                                  {s.nome}
-                                </p>
-                                <p className="text-sm text-gray-500 font-normal">
+                                {/* ✅ removida a caixinha pequena */}
+                                <p className="font-black">{s.nome}</p>
+                                <p className="text-sm text-gray-500">
                                   <Clock className="w-4 h-4 inline mr-1" />
                                   {s.duracao_minutos} min
                                 </p>
@@ -1222,12 +1137,12 @@ export default function Vitrine({ user, userType }) {
                       })}
                     </div>
                   ) : (
-                    <div className="text-gray-500 font-normal">
+                    <div className="text-gray-500">
                       Nenhum serviço disponível.
                       <div className="mt-3">
                         <button
                           onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
+                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button font-bold"
                         >
                           Escolher outro horário
                         </button>
@@ -1240,14 +1155,14 @@ export default function Vitrine({ user, userType }) {
                       if (!flow.servicosSelecionados?.length) return alert('Selecione pelo menos 1 serviço.');
                       setFlow(prev => ({ ...prev, step: 4 }));
                     }}
-                    className={`mt-4 w-full py-3 rounded-button uppercase font-normal ${
+                    className={`mt-4 w-full py-3 rounded-button font-black ${
                       flow.servicosSelecionados?.length
                         ? 'bg-gradient-to-r from-primary to-yellow-600 text-black'
                         : 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
                     }`}
                     disabled={!flow.servicosSelecionados?.length}
                   >
-                    Continuar
+                    CONTINUAR
                   </button>
                 </div>
               )}
@@ -1259,54 +1174,54 @@ export default function Vitrine({ user, userType }) {
 
                   <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Profissional:</span>
-                      <span className="font-normal">{flow.profissional?.nome}</span>
+                      <span className="text-gray-500">Profissional:</span>
+                      <span className="font-bold">{flow.profissional?.nome}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Data:</span>
-                      <span className="font-normal">{formatDateBR(flow.data)}</span>
+                      <span className="text-gray-500">Data:</span>
+                      {/* ✅ FIX: sem new Date() */}
+                      <span className="font-bold">{formatDateBR(flow.data)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Horário:</span>
-                      <span className="font-normal">{flow.horario?.hora}</span>
+                      <span className="text-gray-500">Horário:</span>
+                      <span className="font-bold">{flow.horario?.hora}</span>
                     </div>
 
+                    {/* ✅ Lista serviços selecionados */}
                     <div className="pt-2 border-t border-gray-800">
-                      <div className="text-gray-500 font-normal text-sm mb-2">Serviços:</div>
+                      <div className="text-gray-500 font-bold text-sm mb-2">Serviços:</div>
                       <div className="space-y-1">
                         {(flow.servicosSelecionados || []).map(s => (
                           <div key={s.id} className="flex justify-between text-sm">
-                            <span className="font-normal text-gray-200">{s.nome}</span>
-                            <span className="text-gray-400 font-normal">
-                              {s.duracao_minutos} min • R$ {Number(s.preco || 0).toFixed(2)}
-                            </span>
+                            <span className="font-bold text-gray-200">{s.nome}</span>
+                            <span className="text-gray-400">{s.duracao_minutos} min • R$ {Number(s.preco || 0).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Duração total:</span>
-                      <span className="font-normal">{totalSelecionado.duracao} min</span>
+                      <span className="text-gray-500">Duração total:</span>
+                      <span className="font-bold">{totalSelecionado.duracao} min</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Valor total:</span>
-                      <span className="font-black text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="text-gray-500">Valor total:</span>
+                      <span className="font-bold text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
                   <div className="flex gap-3">
                     <button
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
-                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
+                      className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button font-bold"
                     >
-                      Voltar
+                      VOLTAR
                     </button>
                     <button
                       onClick={confirmarAgendamento}
-                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button uppercase font-normal"
+                      className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black"
                     >
-                      Confirmar
+                      CONFIRMAR
                     </button>
                   </div>
                 </div>
@@ -1329,13 +1244,13 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="mb-4">
-              <div className="text-sm text-gray-300 font-normal mb-2">Nota</div>
+              <div className="text-sm text-gray-300 font-bold mb-2">Nota</div>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map(n => (
                   <button
                     key={n}
                     onClick={() => setAvaliarNota(n)}
-                    className={`w-10 h-10 rounded-custom border transition-all font-normal ${
+                    className={`w-10 h-10 rounded-custom border font-black transition-all ${
                       avaliarNota >= n
                         ? 'bg-primary/20 border-primary/50 text-primary'
                         : 'bg-dark-200 border-gray-800 text-gray-500'
@@ -1348,7 +1263,7 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="mb-5">
-              <div className="text-sm text-gray-300 font-normal mb-2">Comentário (opcional)</div>
+              <div className="text-sm text-gray-300 font-bold mb-2">Comentário (opcional)</div>
               <textarea
                 value={avaliarTexto}
                 onChange={(e) => setAvaliarTexto(e.target.value)}
@@ -1361,12 +1276,12 @@ export default function Vitrine({ user, userType }) {
             <button
               onClick={enviarAvaliacao}
               disabled={avaliarLoading}
-              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button disabled:opacity-60 uppercase font-normal"
+              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black disabled:opacity-60"
             >
-              {avaliarLoading ? 'Enviando...' : 'Enviar avaliação'}
+              {avaliarLoading ? 'ENVIANDO...' : 'ENVIAR AVALIAÇÃO'}
             </button>
 
-            <p className="text-xs text-gray-500 mt-3 font-normal">
+            <p className="text-xs text-gray-500 mt-3 font-bold">
               Somente clientes logados podem avaliar.
             </p>
           </div>
