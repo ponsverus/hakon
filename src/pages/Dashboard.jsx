@@ -1588,7 +1588,7 @@ export default function Dashboard({ user, onLogout }) {
                         disabled={galleryUploading}
                       />
                       <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-button font-black border cursor-pointer transition-all ${
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-button font-normal border cursor-pointer transition-all ${
                           galleryUploading
                             ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
                             : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
@@ -1772,40 +1772,6 @@ export default function Dashboard({ user, onLogout }) {
                     const active = (formProfissional.dias_trabalho || []).includes(d.i);
                     return (
                       <button
-                        type="button"
-                        key={d.i}
-                        onClick={() => {
-                          const cur = Array.isArray(formProfissional.dias_trabalho) ? [...formProfissional.dias_trabalho] : [];
-                          const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
-                          setFormProfissional(prev => ({ ...prev, dias_trabalho: normalizeDiasTrabalho(next) }));
-                        }}
-                        className={`py-2 rounded-custom border font-black text-xs transition-all ${
-                          active
-                            ? 'bg-primary/20 border-primary/50 text-primary'
-                            : 'bg-dark-200 border-gray-800 text-gray-500'
-                        }`}
-                      >
-                        {d.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <p className="text-[11px] text-gray-500 font-bold mt-2">
-                  Domingo = 0, Segunda = 1, ... Sábado = 6.
-                </p>
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
-                {editingProfissional ? 'SALVAR' : 'ADICIONAR'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}<button
                         type="button"
                         key={d.i}
                         onClick={() => {
