@@ -3,6 +3,56 @@ import { Link } from 'react-router-dom';
 import { Search, Menu, X, Star, Zap, TrendingUp, Shield, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabase';
 
+// ✅ FIX: mover SearchBox para fora do componente Home evita remount e perda de foco
+function SearchBox({
+  mobile,
+  searchTerm,
+  setSearchTerm,
+  resultadosBusca,
+  setResultadosBusca,
+  buscando,
+  setMobileMenuOpen,
+}) {
+  return (
+    <div className="relative w-full">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="PESQUISAR..."
+        className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+      />
+
+      {resultadosBusca.length > 0 && (
+        <div className="absolute top-full mt-2 w-full bg-dark-100 border border-gray-800 rounded-custom shadow-2xl z-50 max-h-96 overflow-y-auto">
+          {resultadosBusca.map((r, i) => (
+            <Link
+              key={i}
+              to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
+              onClick={() => {
+                setSearchTerm('');
+                setResultadosBusca([]);
+                if (mobile) setMobileMenuOpen(false);
+              }}
+              className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
+            >
+              <div className="font-bold text-white">{r.nome}</div>
+              <div className="text-xs text-gray-500 uppercase">{r.tipo}</div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {buscando && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home({ user, userType, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,46 +99,6 @@ export default function Home({ user, userType, onLogout }) {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // ✅ FIX: SearchBox agora NÃO afeta estado ao receber prop mobile
-  const SearchBox = ({ mobile }) => (
-    <div className="relative w-full">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="PESQUISAR..."
-        className="w-full pl-11 pr-4 py-2.5 bg-dark-200 border border-gray-800 rounded-button text-white placeholder-gray-500 focus:border-primary focus:outline-none"
-      />
-
-      {resultadosBusca.length > 0 && (
-        <div className="absolute top-full mt-2 w-full bg-dark-100 border border-gray-800 rounded-custom shadow-2xl z-50 max-h-96 overflow-y-auto">
-          {resultadosBusca.map((r, i) => (
-            <Link
-              key={i}
-              to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
-              onClick={() => {
-                setSearchTerm('');
-                setResultadosBusca([]);
-                if (mobile) setMobileMenuOpen(false);
-              }}
-              className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
-            >
-              <div className="font-bold text-white">{r.nome}</div>
-              <div className="text-xs text-gray-500 uppercase">{r.tipo}</div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {buscando && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      )}
-    </div>
-  );
-
   const handleLogoutClick = async () => {
     try {
       await onLogout?.();
@@ -113,7 +123,15 @@ export default function Home({ user, userType, onLogout }) {
             </Link>
 
             <div className="hidden md:flex flex-1 max-w-md mx-8">
-              <SearchBox mobile={false} />
+              <SearchBox
+                mobile={false}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                resultadosBusca={resultadosBusca}
+                setResultadosBusca={setResultadosBusca}
+                buscando={buscando}
+                setMobileMenuOpen={setMobileMenuOpen}
+              />
             </div>
 
             <nav className="hidden lg:flex items-center gap-4">
@@ -160,7 +178,15 @@ export default function Home({ user, userType, onLogout }) {
           {mobileMenuOpen && (
             <div className="lg:hidden py-4 border-t border-gray-800">
               <div className="mb-4">
-                <SearchBox mobile={true} />
+                <SearchBox
+                  mobile={true}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  resultadosBusca={resultadosBusca}
+                  setResultadosBusca={setResultadosBusca}
+                  buscando={buscando}
+                  setMobileMenuOpen={setMobileMenuOpen}
+                />
               </div>
 
               <nav className="flex flex-col gap-2">
@@ -171,7 +197,7 @@ export default function Home({ user, userType, onLogout }) {
                       onClick={() => setMobileMenuOpen(false)}
                       className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
                     >
-                      {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
+                      {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
                     </Link>
 
                     <button
@@ -179,7 +205,7 @@ export default function Home({ user, userType, onLogout }) {
                       onClick={handleLogoutClick}
                       className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom text-left"
                     >
-                      Sair
+                      SAIR
                     </button>
                   </>
                 ) : (
@@ -276,8 +302,8 @@ export default function Home({ user, userType, onLogout }) {
               { num: 3, title: 'Receba Agendamentos', text: 'Clientes agendam 24/7. Cancelou? Sistema reaproveita automaticamente. Você só atende.' }
             ].map(({ num, title, text }) => (
               <div key={num} className="relative">
-                {/* Círculo numerado - responsivo */}
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-top-4 md:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50 z-10">
+                {/* ✅ FIX DESKTOP: subir bolinha numerada (apenas md+) */}
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 md:-top-8 md:-left-4 w-16 h-16 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-primary/50 z-10">
                   {num}
                 </div>
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-8 pt-14 md:pt-10">
@@ -378,13 +404,12 @@ export default function Home({ user, userType, onLogout }) {
             ))}
           </div>
 
-          {/* ✅ Removido botão de sugestão e linha separadora */}
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
                 <span className="text-black font-normal text-xl">H</span>
               </div>
-              <div className="text-white font-black text-sm">HAKON</div>                
+              <div className="text-white font-black text-sm">HAKON</div>
               <div className="text-gray-600 text-sm">© 2026 HAKON. Todos os direitos reservados.</div>
             </div>
           </div>
