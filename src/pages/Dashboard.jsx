@@ -992,7 +992,7 @@ export default function Dashboard({ user, onLogout }) {
               <span className="text-sm text-gray-500">FATURAMENTO HOJE</span>
             </div>
 
-            <div className="text-3xl font-black text-white mb-1">
+            <div className="text-3xl font-normal text-white mb-1">
               R$ {agendamentosHoje
                 .filter(a => a.status === 'concluido')
                 .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
