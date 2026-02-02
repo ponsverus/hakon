@@ -1660,7 +1660,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-black">
-                        Galerias
+                        GALERIA
                       </h3>
                       <p className="text-xs text-gray-500 font-bold mt-1">
                         Adicione fotos do seu negócio. Isso será exibido na vitrine quando a gente atualizar a vitrine.
