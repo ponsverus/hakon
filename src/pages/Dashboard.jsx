@@ -1084,7 +1084,7 @@ export default function Dashboard({ user, onLogout }) {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-sm text-gray-500">
                       {profissionais.length < 2
                         ? 'Você tem 1 profissional — o detalhamento por profissional não aparece.'
                         : 'Sem faturamento concluído nessa data.'}
