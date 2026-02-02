@@ -66,12 +66,10 @@ export default function Home({ user, userType, onLogout }) {
             <Link
               key={i}
               to={`/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`}
-              onClick={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 setSearchTerm('');
                 setResultadosBusca([]);
                 if (mobile) setMobileMenuOpen(false);
-                window.location.href = `/v/${r.tipo === 'barbearia' ? r.slug : r.barbearias?.slug}`;
               }}
               className="block px-4 py-3 hover:bg-dark-200 border-b border-gray-800 last:border-0"
             >
@@ -121,7 +119,7 @@ export default function Home({ user, userType, onLogout }) {
               {isLogged ? (
                 <>
                   <Link
-                    to={userType === 'professional' ? '/DASHBOARD' : '/MINHA ÁREA'}
+                    to={userType === 'professional' ? '/dashboard' : '/minha-area'}
                     className="px-5 py-2 text-sm text-white hover:text-primary transition-colors"
                   >
                     {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
@@ -168,11 +166,11 @@ export default function Home({ user, userType, onLogout }) {
                 {isLogged ? (
                   <>
                     <Link
-                      to={userType === 'professional' ? '/DASHBOARD' : '/MINHA ÁREA'}
+                      to={userType === 'professional' ? '/dashboard' : '/minha-area'}
                       onClick={() => setMobileMenuOpen(false)}
                       className="px-4 py-3 text-white hover:bg-dark-200 rounded-custom font-bold"
                     >
-                      {userType === 'professional' ? 'DASHBOARD' : 'MINHA ÁREA'}
+                      {userType === 'professional' ? 'Dashboard' : 'Minha Área'}
                     </Link>
 
                     <button
@@ -180,7 +178,7 @@ export default function Home({ user, userType, onLogout }) {
                       onClick={handleLogoutClick}
                       className="px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-custom text-left"
                     >
-                      SAIR
+                      Sair
                     </button>
                   </>
                 ) : (
@@ -385,23 +383,21 @@ export default function Home({ user, userType, onLogout }) {
               href="https://wa.me/5533999037979?text=Ol%C3%A1%2C%20vim%20para%20sugerir%20algo%20para%20o%20app%20%28da%20home%29"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-transparent border-2 border-primary text-primary rounded-button text-sm hover:bg-primary/10 transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2 bg-transparent border border-primary text-primary rounded-button text-sm hover:bg-primary/10 transition-all"
             >
               <MessageCircle className="w-4 h-4" />
               DAR SUGESTÃO
             </a>
           </div>
 
-          <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
                 <span className="text-black font-normal text-xl">H</span>
               </div>
-              <div>
-                <div className="text-white font-black text-sm">HAKON</div>                
-              </div>
+              <div className="text-white font-black text-sm">HAKON</div>                
+              <div className="text-gray-600 text-sm">© 2026 HAKON. Todos os direitos reservados.</div>
             </div>
-            <div className="text-gray-600 text-sm">© 2026 HAKON. Todos os direitos reservados.</div>
           </div>
         </div>
       </footer>
