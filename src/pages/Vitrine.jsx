@@ -827,7 +827,7 @@ export default function Vitrine({ user, userType }) {
               <button
                 onClick={toggleFavorito}
                 disabled={!!isProfessional}
-                className={`flex items-center gap-2 px-4 py-1.5 sm:py-2 rounded-button transition-all uppercase ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-button transition-all uppercase ${
                   isProfessional
                     ? 'bg-dark-200 border border-gray-900 text-gray-600 cursor-not-allowed'
                     : isFavorito
@@ -1070,7 +1070,20 @@ export default function Vitrine({ user, userType }) {
           {avaliacoes.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {avaliacoes.map(av => (
-                <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
+                <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4 relative">
+                  {/* ✅ Tag/Etiqueta no canto superior direito com tamanho menor */}
+                  <div className="absolute top-3 right-3">
+                    {av.profissional_id && av.profissionais?.nome ? (
+                      <span className="inline-block px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
+                        Profissional: {av.profissionais.nome}
+                      </span>
+                    ) : (
+                      <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded-button text-[10px] text-blue-400 font-normal uppercase">
+                        Barbearia
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-normal">
                       {av.users?.nome?.[0] || 'A'}
@@ -1079,19 +1092,6 @@ export default function Vitrine({ user, userType }) {
                       <p className="text-sm font-normal">{av.users?.nome || 'Cliente'}</p>
                       <Stars5Char value={av.nota} size={14} />
                     </div>
-                  </div>
-
-                  {/* ✅ Tag/Etiqueta mostrando se avaliou barbearia ou profissional */}
-                  <div className="mb-2">
-                    {av.profissional_id && av.profissionais?.nome ? (
-                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded-button text-xs text-primary font-normal uppercase">
-                        Profissional: {av.profissionais.nome}
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-button text-xs text-blue-400 font-normal uppercase">
-                        Barbearia
-                      </span>
-                    )}
                   </div>
 
                   {av.comentario && <p className="text-sm text-gray-400 font-normal">{av.comentario}</p>}
