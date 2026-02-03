@@ -168,7 +168,7 @@ export default function SignupProfessional({ onLogin }) {
               placeholder="Seu nome completo"
               value={formData.nome}
               onChange={e => setFormData({ ...formData, nome: e.target.value })}
-              className="input"
+              className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
               required
             />
 
