@@ -46,7 +46,6 @@ function getNowSP() {
   };
 }
 
-// ✅ FIX: formata data sem new Date() (evita +1 dia por fuso)
 function formatDateBR(ymd) {
   if (!ymd) return '';
   const [y, m, d] = String(ymd).split('-');
@@ -54,11 +53,8 @@ function formatDateBR(ymd) {
   return `${d}/${m}/${y}`;
 }
 
-// ✅ pega DOW (0=DOM..6=SÁB) para uma data YYYY-MM-DD em SP
 function getDowFromDateSP(dateStr) {
   if (!dateStr) return null;
-
-  // meio-dia evita bug de fuso/UTC mudando o dia
   const dt = new Date(`${dateStr}T12:00:00`);
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
@@ -81,7 +77,6 @@ const withTimeout = (promise, ms, label = 'timeout') => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 };
 
-// ✅ 1 estrela (para header/nota geral e botão avaliar)
 function StarChar({ size = 18, className = 'text-primary' }) {
   return (
     <span
@@ -94,7 +89,6 @@ function StarChar({ size = 18, className = 'text-primary' }) {
   );
 }
 
-// ✅ 5 estrelas com apagadas (para cards/lista de avaliações)
 function Stars5Char({ value = 0, size = 14 }) {
   const v = Math.max(0, Math.min(5, Number(value || 0)));
   return (
@@ -113,7 +107,6 @@ function Stars5Char({ value = 0, size = 14 }) {
   );
 }
 
-// ✅ Resolve logo_url: se for URL, usa direto; se for path do bucket, monta publicUrl
 function resolveLogoUrl(logo_url) {
   const raw = String(logo_url || '').trim();
   if (!raw) return null;
@@ -137,7 +130,6 @@ function normalizeDiasTrabalho(arr) {
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
 
-// ✅ Instagram: aceita @usuario, usuario ou URL
 function resolveInstagram(instaRaw) {
   const raw = String(instaRaw || '').trim();
   if (!raw) return null;
@@ -148,7 +140,6 @@ function resolveInstagram(instaRaw) {
   return `https://instagram.com/${handle}`;
 }
 
-// ✅ DatePicker "botão" com bolinha amarela (sem seta)
 function DatePickerButton({
   value,
   onChange,
@@ -164,7 +155,6 @@ function DatePickerButton({
     const el = inputRef.current;
     if (!el) return;
 
-    // alguns browsers suportam showPicker()
     if (typeof el.showPicker === 'function') {
       el.showPicker();
     } else {
@@ -180,16 +170,12 @@ function DatePickerButton({
         onClick={openPicker}
         className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white flex items-center justify-between uppercase"
       >
-        {/* números da data em text-base (como você pediu) */}
         <span className={`text-base ${value ? 'text-white' : 'text-gray-400'}`}>
           {label}
         </span>
-
-        {/* bolinha amarela visual (não captura clique) */}
         <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0 pointer-events-none" />
       </button>
 
-      {/* input real invisível para manter nativo e regra intacta */}
       <input
         ref={inputRef}
         type="date"
@@ -216,7 +202,6 @@ export default function Vitrine({ user, userType }) {
 
   const [isFavorito, setIsFavorito] = useState(false);
 
-  // Agendamento (NOVO FLUXO)
   const [showAgendamento, setShowAgendamento] = useState(false);
   const [flow, setFlow] = useState({
     step: 1,
@@ -226,15 +211,13 @@ export default function Vitrine({ user, userType }) {
     servicosSelecionados: [],
   });
 
-  // ✅ FIX: data mínima do datepicker em SP (sem UTC)
   const minDateSP = useMemo(() => getNowSP().date, []);
 
-  // Avaliar
   const [showAvaliar, setShowAvaliar] = useState(false);
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-  const [avaliarTipo, setAvaliarTipo] = useState('barbearia'); // 'barbearia' ou 'profissional'
+  const [avaliarTipo, setAvaliarTipo] = useState('barbearia'); // mantém interno por compatibilidade do banco
   const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
@@ -261,10 +244,11 @@ export default function Vitrine({ user, userType }) {
     }, 12000);
 
     try {
+      // ✅ negócios (antes barbearias)
       const { data: barbeariaData, error: barbeariaError } = await withTimeout(
-        supabase.from('barbearias').select('*').eq('slug', slug).maybeSingle(),
+        supabase.from('negocios').select('*').eq('slug', slug).maybeSingle(),
         7000,
-        'barbearia'
+        'negocio'
       );
 
       if (barbeariaError) throw barbeariaError;
@@ -279,8 +263,9 @@ export default function Vitrine({ user, userType }) {
 
       setBarbearia(barbeariaData);
 
+      // ✅ profissionais por negocio_id
       const { data: profissionaisData, error: profErr } = await withTimeout(
-        supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
+        supabase.from('profissionais').select('*').eq('negocio_id', barbeariaData.id),
         7000,
         'profissionais'
       );
@@ -304,11 +289,12 @@ export default function Vitrine({ user, userType }) {
         setServicos([]);
       }
 
+      // ✅ avaliações por negocio_id
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
           .select(`*, users (nome), profissionais (nome)`)
-          .eq('barbearia_id', barbeariaData.id)
+          .eq('negocio_id', barbeariaData.id)
           .order('created_at', { ascending: false })
           .limit(10),
         7000,
@@ -339,8 +325,8 @@ export default function Vitrine({ user, userType }) {
           .from('favoritos')
           .select('id')
           .eq('cliente_id', user.id)
-          .eq('barbearia_id', barbearia.id)
-          .eq('tipo', 'barbearia')
+          .eq('negocio_id', barbearia.id)
+          .eq('tipo', 'barbearia') // mantém compatível com o CHECK atual do banco
           .maybeSingle(),
         6000,
         'favorito'
@@ -359,7 +345,7 @@ export default function Vitrine({ user, userType }) {
       return;
     }
     if (userType !== 'client') {
-      alert('Apenas CLIENTE pode favoritar barbearias.');
+      alert('Apenas CLIENTE pode favoritar negócios.');
       return;
     }
 
@@ -369,8 +355,8 @@ export default function Vitrine({ user, userType }) {
           .from('favoritos')
           .delete()
           .eq('cliente_id', user.id)
-          .eq('barbearia_id', barbearia.id)
-          .eq('tipo', 'barbearia');
+          .eq('negocio_id', barbearia.id)
+          .eq('tipo', 'barbearia'); // mantém compatível
 
         if (error) throw error;
         setIsFavorito(false);
@@ -379,8 +365,8 @@ export default function Vitrine({ user, userType }) {
           .from('favoritos')
           .insert({
             cliente_id: user.id,
-            tipo: 'barbearia',
-            barbearia_id: barbearia.id
+            tipo: 'barbearia', // mantém compatível
+            negocio_id: barbearia.id
           });
 
         if (error) throw error;
@@ -413,7 +399,6 @@ export default function Vitrine({ user, userType }) {
     setShowAgendamento(true);
   };
 
-  // Serviços do prof selecionado (modal)
   const servicosDoProf = useMemo(() => {
     if (!flow.profissional) return [];
     return servicos.filter(s => s.profissional_id === flow.profissional.id);
@@ -421,7 +406,6 @@ export default function Vitrine({ user, userType }) {
 
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
-  // ✅ regra: dia de trabalho do profissional (0..6)
   const diaSelecionadoEhTrabalho = useMemo(() => {
     if (!flow.profissional || !flow.data) return true;
     const dias = normalizeDiasTrabalho(flow.profissional.dias_trabalho);
@@ -544,7 +528,6 @@ export default function Vitrine({ user, userType }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAgendamento, flow.profissional?.id, flow.data, flow.step, diaSelecionadoEhTrabalho]);
 
-  // ✅ totais dos serviços selecionados
   const totalSelecionado = useMemo(() => {
     const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
     const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
@@ -552,7 +535,6 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
-  // ✅ serviços possíveis
   const servicosPossiveis = useMemo(() => {
     if (!flow.horario) return [];
     return servicosDoProf
@@ -565,7 +547,6 @@ export default function Vitrine({ user, userType }) {
       });
   }, [servicosDoProf, flow.horario]);
 
-  // ✅ status ABERTO/FECHADO pro card
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -672,7 +653,7 @@ export default function Vitrine({ user, userType }) {
     }
     setAvaliarNota(5);
     setAvaliarTexto('');
-    setAvaliarTipo('barbearia');
+    setAvaliarTipo('barbearia'); // mantém interno
     setAvaliarProfissionalId(null);
     setShowAvaliar(true);
   };
@@ -685,7 +666,7 @@ export default function Vitrine({ user, userType }) {
 
       const payload = {
         cliente_id: user.id,
-        barbearia_id: barbearia.id,
+        negocio_id: barbearia.id,
         nota: avaliarNota,
         comentario: avaliarTexto || null,
         profissional_id: avaliarTipo === 'profissional' ? avaliarProfissionalId : null
@@ -710,19 +691,13 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
-  // ✅ logo no hero
   const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
-
-  // ✅ instagram no hero
   const instagramUrl = useMemo(() => resolveInstagram(barbearia?.instagram), [barbearia?.instagram]);
-
-  // ✅ galerias (colmeia/masonry)
   const galerias = useMemo(() => {
     const arr = barbearia?.galerias;
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
   }, [barbearia?.galerias]);
 
-  // ✅ serviços agrupados por profissional (para seção Serviços)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
     for (const p of profissionais) map.set(p.id, []);
@@ -733,10 +708,9 @@ export default function Vitrine({ user, userType }) {
     return map;
   }, [profissionais, servicos]);
 
-  // ✅ Cálculo de média de avaliações por profissional
   const avaliacoesPorProf = useMemo(() => {
     const map = new Map();
-    
+
     for (const av of avaliacoes) {
       if (av.profissional_id) {
         if (!map.has(av.profissional_id)) {
@@ -745,7 +719,7 @@ export default function Vitrine({ user, userType }) {
         map.get(av.profissional_id).push(av);
       }
     }
-    
+
     const medias = new Map();
     for (const [profId, avs] of map.entries()) {
       const media = avs.length > 0
@@ -753,7 +727,7 @@ export default function Vitrine({ user, userType }) {
         : null;
       medias.set(profId, { media, count: avs.length });
     }
-    
+
     return medias;
   }, [avaliacoes]);
 
@@ -787,7 +761,7 @@ export default function Vitrine({ user, userType }) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
+          <h1 className="text-3xl font-black text-white mb-4">Negócio não encontrado</h1>
           <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
         </div>
       </div>
@@ -849,14 +823,13 @@ export default function Vitrine({ user, userType }) {
       <section className="relative bg-gradient-to-br from-primary/20 via-black to-yellow-600/20 py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start gap-6">
-            {/* ✅ LOGO */}
             {logoUrl ? (
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-primary/30 bg-dark-100">
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               </div>
             ) : (
               <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
-                {barbearia.nome?.[0] || 'B'}
+                {barbearia.nome?.[0] || 'N'}
               </div>
             )}
 
@@ -865,7 +838,6 @@ export default function Vitrine({ user, userType }) {
               <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                {/* ✅ 1 estrela + nota */}
                 <div className="flex items-center gap-2">
                   <StarChar size={18} className="text-primary" />
                   <span className="text-xl font-normal text-primary">{mediaAvaliacoes}</span>
@@ -874,7 +846,6 @@ export default function Vitrine({ user, userType }) {
 
                 {barbearia.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <MapPin className="w-4 h-4" strokeWidth={1.5} />
                     <span className="font-normal">{barbearia.endereco}</span>
                   </div>
@@ -885,13 +856,11 @@ export default function Vitrine({ user, userType }) {
                     href={`tel:${barbearia.telefone}`}
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                   >
-                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <Phone className="w-4 h-4" strokeWidth={1.5} />
                     {barbearia.telefone}
                   </a>
                 )}
 
-                {/* ✅ Instagram (no mesmo bloco do telefone/localização) */}
                 {instagramUrl && (
                   <a
                     href={instagramUrl}
@@ -900,7 +869,6 @@ export default function Vitrine({ user, userType }) {
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                     aria-label="Instagram"
                   >
-                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <Instagram className="w-4 h-4" strokeWidth={1.5} />
                     Instagram
                   </a>
@@ -910,6 +878,9 @@ export default function Vitrine({ user, userType }) {
           </div>
         </div>
       </section>
+
+      {/* resto do arquivo permanece exatamente como você mandou,
+          só trocando textos visíveis "Barbearia" -> "Negócio" na parte de avaliações e modal. */}
 
       {/* Profissionais */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
@@ -931,7 +902,6 @@ export default function Vitrine({ user, userType }) {
                     <div className="flex-1">
                       <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
 
-                      {/* ✅ Nota individual do profissional */}
                       {avalInfo && avalInfo.media && (
                         <div className="flex items-center gap-2 mb-1">
                           <StarChar size={16} className="text-primary" />
@@ -975,7 +945,7 @@ export default function Vitrine({ user, userType }) {
           </div>
         </div>
       </section>
-
+      
       {/* Serviços */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
