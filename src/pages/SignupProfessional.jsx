@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Award, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, FileText, Calendar, Briefcase } from 'lucide-react';
+import {
+  Award, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, FileText, Calendar
+} from 'lucide-react';
 import { supabase } from '../supabase';
 
 const isValidType = (t) => t === 'client' || t === 'professional';
@@ -15,9 +17,11 @@ async function fetchProfileTypeWithRetry(userId) {
       .maybeSingle();
 
     if (!error && isValidType(data?.type)) {
+      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
       return data.type;
     }
 
+    console.log(`⏳ Aguardando perfil... tentativa ${i + 1}/15`);
     await sleep(500);
   }
   return null;
@@ -33,31 +37,30 @@ export default function SignupProfessional({ onLogin }) {
     email: '',
     password: '',
     telefone: '',
-    nomeNegocio: '',
-    tipoNegocio: '',
-    urlNegocio: '',
+    nomeBarbearia: '',
+    urlBarbearia: '',
     anosExperiencia: '',
-    especialidade: '',
     descricao: '',
     endereco: ''
   });
 
   const navigate = useNavigate();
 
-  const generateSlug = (text) =>
-    text
+  const generateSlug = (text) => {
+    return String(text || '')
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  };
 
-  const handleNegocioNameChange = (value) => {
-    setFormData({
-      ...formData,
-      nomeNegocio: value,
-      urlNegocio: generateSlug(value)
-    });
+  const handleBarbeariaNameChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      nomeBarbearia: value,
+      urlBarbearia: generateSlug(value)
+    }));
   };
 
   const handleSignup = async (e) => {
@@ -70,21 +73,27 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
 
-      if (!formData.urlNegocio || formData.urlNegocio.length < 3) {
-        throw new Error('URL do negócio inválida');
+      if (!formData.urlBarbearia || formData.urlBarbearia.length < 3) {
+        throw new Error('URL da barbearia inválida');
       }
 
-      // 1) Verificar slug
-      const { data: existing, error: slugError } = await supabase
+      console.log('📝 Iniciando cadastro de profissional...');
+
+      // 1) Verificar se slug já existe
+      const { data: existingBarbearia, error: slugError } = await supabase
         .from('barbearias')
         .select('id')
-        .eq('slug', formData.urlNegocio)
+        .eq('slug', formData.urlBarbearia)
         .maybeSingle();
 
       if (slugError) throw slugError;
-      if (existing) throw new Error('Esta URL já está em uso.');
+      if (existingBarbearia) {
+        throw new Error('Esta URL já está em uso. Escolha outro nome para a barbearia.');
+      }
 
-      // 2) Criar Auth
+      console.log('✅ Slug disponível');
+
+      // 2) Criar conta no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -97,140 +106,342 @@ export default function SignupProfessional({ onLogin }) {
       });
 
       if (authError) throw authError;
+      if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
+      console.log('✅ Conta criada no Auth:', authData.user.id);
+
+      // 3) Aguardar trigger criar perfil
+      console.log('⏳ Aguardando criação do perfil no banco...');
       await sleep(1500);
 
-      const userId = authData.user.id;
+      // 4) Garantir sessão
+      let sessionUser = authData.user;
+      let hasSession = !!authData.session;
 
-      // 3) Validar perfil
-      const dbType = await fetchProfileTypeWithRetry(userId);
-      if (dbType !== 'professional') {
-        throw new Error('Perfil inválido.');
+      if (!hasSession) {
+        console.log('🔑 Fazendo login...');
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (signInError) {
+          throw new Error(
+            'Conta criada, mas não foi possível iniciar sessão. ' +
+            'Tente fazer login manualmente.'
+          );
+        }
+
+        sessionUser = signInData.user;
+        hasSession = true;
+        console.log('✅ Login realizado');
       }
 
-      // 4) Criar negócio
-      const { data: negocioRows, error: negocioError } = await supabase
+      if (!hasSession) {
+        throw new Error('Não foi possível iniciar sessão. Tente fazer login manualmente.');
+      }
+
+      const userId = sessionUser.id;
+
+      // 5) Buscar tipo com retry
+      console.log('⏳ Buscando perfil do usuário...');
+      const dbType = await fetchProfileTypeWithRetry(userId);
+
+      if (!dbType) {
+        throw new Error(
+          'Perfil não foi criado no banco. Verifique se o trigger está ativo. ' +
+          'Tente fazer login novamente em alguns segundos.'
+        );
+      }
+
+      if (dbType !== 'professional') {
+        throw new Error('Perfil criado com tipo incorreto. Verifique o cadastro.');
+      }
+
+      console.log('✅ Perfil validado:', dbType);
+
+      // 6) Criar barbearia
+      console.log('🏪 Criando barbearia...');
+      const { data: barbeariaRows, error: barbeariaError } = await supabase
         .from('barbearias')
-        .insert([{
-          owner_id: userId,
-          nome: formData.nomeNegocio,
-          slug: formData.urlNegocio,
-          tipo_negocio: formData.tipoNegocio,
-          descricao: formData.descricao,
-          telefone: formData.telefone,
-          endereco: formData.endereco
-        }])
+        .insert([
+          {
+            owner_id: userId,
+            nome: formData.nomeBarbearia,
+            slug: formData.urlBarbearia,
+            descricao: formData.descricao,
+            telefone: formData.telefone,
+            endereco: formData.endereco
+          }
+        ])
         .select('id')
         .limit(1);
 
-      if (negocioError) throw negocioError;
+      if (barbeariaError) {
+        console.error('❌ Erro ao criar barbearia:', barbeariaError);
+        throw new Error('Erro ao criar barbearia: ' + barbeariaError.message);
+      }
 
-      const negocioId = negocioRows[0].id;
+      const barbeariaId = barbeariaRows?.[0]?.id;
+      if (!barbeariaId) {
+        throw new Error('Barbearia criada mas ID não retornado. Verifique as policies RLS.');
+      }
 
-      // 5) Criar profissional
+      console.log('✅ Barbearia criada:', barbeariaId);
+
+      // 7) Criar profissional
+      console.log('👤 Criando profissional...');
       const { error: profissionalError } = await supabase
         .from('profissionais')
-        .insert([{
-          barbearia_id: negocioId,
-          user_id: userId,
-          nome: formData.nome,
-          especialidade: formData.especialidade,
-          anos_experiencia: parseInt(formData.anosExperiencia) || 0
-        }]);
+        .insert([
+          {
+            barbearia_id: barbeariaId,
+            user_id: userId,
+            nome: formData.nome,
+            anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
+          }
+        ]);
 
-      if (profissionalError) throw profissionalError;
+      if (profissionalError) {
+        console.error('❌ Erro ao criar profissional:', profissionalError);
+        throw new Error('Erro ao criar profissional: ' + profissionalError.message);
+      }
 
-      onLogin(authData.user, 'professional');
+      console.log('✅ Profissional criado!');
+
+      // 8) Login no app
+      onLogin(sessionUser, 'professional');
+      console.log('🎉 Cadastro completo! Redirecionando...');
       navigate('/dashboard');
-
     } catch (err) {
-      await supabase.auth.signOut();
-      setError(err.message || 'Erro ao criar conta.');
+      console.error('❌ Erro no cadastro:', err);
+
+      // NÃO deslogar se for apenas timing de perfil
+      if (!String(err?.message || '').includes('Perfil não foi criado')) {
+        await supabase.auth.signOut();
+      }
+
+      setError(err?.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/login" className="inline-flex items-center gap-2 text-gray-400 mb-6">
-          <ArrowLeft className="w-4 h-4" /> Voltar
+    <div className="min-h-screen bg-black text-white py-8 px-4 sm:px-6 lg:px-8">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-20 right-20 w-64 h-64 sm:w-96 sm:h-96 bg-primary/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-20 w-80 h-80 sm:w-96 sm:h-96 bg-yellow-600/20 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="relative z-10 w-full max-w-2xl mx-auto">
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6 font-bold"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Login
         </Link>
 
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
-          <h1 className="text-3xl font-black text-center mb-6">CADASTRO PROFISSIONAL</h1>
+        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 sm:p-8 shadow-2xl">
+          <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center">
+              <Award className="w-7 h-7 sm:w-8 sm:h-8 text-black" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black">CADASTRO</h1>
+              <p className="text-xs text-primary font-bold -mt-1">PROFISSIONAL</p>
+            </div>
+          </div>
 
-          <form onSubmit={handleSignup} className="space-y-4">
+          <div className="text-center mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-black mb-2">Criar Sua Vitrine</h2>
+            <p className="text-sm sm:text-base text-gray-400">
+              Comece a receber agendamentos hoje
+            </p>
+          </div>
 
-            {/* Nome */}
-            <input
-              placeholder="Seu nome completo"
-              value={formData.nome}
-              onChange={e => setFormData({ ...formData, nome: e.target.value })}
-              className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
-              required
-            />
+          <form onSubmit={handleSignup} className="space-y-4 sm:space-y-5">
+            <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">Seu Nome Completo *</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    placeholder="João Silva"
+                    className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                    required
+                  />
+                </div>
+              </div>
 
-            {/* Tipo de negócio */}
-            <input
-              placeholder="Tipo do negócio (ex: Barbearia, Salão, Manicure)"
-              value={formData.tipoNegocio}
-              onChange={e => setFormData({ ...formData, tipoNegocio: e.target.value })}
-              className="input"
-              required
-            />
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">Telefone (WhatsApp) *</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="tel"
+                    value={formData.telefone}
+                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                    placeholder="(11) 99999-9999"
+                    className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
 
-            {/* Nome do negócio */}
-            <input
-              placeholder="Nome do seu negócio"
-              value={formData.nomeNegocio}
-              onChange={e => handleNegocioNameChange(e.target.value)}
-              className="input"
-              required
-            />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Nome da Barbearia *</label>
+              <input
+                type="text"
+                value={formData.nomeBarbearia}
+                onChange={(e) => handleBarbeariaNameChange(e.target.value)}
+                placeholder="Barbearia Elite"
+                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                required
+              />
+            </div>
 
-            {/* Especialidade */}
-            <input
-              placeholder="Sua especialidade (ex: Barbeiro, Manicure)"
-              value={formData.especialidade}
-              onChange={e => setFormData({ ...formData, especialidade: e.target.value })}
-              className="input"
-              required
-            />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">URL Única (não pode repetir) *</label>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-sm font-bold">hakon.app/v/</span>
+                <input
+                  type="text"
+                  value={formData.urlBarbearia}
+                  onChange={(e) =>
+                    setFormData({ ...formData, urlBarbearia: generateSlug(e.target.value) })
+                  }
+                  placeholder="barbearia-elite"
+                  className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                  required
+                  pattern="[a-z0-9-]+"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1 font-bold">
+                Apenas letras minúsculas, números e hífens
+              </p>
+            </div>
 
-            {/* Restante */}
-            <input placeholder="Telefone" value={formData.telefone}
-              onChange={e => setFormData({ ...formData, telefone: e.target.value })} className="input" />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Anos de Experiência *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  type="number"
+                  value={formData.anosExperiencia}
+                  onChange={(e) => setFormData({ ...formData, anosExperiencia: e.target.value })}
+                  placeholder="5"
+                  min="0"
+                  max="50"
+                  className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                  required
+                />
+              </div>
+            </div>
 
-            <textarea placeholder="Descrição dos serviços"
-              value={formData.descricao}
-              onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-              className="input" />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Sobre seus Serviços *</label>
+              <div className="relative">
+                <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                <textarea
+                  value={formData.descricao}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  placeholder="Ex: Referência em cuidados detalhistas, unindo técnica avançada..."
+                  rows={3}
+                  className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
+                  required
+                />
+              </div>
+            </div>
 
-            <input placeholder="Endereço"
-              value={formData.endereco}
-              onChange={e => setFormData({ ...formData, endereco: e.target.value })}
-              className="input" />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Endereço da Barbearia *</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  type="text"
+                  value={formData.endereco}
+                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                  placeholder="Rua Exemplo, 123 - Centro"
+                  className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                  required
+                />
+              </div>
+            </div>
 
-            <input type="email" placeholder="Email"
-              value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
-              className="input" required />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Email *</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="seu@email.com"
+                  className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                  required
+                />
+              </div>
+            </div>
 
-            <input type="password" placeholder="Senha"
-              value={formData.password}
-              onChange={e => setFormData({ ...formData, password: e.target.value })}
-              className="input" required />
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Senha *</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full pl-11 pr-12 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
 
-            {error && <div className="text-red-400">{error}</div>}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm font-bold animate-fade-in">
+                {error}
+              </div>
+            )}
 
-            <button type="submit" disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black">
-              {loading ? 'CRIANDO...' : 'CRIAR CONTA'}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 sm:py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {loading ? 'CRIANDO VITRINE...' : 'CRIAR MINHA VITRINE'}
             </button>
 
+            <div className="text-center pt-4 border-t border-gray-800">
+              <p className="text-sm text-gray-400 mb-2">Já tem uma conta?</p>
+              <Link
+                to="/login"
+                className="text-primary hover:text-yellow-500 font-black text-sm transition-colors"
+              >
+                FAZER LOGIN →
+              </Link>
+            </div>
           </form>
+        </div>
+
+        <div className="mt-6 bg-primary/10 border border-primary/30 rounded-custom p-4">
+          <p className="text-xs sm:text-sm text-primary font-bold text-center">
+            🔥 Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais
+          </p>
         </div>
       </div>
     </div>
