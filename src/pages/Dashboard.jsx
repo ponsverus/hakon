@@ -1665,7 +1665,7 @@ export default function Dashboard({ user, onLogout }) {
                           <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
                           <button
                             onClick={() => removerImagemGaleria(url)}
-                            className="absolute top-2 right-2 px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400 text-[8px] text-red-200 font-normal uppercase"
+                            className="absolute top-2 right-2 px-3 py-2 rounded-full bg-black/60 border border-gray-700 hover:border-red-400 text-[12px] text-red-200 font-normal uppercase"
                             title="Remover"
                           >
                             REMOVER
