@@ -37,8 +37,9 @@ export default function SignupProfessional({ onLogin }) {
     email: '',
     password: '',
     telefone: '',
-    nomeBarbearia: '',
-    urlBarbearia: '',
+    nomeNegocio: '',
+    urlNegocio: '',
+    tipoNegocio: '', // ✅ NOVO (coluna tipo_negocio em negocios)
     anosExperiencia: '',
     descricao: '',
     endereco: ''
@@ -55,11 +56,11 @@ export default function SignupProfessional({ onLogin }) {
       .replace(/^-+|-+$/g, '');
   };
 
-  const handleBarbeariaNameChange = (value) => {
+  const handleNegocioNameChange = (value) => {
     setFormData((prev) => ({
       ...prev,
-      nomeBarbearia: value,
-      urlBarbearia: generateSlug(value)
+      nomeNegocio: value,
+      urlNegocio: generateSlug(value)
     }));
   };
 
@@ -73,22 +74,26 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('A senha deve ter no mínimo 6 caracteres');
       }
 
-      if (!formData.urlBarbearia || formData.urlBarbearia.length < 3) {
-        throw new Error('URL da barbearia inválida');
+      if (!formData.urlNegocio || formData.urlNegocio.length < 3) {
+        throw new Error('URL do negócio inválida');
+      }
+
+      if (!String(formData.tipoNegocio || '').trim()) {
+        throw new Error('Tipo de negócio é obrigatório');
       }
 
       console.log('📝 Iniciando cadastro de profissional...');
 
       // 1) Verificar se slug já existe
-      const { data: existingBarbearia, error: slugError } = await supabase
-        .from('barbearias')
+      const { data: existingNegocio, error: slugError } = await supabase
+        .from('negocios')
         .select('id')
-        .eq('slug', formData.urlBarbearia)
+        .eq('slug', formData.urlNegocio)
         .maybeSingle();
 
       if (slugError) throw slugError;
-      if (existingBarbearia) {
-        throw new Error('Esta URL já está em uso. Escolha outro nome para a barbearia.');
+      if (existingNegocio) {
+        throw new Error('Esta URL já está em uso. Escolha outro nome para o negócio.');
       }
 
       console.log('✅ Slug disponível');
@@ -160,42 +165,43 @@ export default function SignupProfessional({ onLogin }) {
 
       console.log('✅ Perfil validado:', dbType);
 
-      // 6) Criar barbearia
-      console.log('🏪 Criando barbearia...');
-      const { data: barbeariaRows, error: barbeariaError } = await supabase
-        .from('barbearias')
+      // 6) Criar NEGÓCIO (com tipo_negocio)
+      console.log('🏪 Criando negócio...');
+      const { data: negocioRows, error: negocioError } = await supabase
+        .from('negocios')
         .insert([
           {
             owner_id: userId,
-            nome: formData.nomeBarbearia,
-            slug: formData.urlBarbearia,
-            descricao: formData.descricao,
-            telefone: formData.telefone,
-            endereco: formData.endereco
+            nome: String(formData.nomeNegocio || '').trim(),
+            slug: String(formData.urlNegocio || '').trim(),
+            tipo_negocio: String(formData.tipoNegocio || '').trim(), // ✅ aqui
+            descricao: String(formData.descricao || '').trim(),
+            telefone: String(formData.telefone || '').trim(),
+            endereco: String(formData.endereco || '').trim()
           }
         ])
         .select('id')
         .limit(1);
 
-      if (barbeariaError) {
-        console.error('❌ Erro ao criar barbearia:', barbeariaError);
-        throw new Error('Erro ao criar barbearia: ' + barbeariaError.message);
+      if (negocioError) {
+        console.error('❌ Erro ao criar negócio:', negocioError);
+        throw new Error('Erro ao criar negócio: ' + negocioError.message);
       }
 
-      const barbeariaId = barbeariaRows?.[0]?.id;
-      if (!barbeariaId) {
-        throw new Error('Barbearia criada mas ID não retornado. Verifique as policies RLS.');
+      const negocioId = negocioRows?.[0]?.id;
+      if (!negocioId) {
+        throw new Error('Negócio criado mas ID não retornado. Verifique as policies RLS.');
       }
 
-      console.log('✅ Barbearia criada:', barbeariaId);
+      console.log('✅ Negócio criado:', negocioId);
 
-      // 7) Criar profissional
+      // 7) Criar profissional (com negocio_id)
       console.log('👤 Criando profissional...');
       const { error: profissionalError } = await supabase
         .from('profissionais')
         .insert([
           {
-            barbearia_id: barbeariaId,
+            negocio_id: negocioId,
             user_id: userId,
             nome: formData.nome,
             anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
@@ -295,12 +301,12 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Nome da Barbearia *</label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Nome do Negócio *</label>
               <input
                 type="text"
-                value={formData.nomeBarbearia}
-                onChange={(e) => handleBarbeariaNameChange(e.target.value)}
-                placeholder="Barbearia Elite"
+                value={formData.nomeNegocio}
+                onChange={(e) => handleNegocioNameChange(e.target.value)}
+                placeholder="Ex: Elite Barbers"
                 className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                 required
               />
@@ -312,11 +318,11 @@ export default function SignupProfessional({ onLogin }) {
                 <span className="text-gray-500 text-sm font-bold">hakon.app/v/</span>
                 <input
                   type="text"
-                  value={formData.urlBarbearia}
+                  value={formData.urlNegocio}
                   onChange={(e) =>
-                    setFormData({ ...formData, urlBarbearia: generateSlug(e.target.value) })
+                    setFormData({ ...formData, urlNegocio: generateSlug(e.target.value) })
                   }
-                  placeholder="barbearia-elite"
+                  placeholder="elite-barbers"
                   className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                   required
                   pattern="[a-z0-9-]+"
@@ -325,6 +331,19 @@ export default function SignupProfessional({ onLogin }) {
               <p className="text-xs text-gray-500 mt-1 font-bold">
                 Apenas letras minúsculas, números e hífens
               </p>
+            </div>
+
+            {/* ✅ NOVO CAMPO (mesmo estilo / sem mexer no design) */}
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Tipo de Negócio *</label>
+              <input
+                type="text"
+                value={formData.tipoNegocio}
+                onChange={(e) => setFormData({ ...formData, tipoNegocio: e.target.value })}
+                placeholder="Ex: barbearia, estética, salão..."
+                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                required
+              />
             </div>
 
             <div>
@@ -360,7 +379,7 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Endereço da Barbearia *</label>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Endereço do Negócio *</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
