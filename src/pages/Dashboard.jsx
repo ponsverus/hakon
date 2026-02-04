@@ -1390,14 +1390,14 @@ export default function Dashboard({ user, onLogout }) {
                                         });
                                         setShowNovoServico(true);
                                       }}
-                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm font-normal uppercase"
+                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-button text-sm font-normal uppercase"
                                     >
                                       EDITAR
                                     </button>
 
                                     <button
                                       onClick={() => deleteServico(s.id)}
-                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom text-sm font-normal uppercase"
+                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-button text-sm font-normal uppercase"
                                     >
                                       EXCLUIR
                                     </button>
