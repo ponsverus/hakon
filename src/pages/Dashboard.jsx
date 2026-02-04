@@ -335,7 +335,7 @@ export default function Dashboard({ user, onLogout }) {
       const { error: dbErr } = await supabase
         .from('barbearias')
         .update({ logo_url: publicUrl })
-        .eq('id', barbearia.id);
+        .eq('id', negocio.id);
 
       if (dbErr) throw dbErr;
 
