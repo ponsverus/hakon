@@ -1876,7 +1876,7 @@ export default function Dashboard({ user, onLogout }) {
               {/* ✅ Dias mais “compridos” no mobile: 4 colunas no mobile e 7 no desktop */}
               <div>
                 <label className="block text-sm mb-2">Dias de trabalho</label>
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
                   {WEEKDAYS.map(d => {
                     const active = (formProfissional.dias_trabalho || []).includes(d.i);
                     return (
