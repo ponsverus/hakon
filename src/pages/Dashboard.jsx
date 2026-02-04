@@ -101,7 +101,7 @@ function InputWithChevron({ children }) {
   return (
     <div className="relative">
       {children}
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full bg-dark-100 border border-gray-800 text-gray-400 text-xs">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full bg-dark-100 border border-gray-800 text-gray-400 text-xs">
         ▾
       </span>
     </div>
