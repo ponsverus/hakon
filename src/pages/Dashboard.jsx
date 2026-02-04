@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Plus, X, ExternalLink, Eye, Copy, Check, Calendar,
   Users, TrendingUp, Award, LogOut, AlertCircle, Clock,
-  Image as ImageIcon, Save
+  Save
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -63,7 +63,6 @@ const WEEKDAYS = [
   { i: 6, label: 'SÁB' },
 ];
 
-// ✅ Normaliza e GARANTE que domingo seja 0 (e não 7)
 function normalizeDiasTrabalho(arr) {
   const base = Array.isArray(arr) ? arr : [];
   const cleaned = base
@@ -75,7 +74,6 @@ function normalizeDiasTrabalho(arr) {
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
 
-// ✅ Data segura: YYYY-MM-DD -> DD/MM/YYYY (sem Date/UTC)
 function formatDateBRFromISO(dateStr) {
   if (!dateStr) return '';
   const [y, m, d] = String(dateStr).split('-');
@@ -83,7 +81,6 @@ function formatDateBRFromISO(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-// ✅ INPUT DATE "BOTÃO" (sem setinha) + bolinha amarela só visual
 function DateFilterButton({ value, onChange, title }) {
   return (
     <div className="relative inline-flex">
@@ -95,6 +92,18 @@ function DateFilterButton({ value, onChange, title }) {
         className="date-no-arrow px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-base text-center pr-10 w-[160px] cursor-pointer"
       />
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-yellow-400" />
+    </div>
+  );
+}
+
+// ✅ Wrapper para SELECT/TIME com “setinha” um pouco mais à esquerda e com bordas arredondadas
+function InputWithChevron({ children }) {
+  return (
+    <div className="relative">
+      {children}
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full bg-dark-100 border border-gray-800 text-gray-400 text-xs">
+        ▾
+      </span>
     </div>
   );
 }
@@ -112,27 +121,18 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
-  // ✅ FIX CRÍTICO: usar getNowSP() ao invés de new Date().toISOString()
   const hoje = useMemo(() => getNowSP().date, []);
-
-  // Histórico (data selecionada)
   const [historicoData, setHistoricoData] = useState(hoje);
-
-  // ✅ Filtro de faturamento (AGORA usado na VISÃO GERAL)
   const [faturamentoData, setFaturamentoData] = useState(hoje);
 
-  // Modais
   const [showNovoServico, setShowNovoServico] = useState(false);
   const [showNovoProfissional, setShowNovoProfissional] = useState(false);
 
-  // Edição
   const [editingServicoId, setEditingServicoId] = useState(null);
   const [editingProfissional, setEditingProfissional] = useState(null);
 
-  // Logo
   const [logoUploading, setLogoUploading] = useState(false);
 
-  // Forms
   const [formServico, setFormServico] = useState({
     nome: '',
     duracao_minutos: '',
@@ -140,8 +140,6 @@ export default function Dashboard({ user, onLogout }) {
     profissional_id: ''
   });
 
-  // ✅ dias_trabalho (coluna real) — NÃO MEXIDO
-  // ✅ adicionados: especialidade + almoço (almoco_inicio/almoco_fim)
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
     especialidade: '',
@@ -150,14 +148,12 @@ export default function Dashboard({ user, onLogout }) {
     horario_fim: '18:00',
     almoco_inicio: '',
     almoco_fim: '',
-    dias_trabalho: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
+    dias_trabalho: [1, 2, 3, 4, 5, 6]
   });
 
-  // ✅ Info do negócio
   const [infoSaving, setInfoSaving] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
-  // ✅ galeria no singular
   const [formInfo, setFormInfo] = useState({
     nome: '',
     descricao: '',
@@ -165,7 +161,7 @@ export default function Dashboard({ user, onLogout }) {
     endereco: '',
     instagram: '',
     facebook: '',
-    galeria: [] // array de URLs
+    galeria: []
   });
 
   useEffect(() => {
@@ -204,7 +200,6 @@ export default function Dashboard({ user, onLogout }) {
 
       setNegocio(negocioData);
 
-      // ✅ preenche form de info
       setFormInfo({
         nome: negocioData.nome || '',
         descricao: negocioData.descricao || '',
@@ -215,7 +210,6 @@ export default function Dashboard({ user, onLogout }) {
         galeria: Array.isArray(negocioData.galeria) ? negocioData.galeria : []
       });
 
-      // Profissionais
       const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
         .select('*')
@@ -236,7 +230,6 @@ export default function Dashboard({ user, onLogout }) {
 
       const ids = profs.map(p => p.id);
 
-      // Serviços
       const { data: servicosData, error: servErr } = await supabase
         .from('servicos')
         .select('*, profissionais (nome)')
@@ -246,7 +239,6 @@ export default function Dashboard({ user, onLogout }) {
       if (servErr) throw servErr;
       setServicos(servicosData || []);
 
-      // Agendamentos
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
         .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
@@ -271,7 +263,7 @@ export default function Dashboard({ user, onLogout }) {
               (dataA < now.date) ||
               (dataA === now.date && fimMin <= now.minutes);
 
-            if (passou) toUpdate.push(a.id);
+            if (passou && !String(a.status || '').includes('cancelado')) toUpdate.push(a.id);
           }
         }
 
@@ -311,7 +303,6 @@ export default function Dashboard({ user, onLogout }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // ===================== LOGO (upload + salvar URL) =====================
   const uploadLogoNegocio = async (file) => {
     if (!file) return;
     if (!user?.id) return alert('Sessão inválida.');
@@ -334,11 +325,7 @@ export default function Dashboard({ user, onLogout }) {
 
       if (upErr) throw upErr;
 
-      const { data: pub } = supabase
-        .storage
-        .from('logos')
-        .getPublicUrl(filePath);
-
+      const { data: pub } = supabase.storage.from('logos').getPublicUrl(filePath);
       const publicUrl = pub?.publicUrl;
       if (!publicUrl) throw new Error('Não foi possível gerar a URL pública da logo.');
 
@@ -359,7 +346,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ===================== INFO NEGÓCIO =====================
   const salvarInfoNegocio = async () => {
     if (!negocio?.id) return alert('Negócio não carregado.');
     try {
@@ -481,7 +467,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ===================== SERVIÇOS =====================
   const createServico = async (e) => {
     e.preventDefault();
     try {
@@ -561,7 +546,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ===================== PROFISSIONAIS =====================
   const createProfissional = async (e) => {
     e.preventDefault();
     try {
@@ -621,7 +605,7 @@ export default function Dashboard({ user, onLogout }) {
         horario_fim: formProfissional.horario_fim,
         almoco_inicio: String(formProfissional.almoco_inicio || '').trim() || null,
         almoco_fim: String(formProfissional.almoco_fim || '').trim() || null,
-        dias_trabalho: dias, // ✅ salva domingo=0
+        dias_trabalho: dias,
       };
 
       if (!payload.nome) throw new Error('Nome é obrigatório.');
@@ -643,7 +627,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ✅ Ativar / Inativar + motivo (corrigido: CANCELAR não aplica)
   const toggleAtivoProfissional = async (p) => {
     try {
       if (p.ativo === undefined) {
@@ -652,10 +635,8 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       const novoAtivo = !p.ativo;
-
       let motivo = null;
 
-      // Se vai INATIVAR, abrir prompt. Se cancelar, NÃO FAZ NADA.
       if (!novoAtivo) {
         const r = prompt('Motivo (opcional) para inativar este profissional:');
         if (r === null) return;
@@ -700,7 +681,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ===================== AGENDAMENTOS =====================
   const confirmarAtendimento = async (id) => {
     try {
       const { error: updErr } = await supabase
@@ -718,7 +698,6 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ======= Visão Geral + Histórico =======
   const agendamentosHoje = useMemo(
     () => agendamentos.filter(a => sameDay(a.data, hoje)),
     [agendamentos, hoje]
@@ -834,7 +813,6 @@ export default function Dashboard({ user, onLogout }) {
       });
   }, [agendamentos, hoje]);
 
-  // ======= Status do profissional (ABERTO/FECHADO/ALMOÇO) =======
   const getProfStatus = (p) => {
     const ativo = (p.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -872,7 +850,6 @@ export default function Dashboard({ user, onLogout }) {
     return map;
   }, [profissionais, servicos]);
 
-  // ====== UI ======
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
@@ -925,9 +902,19 @@ export default function Dashboard({ user, onLogout }) {
           opacity: 0;
           cursor: pointer;
         }
+
+        /* select/time sem “setinha colada” (mantém o picker, só esconde o indicador) */
+        .no-native-indicator {
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+        }
+        .no-native-indicator::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+        }
       `}</style>
 
-      {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
@@ -993,7 +980,6 @@ export default function Dashboard({ user, onLogout }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats do topo */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
             <div className="mb-2 flex items-center gap-2">
@@ -1030,7 +1016,6 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Link Vitrine */}
         <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
           <h3 className="text-lg font-normal mb-3 flex items-center gap-2 uppercase">
             <ExternalLink className="w-5 h-5 text-primary" />SUA VITRINE
@@ -1052,7 +1037,6 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
             {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
@@ -1069,7 +1053,6 @@ export default function Dashboard({ user, onLogout }) {
           </div>
 
           <div className="p-6">
-            {/* VISÃO GERAL */}
             {activeTab === 'visao-geral' && (
               <div className="space-y-6">
                 <div className="grid md:grid-cols-3 gap-4">
@@ -1089,7 +1072,7 @@ export default function Dashboard({ user, onLogout }) {
                     </div>
                   </div>
 
-                  <div className="bg-dark-200 border border-gray-800 rounded_custom p-5">
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 mb-2">PRÓXIMO AGENDAMENTO</div>
                     {proximoAgendamento ? (
                       <>
@@ -1107,7 +1090,6 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* FATURAMENTO */}
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h3 className="text-lg font-normal flex items-center gap-2 uppercase">
@@ -1129,9 +1111,8 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="text-3xl font-normal text-white mb-2">
                     R$ {faturamentoDoDiaSelecionado.toFixed(2)}
                   </div>
-                  <div className="text-sm text-gray-400 mb-4">
-                    Concluídos em {formatDateBRFromISO(faturamentoData)}
-                  </div>
+
+                  {/* ✅ removido o texto duplicado "Concluídos em ..." */}
 
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
@@ -1172,49 +1153,21 @@ export default function Dashboard({ user, onLogout }) {
                     </div>
                   )}
                 </div>
-
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <h3 className="text-lg font-normal mb-3">Resumo rápido</h3>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-xs text-gray-500">TOTAL HOJE</div>
-                      <div className="text-2xl font-normal">{agendamentosHoje.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">VÁLIDOS HOJE</div>
-                      <div className="text-2xl font-normal">{hojeValidos.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">CANCELADOS HOJE</div>
-                      <div className="text-2xl font-normal">{hojeCancelados.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">FATURAMENTO HOJE</div>
-                      <div className="text-2xl font-normal">
-                        R$ {agendamentosHoje
-                          .filter(a => a.status === 'concluido')
-                          .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
-                          .toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-sm text-gray-500">
-                  Dica: essa visão geral "reflete movimento real" e te ajuda a bater o olho e entender o dia.
-                </div>
               </div>
             )}
 
-            {/* AGENDAMENTOS */}
+            {/* ✅ AGENDAMENTOS: FUTURO só quando data > hoje; no dia da execução some FUTURO e fica AGENDADO */}
+            {/* ✅ FUTURO + AGENDADO juntos quando for futuro */}
             {activeTab === 'agendamentos' && (
               <div>
                 <h2 className="text-2xl font-normal mb-6">Agendamentos</h2>
                 {agendamentosHojeEFuturos.length > 0 ? (
                   <div className="space-y-4">
                     {agendamentosHojeEFuturos.map(a => {
-                      const isFuturo = !sameDay(a.data, hoje) && String(a.data || '') > String(hoje || '');
-                      const isHoje = sameDay(a.data, hoje);
+                      const dataA = String(a.data || '');
+                      const isFuturo = dataA > String(hoje || '');
+                      const isHoje = dataA === String(hoje || '');
+                      const isDone = a.status === 'concluido';
 
                       return (
                         <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
@@ -1226,19 +1179,25 @@ export default function Dashboard({ user, onLogout }) {
                               </p>
                             </div>
 
-                            {a.status === 'concluido' ? (
-                              <div className="px-3 py-1 rounded-button text-xs bg-green-500/20 text-green-400">
-                                Concluído
-                              </div>
-                            ) : isFuturo ? (
-                              <div className="px-3 py-1 rounded-button text-xs bg-yellow-500/20 text-yellow-300">
-                                FUTURO
-                              </div>
-                            ) : (
-                              <div className="px-3 py-1 rounded-button text-xs bg-blue-500/20 text-blue-400">
-                                AGENDADO
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isDone ? (
+                                <div className="px-3 py-1 rounded-button text-xs bg-green-500/20 text-green-400">
+                                  CONCLUÍDO
+                                </div>
+                              ) : (
+                                <>
+                                  {isFuturo && (
+                                    <div className="px-3 py-1 rounded-button text-xs bg-yellow-500/20 text-yellow-300">
+                                      FUTURO
+                                    </div>
+                                  )}
+                                  {/* ✅ AGENDADO sempre aparece até concluir */}
+                                  <div className="px-3 py-1 rounded-button text-xs bg-blue-500/20 text-blue-400">
+                                    AGENDADO
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1256,7 +1215,7 @@ export default function Dashboard({ user, onLogout }) {
                             </div>
                           </div>
 
-                          {a.status !== 'concluido' && isHoje && (
+                          {!isDone && isHoje && (
                             <button
                               onClick={() => confirmarAtendimento(a.id)}
                               className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom text-sm font-normal uppercase"
@@ -1274,7 +1233,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* CANCELADOS */}
             {activeTab === 'cancelados' && (
               <div>
                 <h2 className="text-2xl font-normal mb-6">Agendamentos Cancelados (Hoje)</h2>
@@ -1318,7 +1276,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* HISTÓRICO */}
             {activeTab === 'historico' && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -1376,7 +1333,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* SERVIÇOS */}
             {activeTab === 'servicos' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1460,7 +1416,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* PROFISSIONAIS */}
+            {/* ✅ PROFISSIONAIS: botões arredondados (rounded-button) */}
             {activeTab === 'profissionais' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1537,7 +1493,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => toggleAtivoProfissional(p)}
-                            className={`flex-1 py-2 rounded-custom text-sm border font-normal uppercase ${
+                            className={`flex-1 py-2 rounded-button text-sm border font-normal uppercase ${
                               ativo
                                 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
                                 : 'bg-green-500/10 border-green-500/30 text-green-300'
@@ -1548,7 +1504,7 @@ export default function Dashboard({ user, onLogout }) {
 
                           <button
                             onClick={() => excluirProfissional(p)}
-                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom text-sm font-normal uppercase"
+                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-button text-sm font-normal uppercase"
                           >
                             EXCLUIR
                           </button>
@@ -1575,7 +1531,7 @@ export default function Dashboard({ user, onLogout }) {
                             });
                             setShowNovoProfissional(true);
                           }}
-                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm font-normal uppercase"
+                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-button text-sm font-normal uppercase"
                         >
                           EDITAR
                         </button>
@@ -1586,7 +1542,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* INFO NEGÓCIO */}
             {activeTab === 'info-negocio' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-3">
@@ -1669,7 +1624,6 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* GALERIA */}
                 <div className="bg-dark-200 border border-gray-800 rounded-custom p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -1729,10 +1683,10 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </div>
 
-      {/* Modal Serviço */}
+      {/* ✅ Modal Serviço (com scroll também, caso estoure no desktop) */}
       {showNovoServico && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-normal">{editingServicoId ? 'EDITAR SERVIÇO' : 'NOVO SERVIÇO'}</h3>
               <button
@@ -1749,19 +1703,21 @@ export default function Dashboard({ user, onLogout }) {
             <form onSubmit={editingServicoId ? updateServico : createServico} className="space-y-4">
               <div>
                 <label className="block text-sm mb-2">Profissional</label>
-                <select
-                  value={formServico.profissional_id}
-                  onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                >
-                  <option value="">Selecione</option>
-                  {profissionais
-                    .filter(p => (p.ativo === undefined ? true : !!p.ativo))
-                    .map(p => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
-                </select>
+                <InputWithChevron>
+                  <select
+                    value={formServico.profissional_id}
+                    onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
+                    className="no-native-indicator w-full px-4 py-3 pr-12 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    required
+                  >
+                    <option value="">Selecione</option>
+                    {profissionais
+                      .filter(p => (p.ativo === undefined ? true : !!p.ativo))
+                      .map(p => (
+                        <option key={p.id} value={p.id}>{p.nome}</option>
+                      ))}
+                  </select>
+                </InputWithChevron>
               </div>
 
               <div>
@@ -1806,10 +1762,10 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       )}
 
-      {/* Modal Profissional */}
+      {/* ✅ Modal Profissional: scroll no DESKTOP também (max-h + overflow-y-auto) */}
       {showNovoProfissional && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-normal">{editingProfissional ? 'EDITAR PROFISSIONAL' : 'NOVO PROFISSIONAL'}</h3>
               <button
@@ -1868,52 +1824,59 @@ export default function Dashboard({ user, onLogout }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm mb-2">Início</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_inicio}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
+                  <InputWithChevron>
+                    <input
+                      type="time"
+                      value={formProfissional.horario_inicio}
+                      onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
+                      className="no-native-indicator w-full px-4 py-3 pr-12 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                      required
+                    />
+                  </InputWithChevron>
                 </div>
                 <div>
                   <label className="block text-sm mb-2">Fim</label>
-                  <input
-                    type="time"
-                    value={formProfissional.horario_fim}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
-                  />
+                  <InputWithChevron>
+                    <input
+                      type="time"
+                      value={formProfissional.horario_fim}
+                      onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
+                      className="no-native-indicator w-full px-4 py-3 pr-12 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                      required
+                    />
+                  </InputWithChevron>
                 </div>
               </div>
 
-              {/* ✅ Almoço */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm mb-2">Almoço (Início)</label>
-                  <input
-                    type="time"
-                    value={formProfissional.almoco_inicio}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, almoco_inicio: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  />
+                  <InputWithChevron>
+                    <input
+                      type="time"
+                      value={formProfissional.almoco_inicio}
+                      onChange={(e) => setFormProfissional({ ...formProfissional, almoco_inicio: e.target.value })}
+                      className="no-native-indicator w-full px-4 py-3 pr-12 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    />
+                  </InputWithChevron>
                 </div>
                 <div>
                   <label className="block text-sm mb-2">Almoço (Fim)</label>
-                  <input
-                    type="time"
-                    value={formProfissional.almoco_fim}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, almoco_fim: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  />
+                  <InputWithChevron>
+                    <input
+                      type="time"
+                      value={formProfissional.almoco_fim}
+                      onChange={(e) => setFormProfissional({ ...formProfissional, almoco_fim: e.target.value })}
+                      className="no-native-indicator w-full px-4 py-3 pr-12 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    />
+                  </InputWithChevron>
                 </div>
               </div>
 
-              {/* ✅ Dias de trabalho REAL (dias_trabalho) - só arredondado como botão */}
+              {/* ✅ Dias mais “compridos” no mobile: 4 colunas no mobile e 7 no desktop */}
               <div>
                 <label className="block text-sm mb-2">Dias de trabalho</label>
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                   {WEEKDAYS.map(d => {
                     const active = (formProfissional.dias_trabalho || []).includes(d.i);
                     return (
