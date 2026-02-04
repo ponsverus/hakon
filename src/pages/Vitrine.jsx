@@ -293,7 +293,7 @@ export default function Vitrine({ user, userType }) {
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
-          .select(`*, users (nome), profissionais (nome)`)
+          .select(`*, users (nome), profissionais (nome), negocios (nome)`)
           .eq('negocio_id', barbeariaData.id)
           .order('created_at', { ascending: false })
           .limit(10),
