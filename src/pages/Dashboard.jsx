@@ -101,7 +101,7 @@ function InputWithChevron({ children }) {
   return (
     <div className="relative">
       {children}
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full bg-dark-100 border border-gray-800 text-gray-400 text-xs">
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full bg-dark-100 border border-gray-800 text-gray-400 text-xs">
         ▾
       </span>
     </div>
@@ -1486,7 +1486,7 @@ export default function Dashboard({ user, onLogout }) {
                           <Clock className="w-4 h-4 inline mr-1" />
                           {p.horario_inicio} - {p.horario_fim}
                           {p.almoco_inicio && p.almoco_fim ? (
-                            <span className="ml-2 text-yellow-300">• ALMOÇO {p.almoco_inicio}-{p.almoco_fim}</span>
+                            <span className="ml-2 text-yellow-300">• ALMOÇO {p.almoco_inicio} - {p.almoco_fim}</span>
                           ) : null}
                         </div>
 
