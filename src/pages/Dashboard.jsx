@@ -21,6 +21,12 @@ function timeToMinutes(t) {
   return (h * 60) + (m || 0);
 }
 
+function minutesToTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function getNowSP() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -95,7 +101,6 @@ function DateFilterButton({ value, onChange, title }) {
         title={title}
         className="date-no-arrow px-4 py-2 bg-dark-200 border border-gray-800 rounded-button text-white text-base text-center pr-10 w-[160px] cursor-pointer"
       />
-      {/* bolinha amarela no lugar da setinha (não captura clique) */}
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-yellow-400" />
     </div>
   );
@@ -104,7 +109,7 @@ function DateFilterButton({ value, onChange, title }) {
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
 
-  const [barbearia, setBarbearia] = useState(null);
+  const [negocio, setNegocio] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [agendamentos, setAgendamentos] = useState([]);
@@ -120,7 +125,7 @@ export default function Dashboard({ user, onLogout }) {
   // Histórico (data selecionada)
   const [historicoData, setHistoricoData] = useState(hoje);
 
-  // ✅ Filtro de faturamento (AGORA usado na VISÃO GERAL)
+  // ✅ Filtro de faturamento (usado na VISÃO GERAL)
   const [faturamentoData, setFaturamentoData] = useState(hoje);
 
   // Modais
@@ -143,18 +148,23 @@ export default function Dashboard({ user, onLogout }) {
   });
 
   // ✅ dias_trabalho (coluna real) — NÃO MEXIDO
+  // ✅ adicionados: especialidade, almoco_inicio, almoco_fim
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
+    especialidade: '',
     anos_experiencia: '',
     horario_inicio: '08:00',
     horario_fim: '18:00',
+    almoco_inicio: '',
+    almoco_fim: '',
     dias_trabalho: [1, 2, 3, 4, 5, 6] // default SEG-SÁB
   });
 
-  // ✅ Info do negócio (barbearias)
+  // ✅ Info do negócio
   const [infoSaving, setInfoSaving] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
+  // ✅ galeria (singular)
   const [formInfo, setFormInfo] = useState({
     nome: '',
     descricao: '',
@@ -162,13 +172,29 @@ export default function Dashboard({ user, onLogout }) {
     endereco: '',
     instagram: '',
     facebook: '',
-    galerias: [] // array de URLs
+    galeria: [] // array de URLs
   });
 
   useEffect(() => {
     if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // ✅ comparação “passado” sempre em SP
+  const isAgendamentoPassadoSP = (a) => {
+    const now = getNowSP();
+    const d = String(a?.data || '');
+    const hi = String(a?.hora_inicio || '');
+    const hf = String(a?.hora_fim || '');
+
+    if (!d || !hf) return false;
+
+    if (d < now.date) return true;
+    if (d > now.date) return false;
+
+    // mesmo dia: compara fim vs agora
+    return timeToMinutes(hf) <= now.minutes;
+  };
 
   const loadData = async () => {
     if (!user?.id) {
@@ -181,42 +207,43 @@ export default function Dashboard({ user, onLogout }) {
     setError(null);
 
     try {
-      const { data: barbeariaData, error: barbeariaError } = await supabase
-        .from('barbearias')
+      // ✅ negócios
+      const { data: negocioData, error: negocioError } = await supabase
+        .from('negocios')
         .select('*')
         .eq('owner_id', user.id)
         .maybeSingle();
 
-      if (barbeariaError) throw barbeariaError;
+      if (negocioError) throw negocioError;
 
-      if (!barbeariaData) {
-        setBarbearia(null);
+      if (!negocioData) {
+        setNegocio(null);
         setProfissionais([]);
         setServicos([]);
         setAgendamentos([]);
-        setError('Nenhuma barbearia cadastrada.');
+        setError('Nenhum negócio cadastrado.');
         setLoading(false);
         return;
       }
 
-      setBarbearia(barbeariaData);
+      setNegocio(negocioData);
 
-      // ✅ preenche form de info
+      // ✅ preenche form de info (galeria singular)
       setFormInfo({
-        nome: barbeariaData.nome || '',
-        descricao: barbeariaData.descricao || '',
-        telefone: barbeariaData.telefone || '',
-        endereco: barbeariaData.endereco || '',
-        instagram: barbeariaData.instagram || '',
-        facebook: barbeariaData.facebook || '',
-        galerias: Array.isArray(barbeariaData.galerias) ? barbeariaData.galerias : []
+        nome: negocioData.nome || '',
+        descricao: negocioData.descricao || '',
+        telefone: negocioData.telefone || '',
+        endereco: negocioData.endereco || '',
+        instagram: negocioData.instagram || '',
+        facebook: negocioData.facebook || '',
+        galeria: Array.isArray(negocioData.galeria) ? negocioData.galeria : []
       });
 
-      // Profissionais
+      // Profissionais por negocio_id
       const { data: profissionaisData, error: profErr } = await supabase
         .from('profissionais')
         .select('*')
-        .eq('barbearia_id', barbeariaData.id)
+        .eq('negocio_id', negocioData.id)
         .order('created_at', { ascending: false });
 
       if (profErr) throw profErr;
@@ -253,15 +280,12 @@ export default function Dashboard({ user, onLogout }) {
 
       if (agErr) throw agErr;
 
-      // Auto-concluir passados (sem travar UI)
+      // Auto-concluir passados (sem travar UI) — usando SP
       if (ags?.length) {
-        const agora = new Date();
         const toUpdate = [];
-
         for (const a of ags) {
           if (a?.status === 'agendado' || a?.status === 'confirmado') {
-            const dataHoraFim = new Date(`${a.data}T${a.hora_fim}`);
-            if (dataHoraFim < agora) toUpdate.push(a.id);
+            if (isAgendamentoPassadoSP(a)) toUpdate.push(a.id);
           }
         }
 
@@ -295,17 +319,24 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   const copyLink = () => {
-    if (!barbearia) return;
-    navigator.clipboard.writeText(`${window.location.origin}/v/${barbearia.slug}`);
+    if (!negocio) return;
+    navigator.clipboard.writeText(`${window.location.origin}/v/${negocio.slug}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const tipoLabel = useMemo(() => {
+    const t = String(negocio?.tipo_negocio || '').trim().toLowerCase();
+    if (!t) return null;
+    // ✅ “barbearia” só aparece se for o tipo do negócio
+    return t === 'barbearia' ? 'BARBEARIA' : 'NEGÓCIO';
+  }, [negocio?.tipo_negocio]);
+
   // ===================== LOGO (upload + salvar URL) =====================
-  const uploadLogoBarbearia = async (file) => {
+  const uploadLogoNegocio = async (file) => {
     if (!file) return;
     if (!user?.id) return alert('Sessão inválida.');
-    if (!barbearia?.id) return alert('Barbearia não carregada.');
+    if (!negocio?.id) return alert('Negócio não carregado.');
 
     try {
       setLogoUploading(true);
@@ -324,18 +355,14 @@ export default function Dashboard({ user, onLogout }) {
 
       if (upErr) throw upErr;
 
-      const { data: pub } = supabase
-        .storage
-        .from('logos')
-        .getPublicUrl(filePath);
-
+      const { data: pub } = supabase.storage.from('logos').getPublicUrl(filePath);
       const publicUrl = pub?.publicUrl;
       if (!publicUrl) throw new Error('Não foi possível gerar a URL pública da logo.');
 
       const { error: dbErr } = await supabase
-        .from('barbearias')
+        .from('negocios')
         .update({ logo_url: publicUrl })
-        .eq('id', barbearia.id);
+        .eq('id', negocio.id);
 
       if (dbErr) throw dbErr;
 
@@ -349,9 +376,9 @@ export default function Dashboard({ user, onLogout }) {
     }
   };
 
-  // ===================== INFO NEGÓCIO =====================
+  // ===================== INFO DO NEGÓCIO =====================
   const salvarInfoNegocio = async () => {
-    if (!barbearia?.id) return alert('Barbearia não carregada.');
+    if (!negocio?.id) return alert('Negócio não carregado.');
     try {
       setInfoSaving(true);
 
@@ -362,13 +389,13 @@ export default function Dashboard({ user, onLogout }) {
         endereco: String(formInfo.endereco || '').trim(),
         instagram: String(formInfo.instagram || '').trim() || null,
         facebook: String(formInfo.facebook || '').trim() || null,
-        galerias: Array.isArray(formInfo.galerias) ? formInfo.galerias : []
+        galeria: Array.isArray(formInfo.galeria) ? formInfo.galeria : []
       };
 
       const { error: updErr } = await supabase
-        .from('barbearias')
+        .from('negocios')
         .update(payload)
-        .eq('id', barbearia.id);
+        .eq('id', negocio.id);
 
       if (updErr) throw updErr;
 
@@ -384,7 +411,7 @@ export default function Dashboard({ user, onLogout }) {
 
   const uploadGaleria = async (files) => {
     if (!files?.length) return;
-    if (!barbearia?.id) return alert('Barbearia não carregada.');
+    if (!negocio?.id) return alert('Negócio não carregado.');
 
     const maxMb = 4;
     const okTypes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -405,7 +432,7 @@ export default function Dashboard({ user, onLogout }) {
         }
 
         const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-        const path = `${barbearia.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+        const path = `${negocio.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
 
         const { error: upErr } = await supabase
           .storage
@@ -424,13 +451,16 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       if (urlsNovas.length) {
-        const next = Array.isArray(formInfo.galerias) ? [...formInfo.galerias, ...urlsNovas] : [...urlsNovas];
-        setFormInfo(prev => ({ ...prev, galerias: next }));
+        const next = Array.isArray(formInfo.galeria)
+          ? [...formInfo.galeria, ...urlsNovas]
+          : [...urlsNovas];
+
+        setFormInfo(prev => ({ ...prev, galeria: next }));
 
         const { error: updErr } = await supabase
-          .from('barbearias')
-          .update({ galerias: next })
-          .eq('id', barbearia.id);
+          .from('negocios')
+          .update({ galeria: next })
+          .eq('id', negocio.id);
 
         if (updErr) throw updErr;
 
@@ -446,20 +476,20 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   const removerImagemGaleria = async (url) => {
-    if (!barbearia?.id) return;
+    if (!negocio?.id) return;
     const ok = confirm('Remover esta imagem da galeria?');
     if (!ok) return;
 
     try {
-      const cur = Array.isArray(formInfo.galerias) ? formInfo.galerias : [];
+      const cur = Array.isArray(formInfo.galeria) ? formInfo.galeria : [];
       const next = cur.filter(x => x !== url);
 
-      setFormInfo(prev => ({ ...prev, galerias: next }));
+      setFormInfo(prev => ({ ...prev, galeria: next }));
 
       const { error: updErr } = await supabase
-        .from('barbearias')
-        .update({ galerias: next })
-        .eq('id', barbearia.id);
+        .from('negocios')
+        .update({ galeria: next })
+        .eq('id', negocio.id);
 
       if (updErr) throw updErr;
 
@@ -475,7 +505,7 @@ export default function Dashboard({ user, onLogout }) {
   const createServico = async (e) => {
     e.preventDefault();
     try {
-      if (!barbearia?.id) throw new Error('Barbearia não carregada.');
+      if (!negocio?.id) throw new Error('Negócio não carregado.');
 
       const payload = {
         nome: String(formServico.nome || '').trim(),
@@ -483,7 +513,7 @@ export default function Dashboard({ user, onLogout }) {
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
         preco: toNumberOrNull(formServico.preco),
         ativo: true,
-        barbearia_id: barbearia.id,
+        negocio_id: negocio.id,
       };
 
       if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
@@ -555,16 +585,19 @@ export default function Dashboard({ user, onLogout }) {
   const createProfissional = async (e) => {
     e.preventDefault();
     try {
-      if (!barbearia?.id) throw new Error('Barbearia não carregada.');
+      if (!negocio?.id) throw new Error('Negócio não carregado.');
 
       const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
 
       const payload = {
-        barbearia_id: barbearia.id,
+        negocio_id: negocio.id,
         nome: String(formProfissional.nome || '').trim(),
+        especialidade: String(formProfissional.especialidade || '').trim() || null,
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
+        almoco_inicio: String(formProfissional.almoco_inicio || '').trim() || null,
+        almoco_fim: String(formProfissional.almoco_fim || '').trim() || null,
         dias_trabalho: dias.length ? dias : [1, 2, 3, 4, 5, 6],
       };
 
@@ -578,9 +611,12 @@ export default function Dashboard({ user, onLogout }) {
       setEditingProfissional(null);
       setFormProfissional({
         nome: '',
+        especialidade: '',
         anos_experiencia: '',
         horario_inicio: '08:00',
         horario_fim: '18:00',
+        almoco_inicio: '',
+        almoco_fim: '',
         dias_trabalho: [1, 2, 3, 4, 5, 6]
       });
       await loadData();
@@ -599,9 +635,12 @@ export default function Dashboard({ user, onLogout }) {
 
       const payload = {
         nome: String(formProfissional.nome || '').trim(),
+        especialidade: String(formProfissional.especialidade || '').trim() || null,
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
+        almoco_inicio: String(formProfissional.almoco_inicio || '').trim() || null,
+        almoco_fim: String(formProfissional.almoco_fim || '').trim() || null,
         dias_trabalho: dias, // ✅ salva domingo=0
       };
 
@@ -620,7 +659,14 @@ export default function Dashboard({ user, onLogout }) {
       await loadData();
     } catch (e2) {
       console.error('updateProfissional error:', e2);
-      alert('❌ Erro ao atualizar profissional: ' + (e2?.message || ''));
+
+      // ✅ Mensagem clara quando bater no bloqueio do almoço
+      const msg = String(e2?.message || '');
+      if (msg.toLowerCase().includes('almoço') || msg.toLowerCase().includes('almoco')) {
+        alert('❌ Não foi possível alterar o almoço porque existem agendamentos futuros afetados.');
+      } else {
+        alert('❌ Erro ao atualizar profissional: ' + (e2?.message || ''));
+      }
     }
   };
 
@@ -633,13 +679,11 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       const novoAtivo = !p.ativo;
-
       let motivo = null;
 
-      // Se vai INATIVAR, abrir prompt. Se cancelar, NÃO FAZ NADA.
       if (!novoAtivo) {
         const r = prompt('Motivo (opcional) para inativar este profissional:');
-        if (r === null) return; // ✅ cancelou = não aplica
+        if (r === null) return; // cancelou
         motivo = r || null;
       }
 
@@ -721,7 +765,6 @@ export default function Dashboard({ user, onLogout }) {
     [concluidosDoDiaFaturamento]
   );
 
-  // ✅ (NOVO) métricas destrinchadas do faturamento do dia selecionado
   const totalDoDiaFaturamento = useMemo(
     () => agendamentosDoDiaFaturamento.length,
     [agendamentosDoDiaFaturamento]
@@ -749,15 +792,14 @@ export default function Dashboard({ user, onLogout }) {
     return qtd ? (faturamentoDoDiaSelecionado / qtd) : 0;
   }, [concluidosDoDiaFaturamento.length, faturamentoDoDiaSelecionado]);
 
-  // ✅ Faturamento por profissional (só faz sentido com 2+)
   const faturamentoPorProfissional = useMemo(() => {
-    const map = new Map(); // profissional_nome -> valor
+    const map = new Map();
     for (const a of concluidosDoDiaFaturamento) {
       const nome = a.profissionais?.nome || 'Profissional';
       const v = Number(a.servicos?.preco || 0);
       map.set(nome, (map.get(nome) || 0) + v);
     }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]); // maior -> menor
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [concluidosDoDiaFaturamento]);
 
   const hojeValidos = useMemo(
@@ -791,8 +833,8 @@ export default function Dashboard({ user, onLogout }) {
   }, [agendamentosHoje.length, hojeCancelados.length]);
 
   const proximoAgendamento = useMemo(() => {
-    const now = new Date();
-    const nowTime = now.toTimeString().slice(0, 5);
+    const now = getNowSP();
+    const nowTime = minutesToTime(now.minutes);
 
     const futuros = hojeValidos
       .filter(a => String(a.hora_inicio || '') >= nowTime)
@@ -807,7 +849,7 @@ export default function Dashboard({ user, onLogout }) {
       .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)));
   }, [agendamentos, historicoData]);
 
-  // ✅ (NOVO) Agendamentos: incluir HOJE + FUTUROS (não cancelados)
+  // ✅ Agendamentos: incluir HOJE + FUTUROS (não cancelados)
   const agendamentosHojeEFuturos = useMemo(() => {
     return agendamentos
       .filter(a => !String(a.status || '').includes('cancelado'))
@@ -819,7 +861,7 @@ export default function Dashboard({ user, onLogout }) {
       });
   }, [agendamentos, hoje]);
 
-  // ======= Status do profissional (luz verde/vermelha) =======
+  // ======= Status do profissional (verde/vermelho/amarelo almoço) =======
   const getProfStatus = (p) => {
     const ativo = (p.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -836,11 +878,22 @@ export default function Dashboard({ user, onLogout }) {
     const trabalhaHoje = dias.includes(now.dow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
-    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
-    return { label: 'FECHADO', color: 'bg-red-500' };
+    if (!(trabalhaHoje && dentroHorario)) return { label: 'FECHADO', color: 'bg-red-500' };
+
+    const li = p.almoco_inicio;
+    const lf = p.almoco_fim;
+
+    if (li && lf) {
+      const a = timeToMinutes(li);
+      const b = timeToMinutes(lf);
+      if (now.minutes >= a && now.minutes < b) {
+        return { label: 'ALMOÇO', color: 'bg-yellow-400' };
+      }
+    }
+
+    return { label: 'ABERTO', color: 'bg-green-500' };
   };
 
-  // ✅ serviços agrupados por profissional (para dashboard)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
     for (const p of profissionais) map.set(p.id, []);
@@ -851,7 +904,6 @@ export default function Dashboard({ user, onLogout }) {
     return map;
   }, [profissionais, servicos]);
 
-  // ====== UI ======
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
@@ -861,23 +913,28 @@ export default function Dashboard({ user, onLogout }) {
     </div>
   );
 
-  if (error || !barbearia) return (
+  if (error || !negocio) return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-dark-100 border border-red-500/50 rounded-custom p-8 text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">Erro ao carregar</h1>
-        <p className="text-gray-400 mb-6">{error || 'Barbearia não encontrada'}</p>
-        <button onClick={loadData} className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button mb-3">
+        <h1 className="text-2xl font-black text-white mb-2">ERRO AO CARREGAR</h1>
+        <p className="text-gray-400 mb-6">{error || 'Negócio não encontrado'}</p>
+        <button
+          onClick={loadData}
+          className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button mb-3 uppercase font-normal"
+        >
           TENTAR NOVAMENTE
         </button>
-        <button onClick={onLogout} className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button">
+        <button
+          onClick={onLogout}
+          className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-button uppercase font-normal"
+        >
           SAIR
         </button>
       </div>
     </div>
   );
 
-  // ✅ Tabs (rótulos corrigidos, caixa alta, sem bold)
   const TAB_LABELS = {
     'visao-geral': 'GERAL',
     'agendamentos': 'AGENDAMENTOS',
@@ -888,26 +945,21 @@ export default function Dashboard({ user, onLogout }) {
     'info-negocio': 'INFO DO NEGÓCIO',
   };
 
+  const tabButtonClass = (key) => (
+    `px-4 py-2 rounded-button border text-sm transition-all uppercase font-normal ${
+      activeTab === key
+        ? 'bg-primary/20 border-primary/50 text-primary'
+        : 'bg-dark-200 border-gray-800 text-gray-300 hover:border-primary/30'
+    }`
+  );
+
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* CSS local: remove setinha do input date */}
       <style>{`
-        /* remove seta/spinner visual do date */
-        .date-no-arrow {
-          appearance: none;
-          -webkit-appearance: none;
-          -moz-appearance: none;
-        }
+        .date-no-arrow { appearance: none; -webkit-appearance: none; -moz-appearance: none; }
         .date-no-arrow::-webkit-inner-spin-button,
-        .date-no-arrow::-webkit-clear-button {
-          display: none;
-          -webkit-appearance: none;
-        }
-        /* deixa o calendário aparecer ao clicar (mantém o picker do navegador) */
-        .date-no-arrow::-webkit-calendar-picker-indicator {
-          opacity: 0;
-          cursor: pointer;
-        }
+        .date-no-arrow::-webkit-clear-button { display: none; -webkit-appearance: none; }
+        .date-no-arrow::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
       `}</style>
 
       {/* Header */}
@@ -915,10 +967,9 @@ export default function Dashboard({ user, onLogout }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              {/* Logo redonda no header */}
               <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
-                {barbearia.logo_url ? (
-                  <img src={barbearia.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                {negocio.logo_url ? (
+                  <img src={negocio.logo_url} alt="Logo" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
                     <Award className="w-7 h-7 text-black" />
@@ -927,807 +978,626 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <h1 className="text-xl font-black">{barbearia.nome}</h1>
-                <p className="text-xs text-gray-500 -mt-1">DASHBOARD</p>
+                <h1 className="text-xl font-black">{negocio.nome}</h1>
+                <div className="flex items-center gap-2 -mt-1">
+                  <p className="text-xs text-gray-500">DASHBOARD</p>
+                  {tipoLabel && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 uppercase font-normal">
+                      {tipoLabel}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
               <Link
-                to={`/v/${barbearia.slug}`}
+                to={`/v/${negocio.slug}`}
                 target="_blank"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm uppercase font-normal"
               >
-                <Eye className="w-4 h-4" />VER VITRINE
+                <Eye className="w-4 h-4" />
+                VER VITRINE
               </Link>
 
-              {/* Botão LOGO no header (não mexido no design) */}
-              <label className="inline-block">
+              <button
+                onClick={copyLink}
+                className="flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm uppercase font-normal"
+              >
+                {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'COPIADO' : 'COPIAR LINK'}
+              </button>
+
+              <label className="inline-flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm cursor-pointer uppercase font-normal">
+                <ImageIcon className="w-4 h-4" />
+                {logoUploading ? 'ENVIANDO...' : 'LOGO'}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => uploadLogoBarbearia(e.target.files?.[0])}
                   disabled={logoUploading}
+                  onChange={(e) => uploadLogoNegocio(e.target.files?.[0])}
                 />
-                <span
-                  className={`inline-flex items-center justify-center text-center rounded-button font-normal border transition-all ${
-                    logoUploading
-                      ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
-                      : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
-                  }
-                  px-3 py-2 text-[11px]
-                  sm:px-4 sm:py-2 sm:text-sm
-                  `}
-                >
-                  <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
-                  <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
-                </span>
               </label>
 
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-button text-sm uppercase font-normal"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">SAIR</span>
+                SAIR
               </button>
             </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="pb-4 flex flex-wrap gap-2">
+            {Object.keys(TAB_LABELS).map(key => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={tabButtonClass(key)}
+              >
+                {TAB_LABELS[key]}
+              </button>
+            ))}
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats do topo (sem filtro de data aqui) */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
-            {/* ✅ removeu ícone e colocou caractere R$ em bold mais grosso */}
-            <div className="mb-2 flex items-center gap-2">
-              <span
-                style={{ fontFamily: 'Roboto Condensed, sans-serif' }}
-                className="text-green-400 font-black text-3xl leading-none"
-              >
-                $
-              </span>
-              <span className="text-sm text-gray-500">FATURAMENTO HOJE</span>
+      {/* Conteúdo */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        {/* VISÃO GERAL */}
+        {activeTab === 'visao-geral' && (
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black">VISÃO GERAL</h2>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <DateFilterButton
+                value={faturamentoData}
+                onChange={(e) => setFaturamentoData(e.target.value)}
+                title="Selecionar data"
+              />
+
+              <div className="text-sm text-gray-400">
+                DATA: <span className="text-gray-200">{formatDateBRFromISO(faturamentoData)}</span>
+              </div>
             </div>
 
-            <div className="text-3xl font-normal text-white mb-1">
-              R$ {agendamentosHoje
-                .filter(a => a.status === 'concluido')
-                .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
-                .toFixed(2)}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                <div className="flex items-center gap-2 text-gray-400 text-sm uppercase font-normal">
+                  <TrendingUp className="w-4 h-4" />
+                  FATURAMENTO
+                </div>
+                <div className="text-3xl font-black text-primary mt-2">
+                  R$ {Number(faturamentoDoDiaSelecionado || 0).toFixed(2)}
+                </div>
+              </div>
+
+              <div className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                <div className="flex items-center gap-2 text-gray-400 text-sm uppercase font-normal">
+                  <Calendar className="w-4 h-4" />
+                  TOTAL
+                </div>
+                <div className="text-3xl font-black mt-2">{totalDoDiaFaturamento}</div>
+              </div>
+
+              <div className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                <div className="flex items-center gap-2 text-gray-400 text-sm uppercase font-normal">
+                  <Users className="w-4 h-4" />
+                  CONVERSÃO
+                </div>
+                <div className="text-3xl font-black mt-2">{taxaConversaoDoDiaFaturamento.toFixed(1)}%</div>
+              </div>
+
+              <div className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                <div className="flex items-center gap-2 text-gray-400 text-sm uppercase font-normal">
+                  <X className="w-4 h-4" />
+                  CANCELAMENTO
+                </div>
+                <div className="text-3xl font-black mt-2">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-            <Calendar className="w-8 h-8 text-blue-400 mb-2" />
-            <div className="text-3xl font-normal text-white mb-1">{hojeValidos.length}</div>
-            <div className="text-sm text-gray-400">AGENDAMENTOS HOJE</div>
-          </div>
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+              <h3 className="text-lg font-black mb-4">DESTAQUE POR PROFISSIONAL</h3>
+              {faturamentoPorProfissional.length ? (
+                <div className="space-y-2">
+                  {faturamentoPorProfissional.map(([nome, v]) => (
+                    <div key={nome} className="flex justify-between text-sm">
+                      <span className="text-gray-300 font-normal">{nome}</span>
+                      <span className="text-primary font-black">R$ {Number(v || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 font-normal">Sem dados de faturamento para esta data.</p>
+              )}
+            </div>
 
-          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-            <Users className="w-8 h-8 text-purple-400 mb-2" />
-            <div className="text-3xl font-normal text-white mb-1">{profissionais.length}</div>
-            <div className="text-sm text-gray-400">PROFISSIONAIS</div>
-          </div>
-
-          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-            <TrendingUp className="w-8 h-8 text-primary mb-2" />
-            <div className="text-3xl font-normal text-white mb-1">{servicos.length}</div>
-            <div className="text-sm text-gray-400">SERVIÇOS</div>
-          </div>
-        </div>
-
-        {/* Link Vitrine */}
-        <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
-          <h3 className="text-lg font-normal mb-3 flex items-center gap-2">
-            <ExternalLink className="w-5 h-5 text-primary" />SUA VITRINE
-          </h3>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={`${window.location.origin}/v/${barbearia.slug}`}
-              readOnly
-              className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white text-sm"
-            />
-            <button
-              onClick={copyLink}
-              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm flex items-center gap-2"
-            >
-              {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-              {copied ? 'COPIADO' : 'COPIAR'}
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
-          <div className="flex overflow-x-auto border-b border-gray-800">
-            {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-shrink-0 px-6 py-4 text-sm transition-all uppercase ${
-                  activeTab === tab ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {TAB_LABELS[tab] || tab.replace('-', ' ').toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="p-6">
-            {/* VISÃO GERAL */}
-            {activeTab === 'visao-geral' && (
-              <div className="space-y-6">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
-                    <div className="text-3xl font-normal text-white">{hojeCancelados.length}</div>
-                    <div className="text-sm text-gray-400 mt-1">
-                      Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+              <h3 className="text-lg font-black mb-4">HOJE</h3>
+              {proximoAgendamento ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-gray-400 text-sm uppercase font-normal">PRÓXIMO</div>
+                    <div className="text-xl font-black mt-1">
+                      {proximoAgendamento.hora_inicio} • {proximoAgendamento.users?.nome || 'Cliente'}
+                    </div>
+                    <div className="text-sm text-gray-500 font-normal">
+                      {proximoAgendamento.profissionais?.nome || 'Profissional'} • {proximoAgendamento.servicos?.nome || 'Serviço'}
                     </div>
                   </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 mb-2">CONCLUÍDOS HOJE</div>
-                    <div className="text-3xl font-normal text-white">{hojeConcluidos.length}</div>
-                    <div className="text-sm text-gray-400 mt-1">
-                      Ticket médio: <span className="text-primary">R$ {ticketMedioHoje.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <div className="text-xs text-gray-500 mb-2">PRÓXIMO AGENDAMENTO</div>
-                    {proximoAgendamento ? (
-                      <>
-                        <div className="text-3xl font-normal text-primary">{proximoAgendamento.hora_inicio}</div>
-                        <div className="text-sm text-gray-300 mt-1">
-                          {proximoAgendamento.users?.nome || 'Cliente'} • {proximoAgendamento.profissionais?.nome}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {proximoAgendamento.servicos?.nome}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-gray-500">:(</div>
-                    )}
+                  <div className="text-primary font-black text-2xl">
+                    R$ {Number(proximoAgendamento.servicos?.preco || 0).toFixed(2)}
                   </div>
                 </div>
+              ) : (
+                <p className="text-gray-500 font-normal">Nenhum agendamento restante hoje.</p>
+              )}
 
-                {/* ✅ Faturamento + filtro de data (aqui na visão geral) */}
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h3 className="text-lg font-normal flex items-center gap-2">
-                      <span
-                        style={{ fontFamily: 'Roboto Condensed, sans-serif' }}
-                        className="font-normal text-2xl"
-                      >
-                        R$
-                      </span>
-                      FATURAMENTO
-                    </h3>
-
-                    <div className="flex items-center gap-2">
-                      <DateFilterButton
-                        value={faturamentoData}
-                        onChange={(e) => setFaturamentoData(e.target.value)}
-                        title="Filtrar faturamento por data"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="text-3xl font-normal text-white mb-2">
-                    R$ {faturamentoDoDiaSelecionado.toFixed(2)}
-                  </div>
-                  <div className="text-sm text-gray-400 mb-4">
-                    Concluídos em {formatDateBRFromISO(faturamentoData)}
-                  </div>
-
-                  {/* ✅ (NOVO) destrinchar faturamento do dia */}
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">CORTES CONCLUÍDOS</div>
-                      <div className="text-xl font-normal text-white">{concluidosDoDiaFaturamento.length}</div>
-                    </div>
-                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">CANCELADOS</div>
-                      <div className="text-xl font-normal text-white">{canceladosDoDiaFaturamento.length}</div>
-                      <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
-                    </div>
-                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">FECHAMENTO</div>
-                      <div className="text-xl font-normal text-white">{taxaConversaoDoDiaFaturamento.toFixed(1)}%</div>
-                      <div className="text-xs text-gray-500 mt-1">sobre {totalDoDiaFaturamento} agend.</div>
-                    </div>
-                    <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                      <div className="text-xs text-gray-500 mb-1">TICKET MÉDIO</div>
-                      <div className="text-xl font-normal text-primary">R$ {ticketMedioDoDiaFaturamento.toFixed(2)}</div>
-                    </div>
-                  </div>
-
-                  {/* ✅ só mostra destrinchado se tiver 2+ profissionais (como você pediu) */}
-                  {profissionais.length >= 2 && faturamentoPorProfissional.length > 0 ? (
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {faturamentoPorProfissional.map(([nome, valor]) => (
-                        <div key={nome} className="bg-dark-100 border border-gray-800 rounded-custom p-4">
-                          <div className="text-xs text-gray-500 mb-1">PROFISSIONAL</div>
-                          <div className="font-normal text-white">{nome}</div>
-                          <div className="text-primary font-normal mt-1">R$ {Number(valor).toFixed(2)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500">
-                      {profissionais.length < 2
-                        ? 'Você tem 1 profissional — o detalhamento por profissional não aparece.'
-                        : 'Sem faturamento concluído nessa data.'}
-                    </div>
-                  )}
+              <div className="grid sm:grid-cols-3 gap-4 mt-6">
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                  <div className="text-gray-500 text-xs uppercase font-normal">AGENDADOS</div>
+                  <div className="text-2xl font-black mt-1">{agendamentosHoje.length}</div>
                 </div>
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                  <div className="text-gray-500 text-xs uppercase font-normal">TICKET MÉDIO</div>
+                  <div className="text-2xl font-black text-primary mt-1">R$ {ticketMedioHoje.toFixed(2)}</div>
+                </div>
+                <div className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                  <div className="text-gray-500 text-xs uppercase font-normal">CANCELAMENTO</div>
+                  <div className="text-2xl font-black mt-1">{cancelRateHoje.toFixed(1)}%</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                  <h3 className="text-lg font-normal mb-3">Resumo rápido</h3>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-xs text-gray-500">TOTAL HOJE</div>
-                      <div className="text-2xl font-normal">{agendamentosHoje.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">VÁLIDOS HOJE</div>
-                      <div className="text-2xl font-normal">{hojeValidos.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">CANCELADOS HOJE</div>
-                      <div className="text-2xl font-normal">{hojeCancelados.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">FATURAMENTO HOJE</div>
-                      <div className="text-2xl font-normal">
-                        R$ {agendamentosHoje
-                          .filter(a => a.status === 'concluido')
-                          .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
-                          .toFixed(2)}
+        {/* AGENDAMENTOS */}
+        {activeTab === 'agendamentos' && (
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black">AGENDAMENTOS</h2>
+
+            {agendamentosHojeEFuturos.length ? (
+              <div className="space-y-3">
+                {agendamentosHojeEFuturos.map(a => (
+                  <div key={a.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase font-normal">
+                          {formatDateBRFromISO(a.data)} • {a.hora_inicio} - {a.hora_fim}
+                        </div>
+                        <div className="text-xl font-black mt-1">
+                          {a.users?.nome || 'Cliente'}
+                        </div>
+                        <div className="text-sm text-gray-500 font-normal">
+                          {a.profissionais?.nome || 'Profissional'} • {a.servicos?.nome || 'Serviço'}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="text-sm text-gray-500">
-                  Dica: essa visão geral "reflete movimento real" e te ajuda a bater o olho e entender o dia.
-                </div>
-              </div>
-            )}
-
-            {/* AGENDAMENTOS (HOJE + FUTUROS) */}
-            {activeTab === 'agendamentos' && (
-              <div>
-                <h2 className="text-2xl font-normal mb-6">Agendamentos</h2>
-                {agendamentosHojeEFuturos.length > 0 ? (
-                  <div className="space-y-4">
-                    {agendamentosHojeEFuturos.map(a => {
-                      const isFuturo = !sameDay(a.data, hoje) && String(a.data || '') > String(hoje || '');
-                      const isHoje = sameDay(a.data, hoje);
-
-                      return (
-                        <div key={a.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-normal text-lg">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">
-                                {a.servicos?.nome} • {a.profissionais?.nome}
-                              </p>
-                            </div>
-
-                            {a.status === 'concluido' ? (
-                              <div className="px-3 py-1 rounded-button text-xs bg-green-500/20 text-green-400">
-                                Concluído
-                              </div>
-                            ) : isFuturo ? (
-                              <div className="px-3 py-1 rounded-button text-xs bg-yellow-500/20 text-yellow-300">
-                                FUTURO
-                              </div>
-                            ) : (
-                              <div className="px-3 py-1 rounded-button text-xs bg-blue-500/20 text-blue-400">
-                                Agendado
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <div className="text-xs text-gray-500">Data</div>
-                              <div className="text-sm">{formatDateBRFromISO(a.data)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500">Horário</div>
-                              <div className="text-sm">{a.hora_inicio}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500">Valor</div>
-                              <div className="text-sm">R$ {a.servicos?.preco}</div>
-                            </div>
-                          </div>
-
-                          {a.status !== 'concluido' && isHoje && (
-                            <button
-                              onClick={() => confirmarAtendimento(a.id)}
-                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom text-sm"
-                            >
-                              CONFIRMAR ATENDIMENTO
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-12">Uhuul, nenhum agendamento (hoje ou futuro) :(</p>
-                )}
-              </div>
-            )}
-
-            {/* CANCELADOS */}
-            {activeTab === 'cancelados' && (
-              <div>
-                <h2 className="text-2xl font-normal mb-6">Agendamentos Cancelados (Hoje)</h2>
-                {agendamentosHoje.filter(a => String(a.status || '').includes('cancelado')).length > 0 ? (
-                  <div className="space-y-4">
-                    {agendamentosHoje
-                      .filter(a => String(a.status || '').includes('cancelado'))
-                      .sort((a, b) => String(a.hora_inicio).localeCompare(String(b.hora_inicio)))
-                      .map(a => (
-                        <div key={a.id} className="bg-dark-200 border border-red-500/30 rounded-custom p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-black text-lg text-white">{a.users?.nome || 'Cliente'}</p>
-                              <p className="text-sm text-gray-400">{a.servicos?.nome} • {a.profissionais?.nome}</p>
-                            </div>
-                            <div className="px-3 py-1 rounded-button text-xs bg-red-500/20 border border-red-500/50 text-red-400">
-                              CANCELADO :(
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <div className="text-xs text-gray-500">Data</div>
-                              <div className="text-white">{formatDateBRFromISO(a.data)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500">Horário</div>
-                              <div className="text-white">{a.hora_inicio}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500">Valor</div>
-                              <div className="text-white">R$ {a.servicos?.preco}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-12">Nenhum cancelamento hoje</p>
-                )}
-              </div>
-            )}
-
-            {/* HISTÓRICO */}
-            {activeTab === 'historico' && (
-              <div>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-                  <h2 className="text-2xl font-normal">Histórico de Agendamentos</h2>
-
-                  <div className="flex items-center gap-2"> 
-                    <DateFilterButton
-                      value={historicoData}
-                      onChange={(e) => setHistoricoData(e.target.value)}
-                      title="Filtrar histórico por data"
-                    />
-                  </div>
-                </div>
-
-                {agendamentosDiaSelecionado.length > 0 ? (
-                  <div className="space-y-3">
-                    {agendamentosDiaSelecionado.map(a => {
-                      const isCancel = String(a.status || '').includes('cancelado');
-                      const isDone = a.status === 'concluido';
-
-                      return (
-                        <div
-                          key={a.id}
-                          className={`bg-dark-200 border rounded-custom p-4 ${
-                            isCancel ? 'border-red-500/30' : 'border-gray-800'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <div className="font-black text-lg">{a.users?.nome || 'Cliente'}</div>
-                              <div className="text-sm text-gray-400">
-                                {a.hora_inicio} • {a.servicos?.nome} • {a.profissionais?.nome}
-                              </div>
-                            </div>
-
-                            <div className={`px-3 py-1 rounded-button text-xs ${
-                              isCancel ? 'bg-red-500/20 border border-red-500/50 text-red-300'
-                              : isDone ? 'bg-green-500/20 border border-green-500/50 text-green-300'
-                              : 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
-                            }`}>
-                              {isCancel ? 'Cancelado' : isDone ? 'Concluído' : 'Agendado'}
-                            </div>
-                          </div>
-
-                          <div className="text-sm text-gray-300">
-                            Valor: <span className="text-primary">R$ {a.servicos?.preco ?? '0.00'}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-12">
-                    :(
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* SERVIÇOS (separado por profissional) */}
-            {activeTab === 'servicos' && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-normal">Serviços</h2>
-                  <button
-                    onClick={() => {
-                      setShowNovoServico(true);
-                      setEditingServicoId(null);
-                      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
-                    }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button"
-                  >
-                    <Plus className="w-5 h-5" />NOVO SERVIÇO
-                  </button>
-                </div>
-
-                {profissionais.length === 0 ? (
-                  <div className="text-gray-500">Nenhum profissional cadastrado.</div>
-                ) : (
-                  <div className="space-y-4">
-                    {profissionais.map(p => {
-                      const lista = (servicosPorProf.get(p.id) || [])
-                        .slice()
-                        .sort((a, b) => Number(b.preco || 0) - Number(a.preco || 0));
-
-                      return (
-                        <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="font-black text-lg">{p.nome}</div>
-                            <div className="text-xs text-gray-500">{lista.length} serviço(s)</div>
-                          </div>
-
-                          {lista.length ? (
-                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {lista.map(s => (
-                                <div key={s.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
-                                  <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                      <h3 className="text-lg font-black">{s.nome}</h3>
-                                      <p className="text-xs text-gray-500">{p.nome}</p>
-                                    </div>
-                                    <div className="text-2xl font-normal text-primary">R$ {s.preco}</div>
-                                  </div>
-                                  <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
-
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        setEditingServicoId(s.id);
-                                        setFormServico({
-                                          nome: s.nome || '',
-                                          duracao_minutos: String(s.duracao_minutos ?? ''),
-                                          preco: String(s.preco ?? ''),
-                                          profissional_id: s.profissional_id || ''
-                                        });
-                                        setShowNovoServico(true);
-                                      }}
-                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm"
-                                    >
-                                      EDITAR
-                                    </button>
-
-                                    <button
-                                      onClick={() => deleteServico(s.id)}
-                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-custom text-sm"
-                                    >
-                                      EXCLUIR
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-gray-500">Sem serviços ativos para este profissional.</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PROFISSIONAIS */}
-            {activeTab === 'profissionais' && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-normal">Profissionais</h2>
-                  <button
-                    onClick={() => {
-                      setShowNovoProfissional(true);
-                      setEditingProfissional(null);
-                      setFormProfissional({
-                        nome: '',
-                        anos_experiencia: '',
-                        horario_inicio: '08:00',
-                        horario_fim: '18:00',
-                        dias_trabalho: [1, 2, 3, 4, 5, 6]
-                      });
-                    }}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button"
-                  >
-                    <Plus className="w-5 h-5" />ADICIONAR
-                  </button>
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {profissionais.map(p => {
-                    const ativo = (p.ativo === undefined) ? true : !!p.ativo;
-                    const status = getProfStatus(p);
-
-                    return (
-                      <div key={p.id} className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-normal font-normal text-xl">
-                            {p.nome?.[0] || 'P'}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-black flex items-center gap-2">
-                              {p.nome}
-                              {!ativo && (
-                                <span className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 font-normal">
-                                  INATIVO
-                                </span>
-                              )}
-                            </h3>
-
-                            {/* luz status */}
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
-                              <span className="text-xs text-gray-400">{status.label}</span>
-                            </div>
-
-                            {p.anos_experiencia != null && (
-                              <p className="text-xs text-gray-500 mt-1">{p.anos_experiencia} anos</p>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-primary font-black text-xl">
+                          R$ {Number(a.servicos?.preco || 0).toFixed(2)}
                         </div>
 
-                        <div className="text-sm text-gray-400 mb-3">
-                          {servicos.filter(s => s.profissional_id === p.id).length} serviços
-                        </div>
-
-                        <div className="text-xs text-gray-500 mb-3">
-                          <Clock className="w-4 h-4 inline mr-1" />
-                          {p.horario_inicio} - {p.horario_fim}
-                        </div>
-
-                        {/* Ativar / Inativar / Excluir */}
-                        <div className="flex gap-2 mb-3">
+                        {a.status !== 'concluido' && (
                           <button
-                            onClick={() => toggleAtivoProfissional(p)}
-                            className={`flex-1 py-2 rounded-custom text-sm border ${
-                              ativo
-                                ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
-                                : 'bg-green-500/10 border-green-500/30 text-green-300'
-                            }`}
+                            onClick={() => confirmarAtendimento(a.id)}
+                            className="px-4 py-2 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal"
                           >
-                            {ativo ? 'INATIVAR' : 'ATIVAR'}
+                            CONCLUIR
                           </button>
-
-                          <button
-                            onClick={() => excluirProfissional(p)}
-                            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-custom text-sm"
-                          >
-                            EXCLUIR
-                          </button>
-                        </div>
-
-                        {!ativo && (p.motivo_inativo || p.motivo_inativo === '') && (
-                          <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-custom p-2 mb-3">
-                            INATIVO {p.motivo_inativo ? `• ${p.motivo_inativo}` : ''}
-                          </div>
                         )}
-
-                        <button
-                          onClick={() => {
-                            setEditingProfissional(p);
-                            setFormProfissional({
-                              nome: p.nome || '',
-                              anos_experiencia: String(p.anos_experiencia ?? ''),
-                              horario_inicio: p.horario_inicio || '08:00',
-                              horario_fim: p.horario_fim || '18:00',
-                              dias_trabalho: Array.isArray(p.dias_trabalho) && p.dias_trabalho.length ? p.dias_trabalho : [1, 2, 3, 4, 5, 6],
-                            });
-                            setShowNovoProfissional(true);
-                          }}
-                          className="w-full py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-custom text-sm"
-                        >
-                          EDITAR
-                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* INFO NEGÓCIO */}
-            {activeTab === 'info-negocio' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-normal">Informações do Negócio</h2>
-
-                  <button
-                    onClick={salvarInfoNegocio}
-                    disabled={infoSaving}
-                    className={`px-5 py-2.5 rounded-button font-normal border flex items-center gap-2 ${
-                      infoSaving
-                        ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
-                        : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
-                    }`}
-                  >
-                    <Save className="w-4 h-4" />
-                    {infoSaving ? 'SALVANDO...' : 'SALVAR'}
-                  </button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Nome da Barbearia</label>
-                    <input
-                      value={formInfo.nome}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="Nome"
-                    />
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Telefone</label>
-                    <input
-                      value={formInfo.telefone}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="(xx) xxxxx-xxxx"
-                    />
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">Endereço</label>
-                    <input
-                      value={formInfo.endereco}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="Rua, número, bairro..."
-                    />
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">Descrição</label>
-                    <textarea
-                      value={formInfo.descricao}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
-                      rows={3}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white resize-none"
-                      placeholder="Sobre o negócio..."
-                    />
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Instagram (ID ou @)</label>
-                    <input
-                      value={formInfo.instagram}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="@seuinstagram"
-                    />
-                  </div>
-
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Facebook (ID ou nome)</label>
-                    <input
-                      value={formInfo.facebook}
-                      onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="facebook.com/..."
-                    />
-                  </div>
-                </div>
-
-                {/* ✅ GALERIAS */}
-                <div className="bg-dark-200 border border-gray-800 rounded-custom p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-black">
-                        GALERIA
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Adicione fotos do seu negócio :)
-                      </p>
                     </div>
-
-                    <label className="inline-block">
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => uploadGaleria(e.target.files)}
-                        disabled={galleryUploading}
-                      />
-                      <span
-                        className={`inline-flex items-center gap-2 rounded-button font-normal border cursor-pointer transition-all ${
-                          galleryUploading
-                            ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
-                            : 'bg-primary/20 hover:bg-primary/30 border-primary/50 text-primary'
-                        }
-                        px-3 py-1.5 text-xs
-                        sm:px-4 sm:py-2 sm:text-sm
-                        `}
-                      >
-                        <Plus className="w-4 h-4" />
-                        {galleryUploading ? 'ENVIANDO...' : 'ADICIONAR'}
-                      </span>
-                    </label>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 font-normal">Nenhum agendamento hoje ou futuro.</p>
+            )}
+          </section>
+        )}
 
-                  {Array.isArray(formInfo.galerias) && formInfo.galerias.length ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {formInfo.galerias.map((url) => (
-                        <div key={url} className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
-                          <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
-                          <button
-                            onClick={() => removerImagemGaleria(url)}
-                            className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 border border-gray-700 flex items-center justify-center hover:border-red-400"
-                            title="Remover"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-300" />
-                          </button>
+        {/* CANCELADOS */}
+        {activeTab === 'cancelados' && (
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black">CANCELADOS</h2>
+
+            {agendamentos.filter(a => String(a.status || '').includes('cancelado')).length ? (
+              <div className="space-y-3">
+                {agendamentos
+                  .filter(a => String(a.status || '').includes('cancelado'))
+                  .map(a => (
+                    <div key={a.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                      <div className="text-xs text-gray-500 uppercase font-normal">
+                        {formatDateBRFromISO(a.data)} • {a.hora_inicio} - {a.hora_fim}
+                      </div>
+                      <div className="text-xl font-black mt-1">
+                        {a.users?.nome || 'Cliente'}
+                      </div>
+                      <div className="text-sm text-gray-500 font-normal">
+                        {a.profissionais?.nome || 'Profissional'} • {a.servicos?.nome || 'Serviço'}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 font-normal">Nenhum cancelado encontrado.</p>
+            )}
+          </section>
+        )}
+
+        {/* HISTÓRICO */}
+        {activeTab === 'historico' && (
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black">HISTÓRICO</h2>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <DateFilterButton
+                value={historicoData}
+                onChange={(e) => setHistoricoData(e.target.value)}
+                title="Selecionar data do histórico"
+              />
+              <div className="text-sm text-gray-400">
+                DATA: <span className="text-gray-200">{formatDateBRFromISO(historicoData)}</span>
+              </div>
+            </div>
+
+            {agendamentosDiaSelecionado.length ? (
+              <div className="space-y-3">
+                {agendamentosDiaSelecionado.map(a => (
+                  <div key={a.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                    <div className="flex justify-between items-center gap-3">
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase font-normal">
+                          {a.hora_inicio} - {a.hora_fim} • {String(a.status || '').toUpperCase()}
                         </div>
-                      ))}
+                        <div className="text-xl font-black mt-1">
+                          {a.users?.nome || 'Cliente'}
+                        </div>
+                        <div className="text-sm text-gray-500 font-normal">
+                          {a.profissionais?.nome || 'Profissional'} • {a.servicos?.nome || 'Serviço'}
+                        </div>
+                      </div>
+                      <div className="text-primary font-black text-xl">
+                        R$ {Number(a.servicos?.preco || 0).toFixed(2)}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-gray-500">Nenhuma imagem ainda :(</div>
-                  )}
-                </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="text-gray-500 font-normal">Nenhum registro para essa data.</p>
             )}
-          </div>
-        </div>
-      </div>
+          </section>
+        )}
 
-      {/* Modal Serviço */}
-      {showNovoServico && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-normal">{editingServicoId ? 'EDITAR SERVIÇO' : 'NOVO SERVIÇO'}</h3>
+        {/* SERVIÇOS */}
+        {activeTab === 'servicos' && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-2xl font-black">SERVIÇOS</h2>
               <button
                 onClick={() => {
-                  setShowNovoServico(false);
+                  setShowNovoServico(true);
                   setEditingServicoId(null);
                   setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
                 }}
+                className="px-4 py-2 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> NOVO
+                </span>
+              </button>
+            </div>
+
+            {servicos.length ? (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {servicos.map(s => (
+                  <div key={s.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                    <div className="text-xl font-black">{s.nome}</div>
+                    <div className="text-sm text-gray-500 font-normal mt-1">
+                      {s.profissionais?.nome || 'Profissional'}
+                    </div>
+                    <div className="text-sm text-gray-500 font-normal mt-2">
+                      <Clock className="w-4 h-4 inline mr-1" />
+                      {s.duracao_minutos} min
+                    </div>
+                    <div className="text-primary font-black text-2xl mt-2">
+                      R$ {Number(s.preco || 0).toFixed(2)}
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          setEditingServicoId(s.id);
+                          setShowNovoServico(true);
+                          setFormServico({
+                            nome: s.nome || '',
+                            duracao_minutos: String(s.duracao_minutos ?? ''),
+                            preco: String(s.preco ?? ''),
+                            profissional_id: s.profissional_id || ''
+                          });
+                        }}
+                        className="flex-1 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button uppercase font-normal"
+                      >
+                        EDITAR
+                      </button>
+                      <button
+                        onClick={() => deleteServico(s.id)}
+                        className="px-4 py-2 bg-red-600/20 border border-red-600/40 text-red-300 hover:border-red-500 rounded-button uppercase font-normal"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 font-normal">Nenhum serviço cadastrado.</p>
+            )}
+          </section>
+        )}
+
+        {/* PROFISSIONAIS */}
+        {activeTab === 'profissionais' && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-2xl font-black">PROFISSIONAIS</h2>
+              <button
+                onClick={() => {
+                  setShowNovoProfissional(true);
+                  setEditingProfissional(null);
+                  setFormProfissional({
+                    nome: '',
+                    especialidade: '',
+                    anos_experiencia: '',
+                    horario_inicio: '08:00',
+                    horario_fim: '18:00',
+                    almoco_inicio: '',
+                    almoco_fim: '',
+                    dias_trabalho: [1, 2, 3, 4, 5, 6]
+                  });
+                }}
+                className="px-4 py-2 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> NOVO
+                </span>
+              </button>
+            </div>
+
+            {profissionais.length ? (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {profissionais.map(p => {
+                  const status = getProfStatus(p);
+                  return (
+                    <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5 relative">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xl font-black">{p.nome}</div>
+                          {p.especialidade && (
+                            <div className="mt-2">
+                              <span className="inline-block px-2 py-1 rounded-full bg-yellow-400 text-black text-[10px] uppercase font-normal">
+                                {p.especialidade}
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-sm text-gray-500 font-normal mt-2">
+                            {p.anos_experiencia != null ? `${p.anos_experiencia} anos de experiência` : 'Sem experiência informada'}
+                          </div>
+                          <div className="text-sm text-gray-500 font-normal mt-2">
+                            Horário: <span className="text-gray-200">{p.horario_inicio || '08:00'} - {p.horario_fim || '18:00'}</span>
+                          </div>
+                          {(p.almoco_inicio && p.almoco_fim) && (
+                            <div className="text-sm text-gray-500 font-normal mt-1">
+                              Almoço: <span className="text-gray-200">{p.almoco_inicio} - {p.almoco_fim}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
+                          <span className="text-xs text-gray-300 uppercase font-normal">{status.label}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mt-4">
+                        <button
+                          onClick={() => {
+                            setEditingProfissional(p);
+                            setShowNovoProfissional(true);
+                            setFormProfissional({
+                              nome: p.nome || '',
+                              especialidade: p.especialidade || '',
+                              anos_experiencia: String(p.anos_experiencia ?? ''),
+                              horario_inicio: p.horario_inicio || '08:00',
+                              horario_fim: p.horario_fim || '18:00',
+                              almoco_inicio: p.almoco_inicio || '',
+                              almoco_fim: p.almoco_fim || '',
+                              dias_trabalho: Array.isArray(p.dias_trabalho) ? p.dias_trabalho : [1, 2, 3, 4, 5, 6]
+                            });
+                          }}
+                          className="px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button uppercase font-normal"
+                        >
+                          EDITAR
+                        </button>
+
+                        <button
+                          onClick={() => toggleAtivoProfissional(p)}
+                          className={`px-4 py-2 rounded-button uppercase font-normal border ${
+                            (p.ativo === undefined ? true : !!p.ativo)
+                              ? 'bg-red-600/20 border-red-600/40 text-red-300 hover:border-red-500'
+                              : 'bg-green-500/20 border-green-500/40 text-green-300 hover:border-green-500'
+                          }`}
+                        >
+                          {(p.ativo === undefined ? true : !!p.ativo) ? 'INATIVAR' : 'ATIVAR'}
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => excluirProfissional(p)}
+                        className="mt-2 w-full px-4 py-2 bg-red-600/10 border border-red-600/30 text-red-300 rounded-button uppercase font-normal"
+                      >
+                        EXCLUIR
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500 font-normal">Nenhum profissional cadastrado.</p>
+            )}
+          </section>
+        )}
+
+        {/* INFO DO NEGÓCIO */}
+        {activeTab === 'info-negocio' && (
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black">INFO DO NEGÓCIO</h2>
+
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">NOME</div>
+                  <input
+                    value={formInfo.nome}
+                    onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="Nome do negócio"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">TELEFONE</div>
+                  <input
+                    value={formInfo.telefone}
+                    onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="Telefone"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-400 uppercase font-normal mb-2">DESCRIÇÃO</div>
+                <textarea
+                  value={formInfo.descricao}
+                  onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  placeholder="Descrição"
+                />
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-400 uppercase font-normal mb-2">ENDEREÇO</div>
+                <input
+                  value={formInfo.endereco}
+                  onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  placeholder="Endereço"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">INSTAGRAM</div>
+                  <input
+                    value={formInfo.instagram}
+                    onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="@seuinstagram"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">FACEBOOK</div>
+                  <input
+                    value={formInfo.facebook}
+                    onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="facebook.com/..."
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={salvarInfoNegocio}
+                disabled={infoSaving}
+                className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal disabled:opacity-60"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {infoSaving ? 'SALVANDO...' : 'SALVAR'}
+                </span>
+              </button>
+            </div>
+
+            <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg font-black">GALERIA</h3>
+
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button cursor-pointer uppercase font-normal">
+                  <Plus className="w-4 h-4" />
+                  {galleryUploading ? 'ENVIANDO...' : 'ADICIONAR'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    multiple
+                    className="hidden"
+                    disabled={galleryUploading}
+                    onChange={(e) => uploadGaleria(e.target.files)}
+                  />
+                </label>
+              </div>
+
+              {Array.isArray(formInfo.galeria) && formInfo.galeria.length ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {formInfo.galeria.map((url) => (
+                    <div key={url} className="bg-dark-200 border border-gray-800 rounded-custom overflow-hidden">
+                      <img src={url} alt="Galeria" className="w-full h-48 object-cover" />
+                      <div className="p-3 flex gap-2">
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 px-4 py-2 bg-dark-100 border border-gray-800 hover:border-primary rounded-button text-sm uppercase font-normal inline-flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          VER
+                        </a>
+                        <button
+                          onClick={() => removerImagemGaleria(url)}
+                          className="px-4 py-2 bg-red-600/20 border border-red-600/40 text-red-300 hover:border-red-500 rounded-button uppercase font-normal"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 font-normal">Nenhuma imagem na galeria.</p>
+              )}
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* MODAL SERVIÇO */}
+      {showNovoServico && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-black">{editingServicoId ? 'EDITAR SERVIÇO' : 'NOVO SERVIÇO'}</h3>
+              <button
+                onClick={() => setShowNovoServico(false)}
+                className="text-gray-400 hover:text-white"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1735,160 +1605,188 @@ export default function Dashboard({ user, onLogout }) {
 
             <form onSubmit={editingServicoId ? updateServico : createServico} className="space-y-4">
               <div>
-                <label className="block text-sm mb-2">Profissional</label>
+                <div className="text-sm text-gray-400 uppercase font-normal mb-2">NOME</div>
+                <input
+                  value={formServico.nome}
+                  onChange={(e) => setFormServico(prev => ({ ...prev, nome: e.target.value }))}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  placeholder="Nome do serviço"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">DURAÇÃO</div>
+                  <input
+                    value={formServico.duracao_minutos}
+                    onChange={(e) => setFormServico(prev => ({ ...prev, duracao_minutos: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="min"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">PREÇO</div>
+                  <input
+                    value={formServico.preco}
+                    onChange={(e) => setFormServico(prev => ({ ...prev, preco: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="R$"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-400 uppercase font-normal mb-2">PROFISSIONAL</div>
                 <select
                   value={formServico.profissional_id}
-                  onChange={(e) => setFormServico({ ...formServico, profissional_id: e.target.value })}
+                  onChange={(e) => setFormServico(prev => ({ ...prev, profissional_id: e.target.value }))}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
                 >
-                  <option value="">Selecione</option>
-                  {profissionais
-                    .filter(p => (p.ativo === undefined ? true : !!p.ativo))
-                    .map(p => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
+                  <option value="">SELECIONAR</option>
+                  {profissionais.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm mb-2">Nome</label>
-                <input
-                  type="text"
-                  value={formServico.nome}
-                  onChange={(e) => setFormServico({ ...formServico, nome: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2">Duração (min)</label>
-                <input
-                  type="number"
-                  value={formServico.duracao_minutos}
-                  onChange={(e) => setFormServico({ ...formServico, duracao_minutos: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2">Preço (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formServico.preco}
-                  onChange={(e) => setFormServico({ ...formServico, preco: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-normal rounded-button font-black">
-                {editingServicoId ? 'SALVAR' : 'CRIAR SERVIÇO'}
+              <button
+                type="submit"
+                className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal"
+              >
+                {editingServicoId ? 'SALVAR' : 'CRIAR'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal Profissional */}
+      {/* MODAL PROFISSIONAL */}
       {showNovoProfissional && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-normal">{editingProfissional ? 'EDITAR PROFISSIONAL' : 'NOVO PROFISSIONAL'}</h3>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-lg w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-black">{editingProfissional ? 'EDITAR PROFISSIONAL' : 'NOVO PROFISSIONAL'}</h3>
               <button
-                onClick={() => {
-                  setShowNovoProfissional(false);
-                  setEditingProfissional(null);
-                  setFormProfissional({ nome: '', anos_experiencia: '', horario_inicio: '08:00', horario_fim: '18:00', dias_trabalho: [1,2,3,4,5,6] });
-                }}
+                onClick={() => setShowNovoProfissional(false)}
+                className="text-gray-400 hover:text-white"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             <form onSubmit={editingProfissional ? updateProfissional : createProfissional} className="space-y-4">
-              <div>
-                <label className="block text-sm mb-2">Nome</label>
-                <input
-                  type="text"
-                  value={formProfissional.nome}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2">Anos de Experiência</label>
-                <input
-                  type="number"
-                  value={formProfissional.anos_experiencia}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, anos_experiencia: e.target.value })}
-                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm mb-2">Início</label>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">NOME</div>
+                  <input
+                    value={formProfissional.nome}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, nome: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="Nome"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">ESPECIALIDADE</div>
+                  <input
+                    value={formProfissional.especialidade}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, especialidade: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="Ex: BARBA, DEGRADÊ..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">EXPERIÊNCIA</div>
+                  <input
+                    value={formProfissional.anos_experiencia}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, anos_experiencia: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                    placeholder="anos"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">INÍCIO</div>
                   <input
                     type="time"
                     value={formProfissional.horario_inicio}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_inicio: e.target.value })}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, horario_inicio: e.target.value }))}
                     className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm mb-2">Fim</label>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">FIM</div>
                   <input
                     type="time"
                     value={formProfissional.horario_fim}
-                    onChange={(e) => setFormProfissional({ ...formProfissional, horario_fim: e.target.value })}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, horario_fim: e.target.value }))}
                     className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                    required
                   />
                 </div>
               </div>
 
-              {/* ✅ Dias de trabalho REAL (dias_trabalho) - NÃO MEXIDO */}
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">ALMOÇO INÍCIO</div>
+                  <input
+                    type="time"
+                    value={formProfissional.almoco_inicio}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, almoco_inicio: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm text-gray-400 uppercase font-normal mb-2">ALMOÇO FIM</div>
+                  <input
+                    type="time"
+                    value={formProfissional.almoco_fim}
+                    onChange={(e) => setFormProfissional(prev => ({ ...prev, almoco_fim: e.target.value }))}
+                    className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm mb-2">Dias de trabalho</label>
-                <div className="grid grid-cols-7 gap-2">
-                  {WEEKDAYS.map(d => {
-                    const active = (formProfissional.dias_trabalho || []).includes(d.i);
+                <div className="text-sm text-gray-400 uppercase font-normal mb-3">DIAS DE TRABALHO</div>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map(w => {
+                    const selected = (formProfissional.dias_trabalho || []).includes(w.i);
                     return (
                       <button
+                        key={w.i}
                         type="button"
-                        key={d.i}
                         onClick={() => {
                           const cur = Array.isArray(formProfissional.dias_trabalho) ? [...formProfissional.dias_trabalho] : [];
-                          const next = active ? cur.filter(x => x !== d.i) : [...cur, d.i];
+                          const next = selected ? cur.filter(x => x !== w.i) : [...cur, w.i];
                           setFormProfissional(prev => ({ ...prev, dias_trabalho: normalizeDiasTrabalho(next) }));
                         }}
-                        className={`py-2 rounded-custom border font-normal text-xs transition-all ${
-                          active
+                        className={`px-4 py-2 rounded-button border uppercase font-normal text-sm ${
+                          selected
                             ? 'bg-primary/20 border-primary/50 text-primary'
-                            : 'bg-dark-200 border-gray-800 text-gray-500'
+                            : 'bg-dark-200 border-gray-800 text-gray-300 hover:border-primary/30'
                         }`}
                       >
-                        {d.label}
+                        {w.label}
                       </button>
                     );
                   })}
                 </div>
 
-                <p className="text-[12px] text-gray-500 mt-2">
-                  Amarelo: aberto,.......Escuro: fechado
+                <p className="text-xs text-gray-500 font-normal mt-3">
+                  O almoço bloqueia agendamentos automaticamente. Se houver conflito com agendamentos futuros, o sistema impedirá a alteração.
                 </p>
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal">
-                {editingProfissional ? 'SALVAR' : 'ADICIONAR'}
+              <button
+                type="submit"
+                className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button uppercase font-normal"
+              >
+                {editingProfissional ? 'SALVAR' : 'CRIAR'}
               </button>
             </form>
           </div>
