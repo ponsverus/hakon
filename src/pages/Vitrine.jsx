@@ -155,9 +155,8 @@ function DatePickerButton({
     const el = inputRef.current;
     if (!el) return;
 
-    if (typeof el.showPicker === 'function') {
-      el.showPicker();
-    } else {
+    if (typeof el.showPicker === 'function') el.showPicker();
+    else {
       el.click();
       el.focus();
     }
@@ -189,26 +188,11 @@ function DatePickerButton({
   );
 }
 
-function getPrecoEfetivo(s) {
-  const preco = Number(s?.preco ?? 0);
-  const promoRaw = s?.preco_promocional;
-  const promo = promoRaw === null || promoRaw === undefined || promoRaw === '' ? null : Number(promoRaw);
-  if (Number.isFinite(promo) && promo > 0 && promo < preco) return promo;
-  return preco;
-}
-
-function isPromoValida(s) {
-  const preco = Number(s?.preco ?? 0);
-  const promoRaw = s?.preco_promocional;
-  const promo = promoRaw === null || promoRaw === undefined || promoRaw === '' ? null : Number(promoRaw);
-  return Number.isFinite(promo) && promo > 0 && promo < preco;
-}
-
 export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [barbearia, setBarbearia] = useState(null);
+  const [negocio, setNegocio] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [avaliacoes, setAvaliacoes] = useState([]);
@@ -232,7 +216,7 @@ export default function Vitrine({ user, userType }) {
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-  const [avaliarTipo, setAvaliarTipo] = useState('barbearia');
+  const [avaliarTipo, setAvaliarTipo] = useState('negocio'); // interno no front
   const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
@@ -244,10 +228,10 @@ export default function Vitrine({ user, userType }) {
   }, [slug]);
 
   useEffect(() => {
-    if (user && barbearia?.id) checkFavorito();
+    if (user && negocio?.id) checkFavorito();
     else setIsFavorito(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, userType, barbearia?.id]);
+  }, [user?.id, userType, negocio?.id]);
 
   const loadVitrine = async () => {
     setLoading(true);
@@ -259,26 +243,26 @@ export default function Vitrine({ user, userType }) {
     }, 12000);
 
     try {
-      const { data: barbeariaData, error: barbeariaError } = await withTimeout(
+      const { data: negocioData, error: negocioError } = await withTimeout(
         supabase.from('negocios').select('*').eq('slug', slug).maybeSingle(),
         7000,
         'negocio'
       );
 
-      if (barbeariaError) throw barbeariaError;
+      if (negocioError) throw negocioError;
 
-      if (!barbeariaData) {
-        setBarbearia(null);
+      if (!negocioData) {
+        setNegocio(null);
         setProfissionais([]);
         setServicos([]);
         setAvaliacoes([]);
         return;
       }
 
-      setBarbearia(barbeariaData);
+      setNegocio(negocioData);
 
       const { data: profissionaisData, error: profErr } = await withTimeout(
-        supabase.from('profissionais').select('*').eq('negocio_id', barbeariaData.id),
+        supabase.from('profissionais').select('*').eq('negocio_id', negocioData.id),
         7000,
         'profissionais'
       );
@@ -305,8 +289,8 @@ export default function Vitrine({ user, userType }) {
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
-          .select(`*, users (nome), profissionais (nome), negocios (nome)`)
-          .eq('negocio_id', barbeariaData.id)
+          .select(`*, users (nome), profissionais (nome), negocios (nome, tipo_negocio)`)
+          .eq('negocio_id', negocioData.id)
           .order('created_at', { ascending: false })
           .limit(10),
         7000,
@@ -318,35 +302,36 @@ export default function Vitrine({ user, userType }) {
     } catch (e) {
       console.error('Erro ao carregar vitrine:', e);
       setError(e?.message || 'Erro ao carregar a vitrine.');
-      setBarbearia(null);
+      setNegocio(null);
     } finally {
       clearTimeout(watchdog);
       setLoading(false);
     }
   };
 
+  // ✅ FAVORITOS: somente cliente_id + negocio_id (sem tipo fixo)
   const checkFavorito = async () => {
-    if (!user || userType !== 'client' || !barbearia?.id) {
+    if (!user || userType !== 'client' || !negocio?.id) {
       setIsFavorito(false);
       return;
     }
 
     try {
-      const { data, error } = await withTimeout(
+      const { data, error: favErr } = await withTimeout(
         supabase
           .from('favoritos')
           .select('id')
           .eq('cliente_id', user.id)
-          .eq('negocio_id', barbearia.id)
-          .eq('tipo', 'barbearia')
+          .eq('negocio_id', negocio.id)
           .maybeSingle(),
         6000,
         'favorito'
       );
 
-      if (error) throw error;
+      if (favErr) throw favErr;
       setIsFavorito(!!data);
-    } catch {
+    } catch (e) {
+      console.warn('checkFavorito falhou:', e?.message || e);
       setIsFavorito(false);
     }
   };
@@ -360,28 +345,30 @@ export default function Vitrine({ user, userType }) {
       alert('Apenas CLIENTE pode favoritar negócios.');
       return;
     }
+    if (!negocio?.id) {
+      alert('Negócio inválido.');
+      return;
+    }
 
     try {
       if (isFavorito) {
-        const { error } = await supabase
+        const { error: delErr } = await supabase
           .from('favoritos')
           .delete()
           .eq('cliente_id', user.id)
-          .eq('negocio_id', barbearia.id)
-          .eq('tipo', 'barbearia');
+          .eq('negocio_id', negocio.id);
 
-        if (error) throw error;
+        if (delErr) throw delErr;
         setIsFavorito(false);
       } else {
-        const { error } = await supabase
+        const { error: insErr } = await supabase
           .from('favoritos')
           .insert({
             cliente_id: user.id,
-            tipo: 'barbearia',
-            negocio_id: barbearia.id
+            negocio_id: negocio.id
           });
 
-        if (error) throw error;
+        if (insErr) throw insErr;
         setIsFavorito(true);
       }
     } catch (e) {
@@ -467,9 +454,7 @@ export default function Vitrine({ user, userType }) {
         'slots'
       );
 
-      if (slotErr) {
-        console.warn('slots_temporarios indisponível:', slotErr.message);
-      }
+      if (slotErr) console.warn('slots_temporarios indisponível:', slotErr.message);
 
       const agendamentosValidos = (ags || [])
         .filter(a => !String(a.status || '').includes('cancelado'))
@@ -510,9 +495,7 @@ export default function Vitrine({ user, userType }) {
         let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
 
         const slotExato = slotsList.find(s => s.ini === cur);
-        if (slotExato) {
-          freeEnd = Math.min(freeEnd, slotExato.fim);
-        }
+        if (slotExato) freeEnd = Math.min(freeEnd, slotExato.fim);
 
         const maxMinutos = freeEnd - cur;
 
@@ -543,7 +526,7 @@ export default function Vitrine({ user, userType }) {
   const totalSelecionado = useMemo(() => {
     const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
     const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
-    const val = lista.reduce((sum, s) => sum + getPrecoEfetivo(s), 0);
+    const val = lista.reduce((sum, s) => sum + Number(s?.preco || 0), 0);
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
@@ -552,8 +535,8 @@ export default function Vitrine({ user, userType }) {
     return servicosDoProf
       .filter(s => Number(s.duracao_minutos || 0) > 0)
       .sort((a, b) => {
-        const pa = getPrecoEfetivo(a);
-        const pb = getPrecoEfetivo(b);
+        const pa = Number(a.preco ?? 0);
+        const pb = Number(b.preco ?? 0);
         if (pb !== pa) return pb - pa;
         return String(a.nome || '').localeCompare(String(b.nome || ''));
       });
@@ -561,7 +544,7 @@ export default function Vitrine({ user, userType }) {
 
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
-    if (!ativo) return { label: 'FECHADO', color: 'bg-red-500', isLunch: false };
+    if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
 
     const now = getNowSP();
     const ini = timeToMinutes(p?.horario_inicio || '08:00');
@@ -574,21 +557,19 @@ export default function Vitrine({ user, userType }) {
     const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
-    if (!(trabalhaHoje && dentroHorario)) return { label: 'FECHADO', color: 'bg-red-500', isLunch: false };
-
-    const li = p?.almoco_inicio ? timeToMinutes(p.almoco_inicio) : null;
-    const lf = p?.almoco_fim ? timeToMinutes(p.almoco_fim) : null;
-
-    if (li != null && lf != null && now.minutes >= li && now.minutes < lf) {
-      return { label: 'ALMOÇO', color: 'bg-yellow-400', isLunch: true };
-    }
-
-    return { label: 'ABERTO', color: 'bg-green-500', isLunch: false };
+    // ✅ mantém simples aqui: ABERTO/FECHADO
+    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
+    return { label: 'FECHADO', color: 'bg-red-500' };
   };
 
+  // ✅ FIX DO ERRO: inserir negocio_id no agendamento (NOT NULL)
   const confirmarAgendamento = async () => {
     if (!user || userType !== 'client') {
       alert('Você precisa estar logado como CLIENTE para agendar.');
+      return;
+    }
+    if (!negocio?.id) {
+      alert('Negócio inválido. Recarregue a vitrine.');
       return;
     }
 
@@ -623,10 +604,12 @@ export default function Vitrine({ user, userType }) {
 
           const curFim = addMinutes(curInicio, dur);
 
-          const { data: inserted, error } = await withTimeout(
+          const { data: inserted, error: insErr } = await withTimeout(
             supabase
               .from('agendamentos')
               .insert({
+                // ✅ aqui é o que faltava:
+                negocio_id: negocio.id,
                 profissional_id: flow.profissional.id,
                 cliente_id: user.id,
                 servico_id: s.id,
@@ -641,7 +624,7 @@ export default function Vitrine({ user, userType }) {
             'criar-agendamento'
           );
 
-          if (error) throw error;
+          if (insErr) throw insErr;
           if (inserted?.id) insertedIds.push(inserted.id);
 
           curInicio = curFim;
@@ -673,32 +656,33 @@ export default function Vitrine({ user, userType }) {
     }
     setAvaliarNota(5);
     setAvaliarTexto('');
-    setAvaliarTipo('barbearia');
+    setAvaliarTipo('negocio');
     setAvaliarProfissionalId(null);
     setShowAvaliar(true);
   };
 
   const enviarAvaliacao = async () => {
     if (!user || userType !== 'client') return;
+    if (!negocio?.id) return alert('Negócio inválido.');
 
     try {
       setAvaliarLoading(true);
 
       const payload = {
         cliente_id: user.id,
-        negocio_id: barbearia.id,
+        negocio_id: negocio.id,
         nota: avaliarNota,
         comentario: avaliarTexto || null,
         profissional_id: avaliarTipo === 'profissional' ? avaliarProfissionalId : null
       };
 
-      const { error } = await withTimeout(
+      const { error: avErr } = await withTimeout(
         supabase.from('avaliacoes').insert(payload),
         7000,
         'enviar-avaliacao'
       );
 
-      if (error) throw error;
+      if (avErr) throw avErr;
 
       setShowAvaliar(false);
       await loadVitrine();
@@ -711,12 +695,12 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
-  const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
-  const instagramUrl = useMemo(() => resolveInstagram(barbearia?.instagram), [barbearia?.instagram]);
+  const logoUrl = useMemo(() => resolveLogoUrl(negocio?.logo_url), [negocio?.logo_url]);
+  const instagramUrl = useMemo(() => resolveInstagram(negocio?.instagram), [negocio?.instagram]);
   const galerias = useMemo(() => {
-    const arr = barbearia?.galerias;
+    const arr = negocio?.galerias;
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
-  }, [barbearia?.galerias]);
+  }, [negocio?.galerias]);
 
   const servicosPorProf = useMemo(() => {
     const map = new Map();
@@ -740,21 +724,14 @@ export default function Vitrine({ user, userType }) {
 
     const medias = new Map();
     for (const [profId, avs] of map.entries()) {
-      const mediaNum = avs.length > 0
-        ? (avs.reduce((sum, a) => sum + a.nota, 0) / avs.length)
-        : 0;
-      medias.set(profId, { media: mediaNum.toFixed(1), count: avs.length });
+      const media = avs.length > 0
+        ? (avs.reduce((sum, a) => sum + a.nota, 0) / avs.length).toFixed(1)
+        : null;
+      medias.set(profId, { media, count: avs.length });
     }
 
     return medias;
   }, [avaliacoes]);
-
-  const tipoNegocioLabel = useMemo(() => {
-    const raw = String(barbearia?.tipo_negocio || '').trim();
-    if (raw) return raw;
-    const nome = String(barbearia?.nome || '').trim();
-    return nome || 'NEGÓCIO';
-  }, [barbearia?.tipo_negocio, barbearia?.nome]);
 
   if (loading) {
     return (
@@ -782,7 +759,7 @@ export default function Vitrine({ user, userType }) {
     );
   }
 
-  if (!barbearia) {
+  if (!negocio) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
@@ -793,9 +770,12 @@ export default function Vitrine({ user, userType }) {
     );
   }
 
+  // ✅ se não tem avaliações, mostrar 0.0 (não 5.0)
   const mediaAvaliacoes = avaliacoes.length > 0
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '0.0';
+
+  const tipoNegocioLabel = String(negocio?.tipo_negocio || 'NEGÓCIO').trim() || 'NEGÓCIO';
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -854,13 +834,13 @@ export default function Vitrine({ user, userType }) {
               </div>
             ) : (
               <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
-                {barbearia.nome?.[0] || 'N'}
+                {negocio.nome?.[0] || 'N'}
               </div>
             )}
 
             <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
-              <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{barbearia.descricao}</p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{negocio.nome}</h1>
+              <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{negocio.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <div className="flex items-center gap-2">
@@ -869,20 +849,20 @@ export default function Vitrine({ user, userType }) {
                   <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
                 </div>
 
-                {barbearia.endereco && (
+                {negocio.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
                     <MapPin className="w-4 h-4" strokeWidth={1.5} />
-                    <span className="font-normal">{barbearia.endereco}</span>
+                    <span className="font-normal">{negocio.endereco}</span>
                   </div>
                 )}
 
-                {barbearia.telefone && (
+                {negocio.telefone && (
                   <a
-                    href={`tel:${barbearia.telefone}`}
+                    href={`tel:${negocio.telefone}`}
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                   >
                     <Phone className="w-4 h-4" strokeWidth={1.5} />
-                    {barbearia.telefone}
+                    {negocio.telefone}
                   </a>
                 )}
 
@@ -913,37 +893,25 @@ export default function Vitrine({ user, userType }) {
             {profissionais.map(prof => {
               const totalServ = (servicosPorProf.get(prof.id) || []).length;
               const status = getProfStatus(prof);
-
-              const avalInfo = avaliacoesPorProf.get(prof.id) || { media: '0.0', count: 0 };
+              const avalInfo = avaliacoesPorProf.get(prof.id);
 
               return (
-                <div
-                  key={prof.id}
-                  className="relative bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all"
-                >
-                  {String(prof.profissao || '').trim() && (
-                    <div className="absolute top-3 right-3">
-                      <span className="inline-block px-2.5 py-1 bg-primary/10 border border-primary/30 rounded-button text-[11px] text-primary font-normal uppercase">
-                        {prof.profissao}
-                      </span>
-                    </div>
-                  )}
-
+                <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
                       {prof.nome?.[0] || 'P'}
                     </div>
-
                     <div className="flex-1">
                       <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
 
-                      <div className="flex items-center gap-2 mb-1">
-                        <StarChar size={16} className="text-primary" />
-                        <span className="text-lg font-normal text-primary">{avalInfo.media}</span>
-                        <span className="text-xs text-gray-500">({avalInfo.count})</span>
-                      </div>
+                      {avalInfo && avalInfo.media && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <StarChar size={16} className="text-primary" />
+                          <span className="text-lg font-normal text-primary">{avalInfo.media}</span>
+                          <span className="text-xs text-gray-500">({avalInfo.count})</span>
+                        </div>
+                      )}
 
-                      {/* ✅ bolinha única (status) — sem duplicar no topo */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
                         <span className="text-xs text-gray-400 font-normal uppercase">{status.label}</span>
@@ -952,23 +920,9 @@ export default function Vitrine({ user, userType }) {
                       {prof.anos_experiencia != null && (
                         <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
-
                       <p className="text-xs text-gray-500 font-normal mt-2">
-                        Horário:{' '}
-                        <span className="text-gray-300">
-                          {prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}
-                        </span>
+                        Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
-
-                      {prof.almoco_inicio && prof.almoco_fim && (
-                        <p className="text-xs text-gray-600 font-normal mt-1">
-                          Almoço:{' '}
-                          <span className="text-gray-400">
-                            {prof.almoco_inicio} - {prof.almoco_fim}
-                          </span>
-                        </p>
-                      )}
-
                       <p className="text-xs text-gray-600 font-normal mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
@@ -1007,8 +961,8 @@ export default function Vitrine({ user, userType }) {
                 const lista = (servicosPorProf.get(p.id) || [])
                   .slice()
                   .sort((a, b) => {
-                    const pa = getPrecoEfetivo(a);
-                    const pb = getPrecoEfetivo(b);
+                    const pa = Number(a.preco ?? 0);
+                    const pb = Number(b.preco ?? 0);
                     if (pb !== pa) return pb - pa;
                     return String(a.nome || '').localeCompare(String(b.nome || ''));
                   });
@@ -1022,36 +976,16 @@ export default function Vitrine({ user, userType }) {
 
                     {lista.length ? (
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {lista.map(s => {
-                          const preco = Number(s.preco ?? 0);
-                          const promoOk = isPromoValida(s);
-                          const efetivo = getPrecoEfetivo(s);
-
-                          return (
-                            <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                              <div className="font-black">{s.nome}</div>
-                              <div className="text-xs text-gray-500 font-normal mt-1">
-                                <Clock className="w-4 h-4 inline mr-1" />
-                                {s.duracao_minutos} min
-                              </div>
-
-                              {promoOk ? (
-                                <div className="mt-2 leading-tight">
-                                  <div className="text-sm font-normal text-red-400 line-through">
-                                    R$ {preco.toFixed(2)}
-                                  </div>
-                                  <div className="text-lg font-black text-green-400">
-                                    R$ {efetivo.toFixed(2)}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-primary font-black text-lg mt-2">
-                                  R$ {efetivo.toFixed(2)}
-                                </div>
-                              )}
+                        {lista.map(s => (
+                          <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                            <div className="font-black">{s.nome}</div>
+                            <div className="text-xs text-gray-500 font-normal mt-1">
+                              <Clock className="w-4 h-4 inline mr-1" />
+                              {s.duracao_minutos} min
                             </div>
-                          );
-                        })}
+                            <div className="text-primary font-black text-lg mt-2">R$ {s.preco}</div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <p className="text-gray-500 font-normal">Sem serviços ativos para este profissional.</p>
@@ -1064,7 +998,7 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* ✅ GALERIA */}
+      {/* Galeria */}
       {galerias.length > 0 && (
         <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
@@ -1109,6 +1043,7 @@ export default function Vitrine({ user, userType }) {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {avaliacoes.map(av => (
                 <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4 relative">
+                  {/* ✅ etiqueta: PROFISSIONAL ou TIPO DO NEGÓCIO */}
                   <div className="absolute top-3 right-3">
                     {av.profissional_id && av.profissionais?.nome ? (
                       <span className="inline-block px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
@@ -1269,9 +1204,6 @@ export default function Vitrine({ user, userType }) {
                     <div className="space-y-3">
                       {servicosPossiveis.map(s => {
                         const selected = (flow.servicosSelecionados || []).some(x => x.id === s.id);
-                        const preco = Number(s.preco ?? 0);
-                        const promoOk = isPromoValida(s);
-                        const efetivo = getPrecoEfetivo(s);
 
                         return (
                           <button
@@ -1307,21 +1239,7 @@ export default function Vitrine({ user, userType }) {
                                   {s.duracao_minutos} min
                                 </p>
                               </div>
-
-                              {promoOk ? (
-                                <div className="text-right leading-tight">
-                                  <div className="text-sm font-normal text-red-400 line-through">
-                                    R$ {preco.toFixed(2)}
-                                  </div>
-                                  <div className="text-2xl font-black text-green-400">
-                                    R$ {efetivo.toFixed(2)}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-2xl font-black text-primary">
-                                  R$ {efetivo.toFixed(2)}
-                                </div>
-                              )}
+                              <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
                             </div>
                           </button>
                         );
@@ -1380,28 +1298,14 @@ export default function Vitrine({ user, userType }) {
                     <div className="pt-2 border-t border-gray-800">
                       <div className="text-gray-500 font-normal text-sm mb-2">Serviços:</div>
                       <div className="space-y-1">
-                        {(flow.servicosSelecionados || []).map(s => {
-                          const preco = Number(s.preco ?? 0);
-                          const efetivo = getPrecoEfetivo(s);
-                          const promoOk = isPromoValida(s);
-
-                          return (
-                            <div key={s.id} className="flex justify-between text-sm">
-                              <span className="font-normal text-gray-200">{s.nome}</span>
-                              <span className="text-gray-400 font-normal">
-                                {s.duracao_minutos} min •{' '}
-                                {promoOk ? (
-                                  <>
-                                    <span className="line-through text-red-400">R$ {preco.toFixed(2)}</span>{' '}
-                                    <span className="text-green-400">R$ {efetivo.toFixed(2)}</span>
-                                  </>
-                                ) : (
-                                  <>R$ {efetivo.toFixed(2)}</>
-                                )}
-                              </span>
-                            </div>
-                          );
-                        })}
+                        {(flow.servicosSelecionados || []).map(s => (
+                          <div key={s.id} className="flex justify-between text-sm">
+                            <span className="font-normal text-gray-200">{s.nome}</span>
+                            <span className="text-gray-400 font-normal">
+                              {s.duracao_minutos} min • R$ {Number(s.preco || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
@@ -1448,16 +1352,17 @@ export default function Vitrine({ user, userType }) {
               </button>
             </div>
 
+            {/* Seleção: Negócio ou Profissional */}
             <div className="mb-4">
               <div className="text-sm text-gray-300 font-normal mb-2">Você está avaliando</div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    setAvaliarTipo('barbearia');
+                    setAvaliarTipo('negocio');
                     setAvaliarProfissionalId(null);
                   }}
-                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
-                    avaliarTipo === 'barbearia'
+                  className={`px-4 py-3 rounded-button border transition-all font-normal ${
+                    avaliarTipo === 'negocio'
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
@@ -1466,7 +1371,7 @@ export default function Vitrine({ user, userType }) {
                 </button>
                 <button
                   onClick={() => setAvaliarTipo('profissional')}
-                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
+                  className={`px-4 py-3 rounded-button border transition-all font-normal ${
                     avaliarTipo === 'profissional'
                       ? 'bg-primary/20 border-primary/50 text-primary'
                       : 'bg-dark-200 border-gray-800 text-gray-400'
@@ -1485,7 +1390,7 @@ export default function Vitrine({ user, userType }) {
                     <button
                       key={prof.id}
                       onClick={() => setAvaliarProfissionalId(prof.id)}
-                      className={`w-full text-left px-4 py-3 rounded-custom border transition-all font-normal ${
+                      className={`w-full text-left px-4 py-3 rounded-button border transition-all font-normal ${
                         avaliarProfissionalId === prof.id
                           ? 'bg-primary/20 border-primary/50 text-primary'
                           : 'bg-dark-200 border-gray-800 text-gray-400 hover:border-primary/30'
