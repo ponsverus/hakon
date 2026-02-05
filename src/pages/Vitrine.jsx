@@ -155,8 +155,9 @@ function DatePickerButton({
     const el = inputRef.current;
     if (!el) return;
 
-    if (typeof el.showPicker === 'function') el.showPicker();
-    else {
+    if (typeof el.showPicker === 'function') {
+      el.showPicker();
+    } else {
       el.click();
       el.focus();
     }
@@ -216,11 +217,10 @@ export default function Vitrine({ user, userType }) {
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-  const [avaliarTipo, setAvaliarTipo] = useState('negocio'); // interno no front
+  const [avaliarTipo, setAvaliarTipo] = useState('negocio');
   const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
-  const isClient = user && userType === 'client';
 
   useEffect(() => {
     loadVitrine();
@@ -289,7 +289,7 @@ export default function Vitrine({ user, userType }) {
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
-          .select(`*, users (nome), profissionais (nome), negocios (nome, tipo_negocio)`)
+          .select(`*, users (nome), profissionais (nome), negocios (nome)`)
           .eq('negocio_id', negocioData.id)
           .order('created_at', { ascending: false })
           .limit(10),
@@ -309,7 +309,7 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
-  // ✅ FAVORITOS: somente cliente_id + negocio_id (sem tipo fixo)
+  // ✅ FAVORITOS: somente cliente_id + negocio_id
   const checkFavorito = async () => {
     if (!user || userType !== 'client' || !negocio?.id) {
       setIsFavorito(false);
@@ -542,6 +542,26 @@ export default function Vitrine({ user, userType }) {
       });
   }, [servicosDoProf, flow.horario]);
 
+  // ✅ ALMOÇO (compatível com dois padrões de nome de coluna)
+  const getAlmocoRange = (p) => {
+    const ini = p?.almoco_inicio || p?.horario_almoco_inicio || null;
+    const fim = p?.almoco_fim || p?.horario_almoco_fim || null;
+    return { ini, fim };
+  };
+
+  const isInLunchNow = (p) => {
+    const { ini, fim } = getAlmocoRange(p);
+    if (!ini || !fim) return false;
+    const now = getNowSP();
+    const a = timeToMinutes(ini);
+    const b = timeToMinutes(fim);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+    // almoço cruzando meia-noite é raro; se acontecer, tratamos:
+    if (b < a) return (now.minutes >= a || now.minutes < b);
+    return (now.minutes >= a && now.minutes < b);
+  };
+
+  // ✅ STATUS (bolinha única no lugar certo)
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -557,12 +577,15 @@ export default function Vitrine({ user, userType }) {
     const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
-    // ✅ mantém simples aqui: ABERTO/FECHADO
-    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
-    return { label: 'FECHADO', color: 'bg-red-500' };
+    if (!(trabalhaHoje && dentroHorario)) return { label: 'FECHADO', color: 'bg-red-500' };
+
+    // ✅ se está dentro do expediente e está no almoço => bolinha amarela
+    if (isInLunchNow(p)) return { label: 'ALMOÇO', color: 'bg-yellow-400' };
+
+    return { label: 'ABERTO', color: 'bg-green-500' };
   };
 
-  // ✅ FIX DO ERRO: inserir negocio_id no agendamento (NOT NULL)
+  // ✅ FIX agendamento: negocio_id NOT NULL
   const confirmarAgendamento = async () => {
     if (!user || userType !== 'client') {
       alert('Você precisa estar logado como CLIENTE para agendar.');
@@ -608,7 +631,6 @@ export default function Vitrine({ user, userType }) {
             supabase
               .from('agendamentos')
               .insert({
-                // ✅ aqui é o que faltava:
                 negocio_id: negocio.id,
                 profissional_id: flow.profissional.id,
                 cliente_id: user.id,
@@ -770,12 +792,13 @@ export default function Vitrine({ user, userType }) {
     );
   }
 
-  // ✅ se não tem avaliações, mostrar 0.0 (não 5.0)
+  // ✅ se não tem avaliações, mostrar 0.0
   const mediaAvaliacoes = avaliacoes.length > 0
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '0.0';
 
-  const tipoNegocioLabel = String(negocio?.tipo_negocio || 'NEGÓCIO').trim() || 'NEGÓCIO';
+  // ✅ Etiqueta do “negócio” nas avaliações = NOME do negócio (não a palavra “Negócio”)
+  const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -895,8 +918,23 @@ export default function Vitrine({ user, userType }) {
               const status = getProfStatus(prof);
               const avalInfo = avaliacoesPorProf.get(prof.id);
 
+              const profissao = String(
+                prof?.profissao ?? prof?.profissao_nome ?? prof?.especialidade ?? ''
+              ).trim();
+
+              const { ini: almIni, fim: almFim } = getAlmocoRange(prof);
+
               return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
+                  {/* ✅ etiqueta profissão (topo direito) */}
+                  {profissao && (
+                    <div className="flex justify-end mb-2">
+                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
+                        {profissao}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
                       {prof.nome?.[0] || 'P'}
@@ -912,6 +950,7 @@ export default function Vitrine({ user, userType }) {
                         </div>
                       )}
 
+                      {/* ✅ status com UMA bolinha (verde/vermelha/amarela) */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
                         <span className="text-xs text-gray-400 font-normal uppercase">{status.label}</span>
@@ -920,9 +959,18 @@ export default function Vitrine({ user, userType }) {
                       {prof.anos_experiencia != null && (
                         <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
+
                       <p className="text-xs text-gray-500 font-normal mt-2">
                         Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
+
+                      {/* ✅ horário de almoço exposto no card */}
+                      {(almIni && almFim) && (
+                        <p className="text-xs text-gray-500 font-normal mt-1">
+                          Almoço: <span className="text-gray-300">{almIni} - {almFim}</span>
+                        </p>
+                      )}
+
                       <p className="text-xs text-gray-600 font-normal mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
@@ -976,16 +1024,38 @@ export default function Vitrine({ user, userType }) {
 
                     {lista.length ? (
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {lista.map(s => (
-                          <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                            <div className="font-black">{s.nome}</div>
-                            <div className="text-xs text-gray-500 font-normal mt-1">
-                              <Clock className="w-4 h-4 inline mr-1" />
-                              {s.duracao_minutos} min
+                        {lista.map(s => {
+                          const preco = Number(s.preco ?? 0);
+                          const promo = Number(s.preco_promocional ?? 0);
+
+                          const temPromo = Number.isFinite(promo) && promo > 0 && promo < preco;
+
+                          return (
+                            <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                              <div className="font-black">{s.nome}</div>
+                              <div className="text-xs text-gray-500 font-normal mt-1">
+                                <Clock className="w-4 h-4 inline mr-1" />
+                                {s.duracao_minutos} min
+                              </div>
+
+                              {/* ✅ preço com promo: promo verde / antigo vermelho riscado */}
+                              {!temPromo ? (
+                                <div className="text-primary font-black text-lg mt-2">
+                                  R$ {preco.toFixed(2)}
+                                </div>
+                              ) : (
+                                <div className="mt-2">
+                                  <div className="text-green-400 font-black text-lg">
+                                    R$ {promo.toFixed(2)}
+                                  </div>
+                                  <div className="text-red-400 text-sm font-normal line-through">
+                                    R$ {preco.toFixed(2)}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            <div className="text-primary font-black text-lg mt-2">R$ {s.preco}</div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-gray-500 font-normal">Sem serviços ativos para este profissional.</p>
@@ -998,7 +1068,7 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* Galeria */}
+      {/* ✅ GALERIA — sem fundo, sem título, sem ícone */}
       {galerias.length > 0 && (
         <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
@@ -1043,7 +1113,7 @@ export default function Vitrine({ user, userType }) {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {avaliacoes.map(av => (
                 <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4 relative">
-                  {/* ✅ etiqueta: PROFISSIONAL ou TIPO DO NEGÓCIO */}
+                  {/* ✅ Tag/Etiqueta no canto superior direito */}
                   <div className="absolute top-3 right-3">
                     {av.profissional_id && av.profissionais?.nome ? (
                       <span className="inline-block px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
@@ -1051,7 +1121,7 @@ export default function Vitrine({ user, userType }) {
                       </span>
                     ) : (
                       <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded-button text-[10px] text-blue-400 font-normal uppercase">
-                        {tipoNegocioLabel}
+                        {nomeNegocioLabel}
                       </span>
                     )}
                   </div>
@@ -1352,7 +1422,7 @@ export default function Vitrine({ user, userType }) {
               </button>
             </div>
 
-            {/* Seleção: Negócio ou Profissional */}
+            {/* Seleção: NOME DO NEGÓCIO ou Profissional */}
             <div className="mb-4">
               <div className="text-sm text-gray-300 font-normal mb-2">Você está avaliando</div>
               <div className="grid grid-cols-2 gap-2">
@@ -1361,17 +1431,17 @@ export default function Vitrine({ user, userType }) {
                     setAvaliarTipo('negocio');
                     setAvaliarProfissionalId(null);
                   }}
-                  className={`px-4 py-3 rounded-button border transition-all font-normal ${
+                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
                     avaliarTipo === 'negocio'
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  {tipoNegocioLabel}
+                  {nomeNegocioLabel}
                 </button>
                 <button
                   onClick={() => setAvaliarTipo('profissional')}
-                  className={`px-4 py-3 rounded-button border transition-all font-normal ${
+                  className={`px-4 py-3 rounded-custom border transition-all font-normal ${
                     avaliarTipo === 'profissional'
                       ? 'bg-primary/20 border-primary/50 text-primary'
                       : 'bg-dark-200 border-gray-800 text-gray-400'
@@ -1390,7 +1460,7 @@ export default function Vitrine({ user, userType }) {
                     <button
                       key={prof.id}
                       onClick={() => setAvaliarProfissionalId(prof.id)}
-                      className={`w-full text-left px-4 py-3 rounded-button border transition-all font-normal ${
+                      className={`w-full text-left px-4 py-3 rounded-custom border transition-all font-normal ${
                         avaliarProfissionalId === prof.id
                           ? 'bg-primary/20 border-primary/50 text-primary'
                           : 'bg-dark-200 border-gray-800 text-gray-400 hover:border-primary/30'
@@ -1403,6 +1473,7 @@ export default function Vitrine({ user, userType }) {
               </div>
             )}
 
+            {/* ✅ NOTA 1–5: “pill” (não redondo) */}
             <div className="mb-4">
               <div className="text-sm text-gray-300 font-normal mb-2">Nota</div>
               <div className="flex gap-2">
@@ -1410,7 +1481,7 @@ export default function Vitrine({ user, userType }) {
                   <button
                     key={n}
                     onClick={() => setAvaliarNota(n)}
-                    className={`w-10 h-10 rounded-button border transition-all font-normal ${
+                    className={`w-12 h-8 rounded-button border transition-all font-normal ${
                       avaliarNota >= n
                         ? 'bg-primary/20 border-primary/50 text-primary'
                         : 'bg-dark-200 border-gray-800 text-gray-500'
@@ -1422,13 +1493,14 @@ export default function Vitrine({ user, userType }) {
               </div>
             </div>
 
+            {/* ✅ textarea sem “marca de canto” */}
             <div className="mb-5">
               <div className="text-sm text-gray-300 font-normal mb-2">Comentário (opcional)</div>
               <textarea
                 value={avaliarTexto}
                 onChange={(e) => setAvaliarTexto(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none resize-none"
                 placeholder="Conte como foi sua experiência..."
               />
             </div>
