@@ -246,7 +246,7 @@ export default function SignupProfessional({ onLogin }) {
           className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Login
+          VOLTAR PARA LOGIN
         </Link>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 sm:p-8 shadow-2xl">
@@ -440,13 +440,13 @@ export default function SignupProfessional({ onLogin }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 sm:py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-black text-base sm:text-lg hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full py-3 sm:py-4 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal text-base sm:text-lg hover:shadow-lg hover:shadow-primary/50 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {loading ? 'CRIANDO VITRINE...' : 'CRIAR MINHA VITRINE'}
             </button>
 
             <div className="text-center pt-4 border-t border-gray-800">
-              <p className="text-sm text-gray-400 mb-2">Já tem uma conta?</p>
+              <p className="text-sm text-gray-400 mb-2">OU</p>
               <Link
                 to="/login"
                 className="text-primary hover:text-yellow-500 font-normal text-sm transition-colors"
