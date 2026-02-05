@@ -1615,7 +1615,7 @@ export default function Dashboard({ user, onLogout }) {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Nome do Negócio</label>
+                    <label className="block text-sm mb-2">NOME DO NEGÓCIO</label>
                     <input
                       value={formInfo.nome}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
@@ -1625,7 +1625,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Telefone</label>
+                    <label className="block text-sm mb-2">TELEFONE</label>
                     <input
                       value={formInfo.telefone}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
@@ -1636,7 +1636,7 @@ export default function Dashboard({ user, onLogout }) {
 
                   {/* ✅ pedido: email da conta */}
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Email da Conta</label>
+                    <label className="block text-sm mb-2">EMAIL</label>
                     <input
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
@@ -1647,21 +1647,18 @@ export default function Dashboard({ user, onLogout }) {
 
                   {/* ✅ pedido: senha (nova) */}
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Senha (nova)</label>
+                    <label className="block text-sm mb-2">NOVA SENHA</label>
                     <input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
                       placeholder="Digite uma nova senha"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      A senha não aparece nem fica salva no banco. Isso altera a senha do login.
-                    </p>
+                    />                
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">Endereço</label>
+                    <label className="block text-sm mb-2">ENDEREÇO</label>
                     <input
                       value={formInfo.endereco}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
@@ -1671,7 +1668,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">Descrição</label>
+                    <label className="block text-sm mb-2">SOBRE</label>
                     <textarea
                       value={formInfo.descricao}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
@@ -1682,7 +1679,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Instagram (ID ou @)</label>
+                    <label className="block text-sm mb-2">INSTAGRAM</label>
                     <input
                       value={formInfo.instagram}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
@@ -1692,7 +1689,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">Facebook (ID ou nome)</label>
+                    <label className="block text-sm mb-2">FACEBOOK</label>
                     <input
                       value={formInfo.facebook}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
