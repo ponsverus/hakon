@@ -189,7 +189,6 @@ function DatePickerButton({
   );
 }
 
-// ✅ preço efetivo (usa promo quando existir e for menor)
 function getPrecoEfetivo(s) {
   const preco = Number(s?.preco ?? 0);
   const promoRaw = s?.preco_promocional;
@@ -233,7 +232,7 @@ export default function Vitrine({ user, userType }) {
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-  const [avaliarTipo, setAvaliarTipo] = useState('barbearia'); // mantém interno por compatibilidade do banco
+  const [avaliarTipo, setAvaliarTipo] = useState('barbearia');
   const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
@@ -339,7 +338,7 @@ export default function Vitrine({ user, userType }) {
           .select('id')
           .eq('cliente_id', user.id)
           .eq('negocio_id', barbearia.id)
-          .eq('tipo', 'barbearia') // mantém compatível com o CHECK atual do banco
+          .eq('tipo', 'barbearia')
           .maybeSingle(),
         6000,
         'favorito'
@@ -544,7 +543,7 @@ export default function Vitrine({ user, userType }) {
   const totalSelecionado = useMemo(() => {
     const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
     const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
-    const val = lista.reduce((sum, s) => sum + getPrecoEfetivo(s), 0); // ✅ usa promo se houver
+    const val = lista.reduce((sum, s) => sum + getPrecoEfetivo(s), 0);
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
@@ -560,7 +559,6 @@ export default function Vitrine({ user, userType }) {
       });
   }, [servicosDoProf, flow.horario]);
 
-  // ✅ agora tem ALMOÇO
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500', isLunch: false };
@@ -735,9 +733,7 @@ export default function Vitrine({ user, userType }) {
 
     for (const av of avaliacoes) {
       if (av.profissional_id) {
-        if (!map.has(av.profissional_id)) {
-          map.set(av.profissional_id, []);
-        }
+        if (!map.has(av.profissional_id)) map.set(av.profissional_id, []);
         map.get(av.profissional_id).push(av);
       }
     }
@@ -753,6 +749,13 @@ export default function Vitrine({ user, userType }) {
     return medias;
   }, [avaliacoes]);
 
+  const tipoNegocioLabel = useMemo(() => {
+    const raw = String(barbearia?.tipo_negocio || '').trim();
+    if (raw) return raw;
+    const nome = String(barbearia?.nome || '').trim();
+    return nome || 'NEGÓCIO';
+  }, [barbearia?.tipo_negocio, barbearia?.nome]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -766,13 +769,13 @@ export default function Vitrine({ user, userType }) {
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
           <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-normal text-white mb-2">Não foi possível carregar</h1>
+          <h1 className="text-2xl font-black text-white mb-2">Não foi possível carregar</h1>
           <p className="text-gray-400 mb-6">{error}</p>
           <button
             onClick={loadVitrine}
             className="w-full px-6 py-3 bg-primary/20 border border-primary/50 text-primary rounded-button font-normal uppercase"
           >
-            TENTAR NOVAMENTE
+            Tentar novamente
           </button>
         </div>
       </div>
@@ -783,14 +786,13 @@ export default function Vitrine({ user, userType }) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado</h1>
+          <h1 className="text-3xl font-black text-white mb-4">Negócio não encontrado</h1>
           <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
         </div>
       </div>
     );
   }
 
-  // ✅ se não tem avaliação, agora é 0.0 (não 5.0)
   const mediaAvaliacoes = avaliacoes.length > 0
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
     : '0.0';
@@ -851,13 +853,13 @@ export default function Vitrine({ user, userType }) {
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-normal text-black">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
                 {barbearia.nome?.[0] || 'N'}
               </div>
             )}
 
             <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal mb-3">{barbearia.nome}</h1>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
               <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
@@ -905,14 +907,13 @@ export default function Vitrine({ user, userType }) {
       {/* Profissionais */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-normal mb-6">Profissionais</h2>
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">Profissionais</h2>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {profissionais.map(prof => {
               const totalServ = (servicosPorProf.get(prof.id) || []).length;
               const status = getProfStatus(prof);
 
-              // ✅ se não tem avaliações, mostra 0.0 (e count 0)
               const avalInfo = avaliacoesPorProf.get(prof.id) || { media: '0.0', count: 0 };
 
               return (
@@ -920,15 +921,6 @@ export default function Vitrine({ user, userType }) {
                   key={prof.id}
                   className="relative bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all"
                 >
-                  {/* ✅ bolinha amarela no topo quando estiver em ALMOÇO */}
-                  {status.isLunch && (
-                    <span
-                      className="absolute top-3 left-3 w-2.5 h-2.5 rounded-full bg-yellow-400"
-                      title="Em horário de almoço"
-                    />
-                  )}
-
-                  {/* ✅ etiqueta profissão no canto superior direito */}
                   {String(prof.profissao || '').trim() && (
                     <div className="absolute top-3 right-3">
                       <span className="inline-block px-2.5 py-1 bg-primary/10 border border-primary/30 rounded-button text-[11px] text-primary font-normal uppercase">
@@ -938,12 +930,12 @@ export default function Vitrine({ user, userType }) {
                   )}
 
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-normal text-black">
+                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-black text-black">
                       {prof.nome?.[0] || 'P'}
                     </div>
 
                     <div className="flex-1">
-                      <h3 className="text-lg font-normal mb-1">{prof.nome}</h3>
+                      <h3 className="text-lg font-black mb-1">{prof.nome}</h3>
 
                       <div className="flex items-center gap-2 mb-1">
                         <StarChar size={16} className="text-primary" />
@@ -951,6 +943,7 @@ export default function Vitrine({ user, userType }) {
                         <span className="text-xs text-gray-500">({avalInfo.count})</span>
                       </div>
 
+                      {/* ✅ bolinha única (status) — sem duplicar no topo */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${status.color}`} />
                         <span className="text-xs text-gray-400 font-normal uppercase">{status.label}</span>
@@ -1004,7 +997,7 @@ export default function Vitrine({ user, userType }) {
       {/* Serviços */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-normal mb-6">Serviços</h2>
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
 
           {profissionais.length === 0 ? (
             <p className="text-gray-500 font-normal">Nenhum profissional cadastrado.</p>
@@ -1023,7 +1016,7 @@ export default function Vitrine({ user, userType }) {
                 return (
                   <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="font-normal text-lg">{p.nome}</div>
+                      <div className="font-black text-lg">{p.nome}</div>
                       <div className="text-xs text-gray-500 font-normal">{lista.length} serviço(s)</div>
                     </div>
 
@@ -1036,24 +1029,23 @@ export default function Vitrine({ user, userType }) {
 
                           return (
                             <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
-                              <div className="font-normal">{s.nome}</div>
+                              <div className="font-black">{s.nome}</div>
                               <div className="text-xs text-gray-500 font-normal mt-1">
                                 <Clock className="w-4 h-4 inline mr-1" />
                                 {s.duracao_minutos} min
                               </div>
 
-                              {/* ✅ preço promocional quando existir */}
                               {promoOk ? (
                                 <div className="mt-2 leading-tight">
                                   <div className="text-sm font-normal text-red-400 line-through">
                                     R$ {preco.toFixed(2)}
                                   </div>
-                                  <div className="text-lg font-normal text-green-400">
+                                  <div className="text-lg font-black text-green-400">
                                     R$ {efetivo.toFixed(2)}
                                   </div>
                                 </div>
                               ) : (
-                                <div className="text-primary font-normal text-lg mt-2">
+                                <div className="text-primary font-black text-lg mt-2">
                                   R$ {efetivo.toFixed(2)}
                                 </div>
                               )}
@@ -1072,7 +1064,7 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* ✅ GALERIA — sem fundo, sem título, sem ícone */}
+      {/* ✅ GALERIA */}
       {galerias.length > 0 && (
         <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
@@ -1099,7 +1091,7 @@ export default function Vitrine({ user, userType }) {
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-normal">Avaliações</h2>
+            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
             <button
               onClick={abrirAvaliar}
               disabled={!!isProfessional}
@@ -1124,7 +1116,7 @@ export default function Vitrine({ user, userType }) {
                       </span>
                     ) : (
                       <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded-button text-[10px] text-blue-400 font-normal uppercase">
-                        Negócio
+                        {tipoNegocioLabel}
                       </span>
                     )}
                   </div>
@@ -1164,7 +1156,7 @@ export default function Vitrine({ user, userType }) {
               {/* STEP 1: DATA */}
               {flow.step === 1 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">ESCOLHA A DATA</h3>
+                  <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
 
                   <DatePickerButton
                     value={flow.data}
@@ -1192,7 +1184,7 @@ export default function Vitrine({ user, userType }) {
                     }`}
                     disabled={!flow.data || !diaSelecionadoEhTrabalho}
                   >
-                    CONTINUAR
+                    Continuar
                   </button>
                 </div>
               )}
@@ -1204,10 +1196,10 @@ export default function Vitrine({ user, userType }) {
                     onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
                     className="text-primary mb-4 font-normal uppercase"
                   >
-                    VOLTAR
+                    Voltar
                   </button>
 
-                  <h3 className="text-xl font-normal mb-4">Escolha o Horário</h3>
+                  <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
 
                   {!diaSelecionadoEhTrabalho ? (
                     <p className="text-gray-500 font-normal">Esse profissional está fechado nessa data.</p>
@@ -1252,23 +1244,23 @@ export default function Vitrine({ user, userType }) {
                     Voltar
                   </button>
 
-                  <h3 className="text-xl font-normal mb-2">
+                  <h3 className="text-xl font-black mb-2">
                     Escolha o(s) Serviço(s) <span className="text-sm text-gray-500 font-normal">(cabe até {flow.horario?.maxMinutos} min)</span>
                   </h3>
 
                   <div className="mb-4 bg-dark-200 border border-gray-800 rounded-custom p-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 font-normal">SELECIONADOS:</span>
+                      <span className="text-gray-500 font-normal">Selecionados:</span>
                       <span className="font-normal">{totalSelecionado.qtd}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">TEMPO TOTAL:</span>
+                      <span className="text-gray-500 font-normal">Duração total:</span>
                       <span className={`font-normal ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
                         {totalSelecionado.duracao} min
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">VALOR TOTAL:</span>
+                      <span className="text-gray-500 font-normal">Valor total:</span>
                       <span className="font-normal text-primary">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
@@ -1309,25 +1301,24 @@ export default function Vitrine({ user, userType }) {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <p className="font-normalk">{s.nome}</p>
+                                <p className="font-black">{s.nome}</p>
                                 <p className="text-sm text-gray-500 font-normal">
                                   <Clock className="w-4 h-4 inline mr-1" />
                                   {s.duracao_minutos} min
                                 </p>
                               </div>
 
-                              {/* ✅ preço promo no modal */}
                               {promoOk ? (
                                 <div className="text-right leading-tight">
                                   <div className="text-sm font-normal text-red-400 line-through">
                                     R$ {preco.toFixed(2)}
                                   </div>
-                                  <div className="text-2xl font-normal text-green-400">
+                                  <div className="text-2xl font-black text-green-400">
                                     R$ {efetivo.toFixed(2)}
                                   </div>
                                 </div>
                               ) : (
-                                <div className="text-2xl font-normal text-primary">
+                                <div className="text-2xl font-black text-primary">
                                   R$ {efetivo.toFixed(2)}
                                 </div>
                               )}
@@ -1362,7 +1353,7 @@ export default function Vitrine({ user, userType }) {
                     }`}
                     disabled={!flow.servicosSelecionados?.length}
                   >
-                    CONTINUAR
+                    Continuar
                   </button>
                 </div>
               )}
@@ -1370,24 +1361,24 @@ export default function Vitrine({ user, userType }) {
               {/* STEP 4: CONFIRMAR */}
               {flow.step === 4 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">CONFIRMAR AGENDAMENTO</h3>
+                  <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
 
                   <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">PROFISSIONAL:</span>
+                      <span className="text-gray-500 font-normal">Profissional:</span>
                       <span className="font-normal">{flow.profissional?.nome}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">DATA:</span>
+                      <span className="text-gray-500 font-normal">Data:</span>
                       <span className="font-normal">{formatDateBR(flow.data)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">HORÁRIO:</span>
+                      <span className="text-gray-500 font-normal">Horário:</span>
                       <span className="font-normal">{flow.horario?.hora}</span>
                     </div>
 
                     <div className="pt-2 border-t border-gray-800">
-                      <div className="text-gray-500 font-normal text-sm mb-2">SERVIÇOS:</div>
+                      <div className="text-gray-500 font-normal text-sm mb-2">Serviços:</div>
                       <div className="space-y-1">
                         {(flow.servicosSelecionados || []).map(s => {
                           const preco = Number(s.preco ?? 0);
@@ -1415,12 +1406,12 @@ export default function Vitrine({ user, userType }) {
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">TEMPO TOTAL:</span>
+                      <span className="text-gray-500 font-normal">Duração total:</span>
                       <span className="font-normal">{totalSelecionado.duracao} min</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">VALOR TOTAL:</span>
-                      <span className="font-normal text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="text-gray-500 font-normal">Valor total:</span>
+                      <span className="font-black text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -1429,13 +1420,13 @@ export default function Vitrine({ user, userType }) {
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
                       className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
                     >
-                      VOLTAR
+                      Voltar
                     </button>
                     <button
                       onClick={confirmarAgendamento}
                       className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button uppercase font-normal"
                     >
-                      CONFIRMAR
+                      Confirmar
                     </button>
                   </div>
                 </div>
@@ -1451,7 +1442,7 @@ export default function Vitrine({ user, userType }) {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-normal">AVALIAR</h3>
+              <h3 className="text-2xl font-black">Avaliar</h3>
               <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
@@ -1471,7 +1462,7 @@ export default function Vitrine({ user, userType }) {
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  NEGÓCIO
+                  {tipoNegocioLabel}
                 </button>
                 <button
                   onClick={() => setAvaliarTipo('profissional')}
@@ -1481,7 +1472,7 @@ export default function Vitrine({ user, userType }) {
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  PROFISSIONAL
+                  Profissional
                 </button>
               </div>
             </div>
@@ -1514,7 +1505,7 @@ export default function Vitrine({ user, userType }) {
                   <button
                     key={n}
                     onClick={() => setAvaliarNota(n)}
-                    className={`w-10 h-10 rounded-custom border transition-all font-normal ${
+                    className={`w-10 h-10 rounded-button border transition-all font-normal ${
                       avaliarNota >= n
                         ? 'bg-primary/20 border-primary/50 text-primary'
                         : 'bg-dark-200 border-gray-800 text-gray-500'
