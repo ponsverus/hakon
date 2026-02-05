@@ -451,7 +451,7 @@ export default function SignupProfessional({ onLogin }) {
                 to="/login"
                 className="text-primary hover:text-yellow-500 font-normal text-sm transition-colors"
               >
-                FAZER LOGIN →
+                FAZER LOGIN
               </Link>
             </div>
           </form>
