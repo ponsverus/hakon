@@ -22,6 +22,16 @@ async function fetchProfileTypeWithRetry(userId) {
   return null;
 }
 
+function onlyTrim(v) {
+  return String(v || '').trim();
+}
+
+function montarEnderecoUnico({ rua, numero, bairro, cidade, estado }) {
+  // Formato final:
+  // Rua Serra do Sincorá, 1038 - Bairro X - Belo Horizonte, Minas Gerais
+  return `${onlyTrim(rua)}, ${onlyTrim(numero)} - ${onlyTrim(bairro)} - ${onlyTrim(cidade)}, ${onlyTrim(estado)}`;
+}
+
 export default function SignupProfessional({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,7 +47,13 @@ export default function SignupProfessional({ onLogin }) {
     tipoNegocio: '',
     anosExperiencia: '',
     descricao: '',
-    endereco: ''
+
+    // ✅ Endereço coletado separado
+    rua: '',
+    numero: '',
+    bairro: '',
+    cidade: '',
+    estado: ''
   });
 
   const navigate = useNavigate();
@@ -59,6 +75,21 @@ export default function SignupProfessional({ onLogin }) {
     }));
   };
 
+  const validarEnderecoCompleto = () => {
+    const rua = onlyTrim(formData.rua);
+    const numero = onlyTrim(formData.numero);
+    const bairro = onlyTrim(formData.bairro);
+    const cidade = onlyTrim(formData.cidade);
+    const estado = onlyTrim(formData.estado);
+
+    if (!rua) return 'Informe a RUA do negócio.';
+    if (!numero) return 'Informe o NÚMERO do endereço.';
+    if (!bairro) return 'Informe o BAIRRO.';
+    if (!cidade) return 'Informe a CIDADE.';
+    if (!estado) return 'Informe o ESTADO.';
+    return null;
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
@@ -74,6 +105,18 @@ export default function SignupProfessional({ onLogin }) {
       if (!String(formData.tipoNegocio || '').trim()) {
         throw new Error('Tipo de negócio é obrigatório');
       }
+
+      // ✅ Nova regra: endereço completo obrigatório
+      const enderecoMsg = validarEnderecoCompleto();
+      if (enderecoMsg) throw new Error(enderecoMsg);
+
+      const enderecoUnico = montarEnderecoUnico({
+        rua: formData.rua,
+        numero: formData.numero,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado
+      });
 
       // 1) Verificar se slug já existe
       const { data: existingNegocio, error: slugError } = await supabase
@@ -130,7 +173,7 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('Perfil criado com tipo incorreto. Verifique o cadastro.');
       }
 
-      // 6) Criar NEGÓCIO
+      // 6) Criar NEGÓCIO (✅ já salva endereço único montado)
       const { data: negocioInserted, error: negocioError } = await supabase
         .from('negocios')
         .insert([{
@@ -140,7 +183,7 @@ export default function SignupProfessional({ onLogin }) {
           tipo_negocio: String(formData.tipoNegocio || '').trim(),
           descricao: String(formData.descricao || '').trim(),
           telefone: String(formData.telefone || '').trim(),
-          endereco: String(formData.endereco || '').trim()
+          endereco: enderecoUnico
         }])
         .select('id')
         .maybeSingle();
@@ -319,18 +362,83 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
+            {/* ✅ ENDEREÇO COMPLETO (coletado separado, salvo como 1 string) */}
             <div>
-              <label className="block text-sm text-gray-300 mb-2">Endereço do Negócio *</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                <input
-                  type="text"
-                  value={formData.endereco}
-                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  placeholder="Rua Exemplo 123, Centro"
-                  className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
-                  required
-                />
+              <label className="block text-sm text-gray-300 mb-2">Endereço Completo do Negócio *</label>
+
+              <div className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-2">Rua *</label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                      <input
+                        type="text"
+                        value={formData.rua}
+                        onChange={(e) => setFormData({ ...formData, rua: e.target.value })}
+                        placeholder="Rua Serra do Sincorá"
+                        className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-2">Número *</label>
+                    <input
+                      type="text"
+                      value={formData.numero}
+                      onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                      placeholder="1038"
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-2">Bairro *</label>
+                    <input
+                      type="text"
+                      value={formData.bairro}
+                      onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                      placeholder="Centro"
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-2">Cidade *</label>
+                    <input
+                      type="text"
+                      value={formData.cidade}
+                      onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                      placeholder="Belo Horizonte"
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs text-gray-400 mb-2">Estado *</label>
+                    <input
+                      type="text"
+                      value={formData.estado}
+                      onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                      placeholder="Minas Gerais"
+                      className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-500 mt-3">
+                  Assim vai aparecer no dashboard/vitrine:
+                  <span className="text-gray-300">
+                    {' '}
+                    {formData.rua || 'Rua X'}, {formData.numero || '000'} - {formData.bairro || 'Bairro Y'} - {formData.cidade || 'Cidade'}, {formData.estado || 'Estado'}
+                  </span>
+                </div>
               </div>
             </div>
 
