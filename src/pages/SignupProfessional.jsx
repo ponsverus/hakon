@@ -445,7 +445,7 @@ export default function SignupProfessional({ onLogin }) {
               {loading ? 'CRIANDO VITRINE...' : 'CRIAR MINHA VITRINE'}
             </button>
 
-            <div className="text-center pt-4 border-t border-gray-800">
+            <div className="text-center pt-4 border-gray-800">
               <p className="text-sm text-gray-400 mb-2">OU</p>
               <Link
                 to="/login"
@@ -459,7 +459,7 @@ export default function SignupProfessional({ onLogin }) {
 
         <div className="mt-6 bg-primary/10 border border-primary/30 rounded-custom p-4">
           <p className="text-xs sm:text-sm text-primary text-center">
-            Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais
+            Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais.
           </p>
         </div>
       </div>
