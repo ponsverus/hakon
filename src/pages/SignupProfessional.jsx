@@ -39,7 +39,7 @@ export default function SignupProfessional({ onLogin }) {
     telefone: '',
     nomeNegocio: '',
     urlNegocio: '',
-    tipoNegocio: '', // ✅ NOVO (coluna tipo_negocio em negocios)
+    tipoNegocio: '', // coluna tipo_negocio em negocios
     anosExperiencia: '',
     descricao: '',
     endereco: ''
@@ -85,11 +85,15 @@ export default function SignupProfessional({ onLogin }) {
       console.log('📝 Iniciando cadastro de profissional...');
 
       // 1) Verificar se slug já existe
+      console.log('🔎 Verificando slug em negocios...');
       const { data: existingNegocio, error: slugError } = await supabase
         .from('negocios')
-        .select('id')
+        .select('id, slug')
         .eq('slug', formData.urlNegocio)
         .maybeSingle();
+
+      console.log('DEBUG existingNegocio:', existingNegocio);
+      console.log('DEBUG slugError:', slugError);
 
       if (slugError) throw slugError;
       if (existingNegocio) {
@@ -99,6 +103,7 @@ export default function SignupProfessional({ onLogin }) {
       console.log('✅ Slug disponível');
 
       // 2) Criar conta no Auth
+      console.log('🔐 Criando conta no Auth...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -109,6 +114,10 @@ export default function SignupProfessional({ onLogin }) {
           }
         }
       });
+
+      console.log('DEBUG authError:', authError);
+      console.log('DEBUG authData.user.id:', authData?.user?.id);
+      console.log('DEBUG authData.session existe?', !!authData?.session);
 
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
@@ -124,11 +133,14 @@ export default function SignupProfessional({ onLogin }) {
       let hasSession = !!authData.session;
 
       if (!hasSession) {
-        console.log('🔑 Fazendo login...');
+        console.log('🔑 Fazendo login (signInWithPassword)...');
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
+
+        console.log('DEBUG signInError:', signInError);
+        console.log('DEBUG signInData.user.id:', signInData?.user?.id);
 
         if (signInError) {
           throw new Error(
@@ -148,9 +160,14 @@ export default function SignupProfessional({ onLogin }) {
 
       const userId = sessionUser.id;
 
+      console.log('DEBUG sessionUser.id:', userId);
+      const { data: me, error: meErr } = await supabase.auth.getUser();
+      console.log('DEBUG getUser:', me?.user?.id, meErr);
+
       // 5) Buscar tipo com retry
-      console.log('⏳ Buscando perfil do usuário...');
+      console.log('⏳ Buscando perfil do usuário (users.type)...');
       const dbType = await fetchProfileTypeWithRetry(userId);
+      console.log('DEBUG dbType:', dbType);
 
       if (!dbType) {
         throw new Error(
@@ -167,53 +184,94 @@ export default function SignupProfessional({ onLogin }) {
 
       // 6) Criar NEGÓCIO (com tipo_negocio)
       console.log('🏪 Criando negócio...');
+      const payloadNegocio = {
+        owner_id: userId,
+        nome: String(formData.nomeNegocio || '').trim(),
+        slug: String(formData.urlNegocio || '').trim(),
+        tipo_negocio: String(formData.tipoNegocio || '').trim(),
+        descricao: String(formData.descricao || '').trim(),
+        telefone: String(formData.telefone || '').trim(),
+        endereco: String(formData.endereco || '').trim()
+      };
+
+      console.log('DEBUG payloadNegocio:', payloadNegocio);
+
       const { data: negocioRows, error: negocioError } = await supabase
         .from('negocios')
-        .insert([
-          {
-            owner_id: userId,
-            nome: String(formData.nomeNegocio || '').trim(),
-            slug: String(formData.urlNegocio || '').trim(),
-            tipo_negocio: String(formData.tipoNegocio || '').trim(), // ✅ aqui
-            descricao: String(formData.descricao || '').trim(),
-            telefone: String(formData.telefone || '').trim(),
-            endereco: String(formData.endereco || '').trim()
-          }
-        ])
-        .select('id')
-        .limit(1);
+        .insert([payloadNegocio])
+        .select('id, owner_id, slug')
+        .maybeSingle();
+
+      console.log('DEBUG negocioRows:', negocioRows);
+      console.log('DEBUG negocioError:', negocioError);
+
+      // pode retornar objeto (maybeSingle) ou array (dependendo do client), então tratamos ambos
+      const negocioId = negocioRows?.id || negocioRows?.[0]?.id || null;
+      console.log('DEBUG negocioId (do retorno):', negocioId);
+
+      // ✅ Debug definitivo: buscar no banco pelo owner_id+slug (não depende do returning)
+      const { data: debugNeg, error: debugNegErr } = await supabase
+        .from('negocios')
+        .select('id, owner_id, slug')
+        .eq('owner_id', userId)
+        .eq('slug', payloadNegocio.slug)
+        .maybeSingle();
+
+      console.log('DEBUG SELECT negocios por owner+slug:', debugNeg);
+      console.log('DEBUG SELECT negocios erro:', debugNegErr);
+
+      const negocioIdFinal = debugNeg?.id || negocioId;
 
       if (negocioError) {
-        console.error('❌ Erro ao criar negócio:', negocioError);
+        // se deu erro real no insert, já quebra aqui (mais claro)
         throw new Error('Erro ao criar negócio: ' + negocioError.message);
       }
 
-      const negocioId = negocioRows?.[0]?.id;
-      if (!negocioId) {
-        throw new Error('Negócio criado mas ID não retornado. Verifique as policies RLS.');
+      if (!negocioIdFinal) {
+        throw new Error('Negócio NÃO foi localizado após o insert (RLS/trigger/policy). Veja DEBUG no console.');
       }
 
-      console.log('✅ Negócio criado:', negocioId);
+      console.log('✅ Negócio confirmado no banco:', negocioIdFinal);
 
       // 7) Criar profissional (com negocio_id)
       console.log('👤 Criando profissional...');
-      const { error: profissionalError } = await supabase
+      const payloadProf = {
+        negocio_id: negocioIdFinal,
+        user_id: userId,
+        nome: String(formData.nome || '').trim(),
+        anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
+      };
+
+      console.log('DEBUG payloadProfissional:', payloadProf);
+
+      const { data: profRows, error: profissionalError } = await supabase
         .from('profissionais')
-        .insert([
-          {
-            negocio_id: negocioId,
-            user_id: userId,
-            nome: formData.nome,
-            anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
-          }
-        ]);
+        .insert([payloadProf])
+        .select('id, user_id, negocio_id')
+        .maybeSingle();
+
+      console.log('DEBUG profRows:', profRows);
+      console.log('DEBUG profissionalError:', profissionalError);
+
+      // ✅ Debug definitivo: buscar profissional por user_id
+      const { data: debugProf, error: debugProfErr } = await supabase
+        .from('profissionais')
+        .select('id, user_id, negocio_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      console.log('DEBUG SELECT profissionais por user_id:', debugProf);
+      console.log('DEBUG SELECT profissionais erro:', debugProfErr);
 
       if (profissionalError) {
-        console.error('❌ Erro ao criar profissional:', profissionalError);
         throw new Error('Erro ao criar profissional: ' + profissionalError.message);
       }
 
-      console.log('✅ Profissional criado!');
+      if (!debugProf?.id) {
+        throw new Error('Profissional NÃO foi localizado após o insert (RLS/trigger/policy). Veja DEBUG no console.');
+      }
+
+      console.log('✅ Profissional confirmado no banco:', debugProf.id);
 
       // 8) Login no app
       onLogin(sessionUser, 'professional');
@@ -333,7 +391,6 @@ export default function SignupProfessional({ onLogin }) {
               </p>
             </div>
 
-            {/* ✅ NOVO CAMPO (mesmo estilo / sem mexer no design) */}
             <div>
               <label className="block text-sm text-gray-300 mb-2">Tipo de Negócio *</label>
               <input
@@ -370,7 +427,7 @@ export default function SignupProfessional({ onLogin }) {
                 <textarea
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Ex: Oferecemos serviços completos de barbearia: do corte clássico ao degradê..."
+                  placeholder="Ex: Oferecemos serviços completos..."
                   rows={3}
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
                   required
