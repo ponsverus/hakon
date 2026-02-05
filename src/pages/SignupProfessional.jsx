@@ -243,7 +243,7 @@ export default function SignupProfessional({ onLogin }) {
       <div className="relative z-10 w-full max-w-2xl mx-auto">
         <Link
           to="/login"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6 font-bold"
+          className="inline-flex items-center gap-2 text-gray-400 hover:text-primary transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
           Voltar para Login
@@ -255,29 +255,29 @@ export default function SignupProfessional({ onLogin }) {
               <Award className="w-7 h-7 sm:w-8 sm:h-8 text-black" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black">CADASTRO</h1>
-              <p className="text-xs text-primary font-bold -mt-1">PROFISSIONAL</p>
+              <h1 className="text-2xl sm:text-3xl font-normal">CADASTRO</h1>
+              <p className="text-xs text-primary -mt-1">PROFISSIONAL</p>
             </div>
           </div>
 
           <div className="text-center mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-black mb-2">Criar Sua Vitrine</h2>
+            <h2 className="text-xl sm:text-2xl font-normal mb-2">CRIAR SUA VITRINE</h2>
             <p className="text-sm sm:text-base text-gray-400">
-              Comece a receber agendamentos hoje
+              Comece a receber agendamentos hoje :)
             </p>
           </div>
 
           <form onSubmit={handleSignup} className="space-y-4 sm:space-y-5">
             <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">Seu Nome Completo *</label>
+                <label className="block text-sm text-gray-300 mb-2">Seu Nome Completo *</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
                     type="text"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    placeholder="João Silva"
+                    placeholder="Pedro Gomes"
                     className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                     required
                   />
@@ -285,14 +285,14 @@ export default function SignupProfessional({ onLogin }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2">Telefone (WhatsApp) *</label>
+                <label className="block text-sm text-gray-300 mb-2">Telefone (WhatsApp) *</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
                     type="tel"
                     value={formData.telefone}
                     onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    placeholder="(11) 99999-9999"
+                    placeholder="(11) 99999 - 9999"
                     className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                     required
                   />
@@ -301,7 +301,7 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Nome do Negócio *</label>
+              <label className="block text-sm text-gray-300 mb-2">Nome do Negócio *</label>
               <input
                 type="text"
                 value={formData.nomeNegocio}
@@ -313,9 +313,9 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">URL Única (não pode repetir) *</label>
+              <label className="block text-sm text-gray-300 mb-2">URL Única (não pode repetir) *</label>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500 text-sm font-bold">hakon.app/v/</span>
+                <span className="text-gray-500 text-sm">hakon.app/v/</span>
                 <input
                   type="text"
                   value={formData.urlNegocio}
@@ -328,26 +328,26 @@ export default function SignupProfessional({ onLogin }) {
                   pattern="[a-z0-9-]+"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1 font-bold">
+              <p className="text-xs text-gray-500 mt-1">
                 Apenas letras minúsculas, números e hífens
               </p>
             </div>
 
             {/* ✅ NOVO CAMPO (mesmo estilo / sem mexer no design) */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Tipo de Negócio *</label>
+              <label className="block text-sm text-gray-300 mb-2">Tipo de Negócio *</label>
               <input
                 type="text"
                 value={formData.tipoNegocio}
                 onChange={(e) => setFormData({ ...formData, tipoNegocio: e.target.value })}
-                placeholder="Ex: barbearia, estética, salão..."
+                placeholder="Ex: barbearia, manicure, clínica..."
                 className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Anos de Experiência *</label>
+              <label className="block text-sm text-gray-300 mb-2">Anos de Experiência *</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -364,13 +364,13 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Sobre seus Serviços *</label>
+              <label className="block text-sm text-gray-300 mb-2">Sobre seus Serviços *</label>
               <div className="relative">
                 <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
                 <textarea
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Ex: Referência em cuidados detalhistas, unindo técnica avançada..."
+                  placeholder="Ex: Oferecemos serviços completos de barbearia: do corte clássico ao degradê..."
                   rows={3}
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
                   required
@@ -379,14 +379,14 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Endereço do Negócio *</label>
+              <label className="block text-sm text-gray-300 mb-2">Endereço do Negócio *</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   type="text"
                   value={formData.endereco}
                   onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  placeholder="Rua Exemplo, 123 - Centro"
+                  placeholder="Rua Exemplo 123, Centro"
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                   required
                 />
@@ -394,7 +394,7 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Email *</label>
+              <label className="block text-sm text-gray-300 mb-2">Email *</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -409,7 +409,7 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Senha *</label>
+              <label className="block text-sm text-gray-300 mb-2">Senha *</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
@@ -432,7 +432,7 @@ export default function SignupProfessional({ onLogin }) {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm font-bold animate-fade-in">
+              <div className="bg-red-500/10 border border-red-500/50 rounded-custom p-3 text-red-400 text-sm animate-fade-in">
                 {error}
               </div>
             )}
@@ -449,7 +449,7 @@ export default function SignupProfessional({ onLogin }) {
               <p className="text-sm text-gray-400 mb-2">Já tem uma conta?</p>
               <Link
                 to="/login"
-                className="text-primary hover:text-yellow-500 font-black text-sm transition-colors"
+                className="text-primary hover:text-yellow-500 font-normal text-sm transition-colors"
               >
                 FAZER LOGIN →
               </Link>
@@ -458,8 +458,8 @@ export default function SignupProfessional({ onLogin }) {
         </div>
 
         <div className="mt-6 bg-primary/10 border border-primary/30 rounded-custom p-4">
-          <p className="text-xs sm:text-sm text-primary font-bold text-center">
-            🔥 Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais
+          <p className="text-xs sm:text-sm text-primary text-center">
+            Após criar sua conta, você terá acesso ao dashboard completo para gerenciar serviços, agendamentos e profissionais
           </p>
         </div>
       </div>
