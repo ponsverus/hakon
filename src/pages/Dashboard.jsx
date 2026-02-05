@@ -96,7 +96,7 @@ function DateFilterButton({ value, onChange, title }) {
   );
 }
 
-// ✅ Wrapper para SELECT/TIME com “setinha” um pouco mais à esquerda e com bordas arredondadas
+// ✅ Wrapper para SELECT/TIME com “setinha”
 function InputWithChevron({ children }) {
   return (
     <div className="relative">
@@ -108,7 +108,20 @@ function InputWithChevron({ children }) {
   );
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const toUpperClean = (s) =>
+  String(s || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+
+const isEnderecoPadrao = (s) => {
+  // Regra simples e objetiva para não virar bagunça:
+  // "Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais"
+  // - precisa ter vírgula com número, um " - " e outra vírgula (cidade/estado)
+  const v = String(s || '').trim();
+  const re = /^.+,\s*\d+.*\s-\s.+,\s.+$/;
+  return re.test(v);
+};
 
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
@@ -139,12 +152,13 @@ export default function Dashboard({ user, onLogout }) {
     nome: '',
     duracao_minutos: '',
     preco: '',
+    preco_promocional: '',
     profissional_id: ''
   });
 
   const [formProfissional, setFormProfissional] = useState({
     nome: '',
-    especialidade: '',
+    profissao: '',
     anos_experiencia: '',
     horario_inicio: '08:00',
     horario_fim: '18:00',
@@ -166,10 +180,6 @@ export default function Dashboard({ user, onLogout }) {
     galeria: []
   });
 
-  // ✅ NOVO (Info do Negócio): email + senha (nova)
-  const [authEmail, setAuthEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-
   useEffect(() => {
     if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,31 +196,11 @@ export default function Dashboard({ user, onLogout }) {
     setError(null);
 
     try {
-      // ✅ Pega email real do Auth (pra Info do Negócio)
-      const { data: authUserData, error: authUserErr } = await supabase.auth.getUser();
-      if (!authUserErr) {
-        setAuthEmail(authUserData?.user?.email || '');
-      }
-
-      // ✅ Retry curto pra evitar o "Negócio não encontrado" por timing
-      let negocioData = null;
-      let negocioError = null;
-
-      for (let i = 0; i < 8; i++) {
-        const resp = await supabase
-          .from('negocios')
-          .select('*')
-          .eq('owner_id', user.id)
-          .maybeSingle();
-
-        negocioData = resp.data;
-        negocioError = resp.error;
-
-        if (negocioError) break; // erro real -> para
-        if (negocioData) break;  // achou -> para
-
-        await sleep(250); // não achou ainda -> espera e tenta de novo
-      }
+      const { data: negocioData, error: negocioError } = await supabase
+        .from('negocios')
+        .select('*')
+        .eq('owner_id', user.id)
+        .maybeSingle();
 
       if (negocioError) throw negocioError;
 
@@ -267,7 +257,7 @@ export default function Dashboard({ user, onLogout }) {
 
       const { data: ags, error: agErr } = await supabase
         .from('agendamentos')
-        .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+        .select(`*, servicos (nome, preco, preco_promocional), profissionais (nome), users (nome)`)
         .in('profissional_id', ids)
         .order('data', { ascending: false })
         .limit(300);
@@ -304,7 +294,7 @@ export default function Dashboard({ user, onLogout }) {
           ).then(() => {
             supabase
               .from('agendamentos')
-              .select(`*, servicos (nome, preco), profissionais (nome), users (nome)`)
+              .select(`*, servicos (nome, preco, preco_promocional), profissionais (nome), users (nome)`)
               .in('profissional_id', ids)
               .order('data', { ascending: false })
               .limit(300)
@@ -374,16 +364,21 @@ export default function Dashboard({ user, onLogout }) {
 
   const salvarInfoNegocio = async () => {
     if (!negocio?.id) return alert('Negócio não carregado.');
-
     try {
       setInfoSaving(true);
 
-      // ✅ 1) Atualiza dados do NEGÓCIO (igual já era)
+      const endereco = String(formInfo.endereco || '').trim();
+
+      // ✅ Regra do endereço (bloqueia salvar se fugir do padrão)
+      if (endereco && !isEnderecoPadrao(endereco)) {
+        throw new Error('Endereço fora do padrão. Use: "RUA, NÚMERO - CIDADE, ESTADO". Ex.: Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais');
+      }
+
       const payload = {
         nome: String(formInfo.nome || '').trim(),
         descricao: String(formInfo.descricao || '').trim(),
         telefone: String(formInfo.telefone || '').trim(),
-        endereco: String(formInfo.endereco || '').trim(),
+        endereco,
         instagram: String(formInfo.instagram || '').trim() || null,
         facebook: String(formInfo.facebook || '').trim() || null,
         galeria: Array.isArray(formInfo.galeria) ? formInfo.galeria : []
@@ -395,30 +390,6 @@ export default function Dashboard({ user, onLogout }) {
         .eq('id', negocio.id);
 
       if (updErr) throw updErr;
-
-      // ✅ 2) Atualiza EMAIL (Auth) se foi preenchido
-      const emailTrim = String(authEmail || '').trim();
-      if (emailTrim) {
-        const { error: emailErr } = await supabase.auth.updateUser({ email: emailTrim });
-        if (emailErr) {
-          alert('⚠️ Negócio salvo, mas email não foi atualizado: ' + emailErr.message);
-        }
-      }
-
-      // ✅ 3) Atualiza SENHA (Auth) se foi preenchida
-      const passTrim = String(newPassword || '').trim();
-      if (passTrim) {
-        if (passTrim.length < 6) {
-          alert('⚠️ A senha precisa ter no mínimo 6 caracteres.');
-        } else {
-          const { error: passErr } = await supabase.auth.updateUser({ password: passTrim });
-          if (passErr) {
-            alert('⚠️ Negócio salvo, mas senha não foi atualizada: ' + passErr.message);
-          } else {
-            setNewPassword('');
-          }
-        }
-      }
 
       alert('✅ Informações atualizadas!');
       await loadData();
@@ -524,11 +495,18 @@ export default function Dashboard({ user, onLogout }) {
     try {
       if (!negocio?.id) throw new Error('Negócio não carregado.');
 
+      const preco = toNumberOrNull(formServico.preco);
+      const promo = toNumberOrNull(formServico.preco_promocional);
+
+      if (preco == null) throw new Error('Preço inválido.');
+      if (promo != null && promo >= preco) throw new Error('Preço de oferta deve ser MENOR que o preço normal.');
+
       const payload = {
-        nome: String(formServico.nome || '').trim(),
+        nome: toUpperClean(formServico.nome),
         profissional_id: formServico.profissional_id,
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
-        preco: toNumberOrNull(formServico.preco),
+        preco,
+        preco_promocional: promo,
         ativo: true,
         negocio_id: negocio.id,
       };
@@ -536,7 +514,6 @@ export default function Dashboard({ user, onLogout }) {
       if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
       if (!payload.profissional_id) throw new Error('Selecione um profissional.');
       if (!payload.duracao_minutos) throw new Error('Duração inválida.');
-      if (payload.preco == null) throw new Error('Preço inválido.');
 
       const { error } = await supabase.from('servicos').insert([payload]);
       if (error) throw error;
@@ -544,7 +521,7 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Serviço criado!');
       setShowNovoServico(false);
       setEditingServicoId(null);
-      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+      setFormServico({ nome: '', duracao_minutos: '', preco: '', preco_promocional: '', profissional_id: '' });
       await loadData();
     } catch (e2) {
       console.error('createServico error:', e2);
@@ -555,17 +532,22 @@ export default function Dashboard({ user, onLogout }) {
   const updateServico = async (e) => {
     e.preventDefault();
     try {
+      const preco = toNumberOrNull(formServico.preco);
+      const promo = toNumberOrNull(formServico.preco_promocional);
+
+      if (!toUpperClean(formServico.nome)) throw new Error('Nome do serviço é obrigatório.');
+      if (!formServico.profissional_id) throw new Error('Selecione um profissional.');
+      if (!toNumberOrNull(formServico.duracao_minutos)) throw new Error('Duração inválida.');
+      if (preco == null) throw new Error('Preço inválido.');
+      if (promo != null && promo >= preco) throw new Error('Preço de oferta deve ser MENOR que o preço normal.');
+
       const payload = {
-        nome: String(formServico.nome || '').trim(),
+        nome: toUpperClean(formServico.nome),
         duracao_minutos: toNumberOrNull(formServico.duracao_minutos),
-        preco: toNumberOrNull(formServico.preco),
+        preco,
+        preco_promocional: promo,
         profissional_id: formServico.profissional_id
       };
-
-      if (!payload.nome) throw new Error('Nome do serviço é obrigatório.');
-      if (!payload.profissional_id) throw new Error('Selecione um profissional.');
-      if (!payload.duracao_minutos) throw new Error('Duração inválida.');
-      if (payload.preco == null) throw new Error('Preço inválido.');
 
       const { error } = await supabase
         .from('servicos')
@@ -577,7 +559,7 @@ export default function Dashboard({ user, onLogout }) {
       alert('✅ Serviço atualizado!');
       setShowNovoServico(false);
       setEditingServicoId(null);
-      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+      setFormServico({ nome: '', duracao_minutos: '', preco: '', preco_promocional: '', profissional_id: '' });
       await loadData();
     } catch (e2) {
       console.error('updateServico error:', e2);
@@ -607,8 +589,8 @@ export default function Dashboard({ user, onLogout }) {
 
       const payload = {
         negocio_id: negocio.id,
-        nome: String(formProfissional.nome || '').trim(),
-        especialidade: String(formProfissional.especialidade || '').trim() || null,
+        nome: toUpperClean(formProfissional.nome),
+        profissao: String(formProfissional.profissao || '').trim() || null,
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
@@ -627,7 +609,7 @@ export default function Dashboard({ user, onLogout }) {
       setEditingProfissional(null);
       setFormProfissional({
         nome: '',
-        especialidade: '',
+        profissao: '',
         anos_experiencia: '',
         horario_inicio: '08:00',
         horario_fim: '18:00',
@@ -650,8 +632,8 @@ export default function Dashboard({ user, onLogout }) {
       const dias = normalizeDiasTrabalho(formProfissional.dias_trabalho);
 
       const payload = {
-        nome: String(formProfissional.nome || '').trim(),
-        especialidade: String(formProfissional.especialidade || '').trim() || null,
+        nome: toUpperClean(formProfissional.nome),
+        profissao: String(formProfissional.profissao || '').trim() || null,
         anos_experiencia: toNumberOrNull(formProfissional.anos_experiencia),
         horario_inicio: formProfissional.horario_inicio,
         horario_fim: formProfissional.horario_fim,
@@ -800,7 +782,7 @@ export default function Dashboard({ user, onLogout }) {
   const faturamentoPorProfissional = useMemo(() => {
     const map = new Map();
     for (const a of concluidosDoDiaFaturamento) {
-      const nome = a.profissionais?.nome || 'Profissional';
+      const nome = a.profissionais?.nome || 'PROFISSIONAL';
       const v = Number(a.servicos?.preco || 0);
       map.set(nome, (map.get(nome) || 0) + v);
     }
@@ -955,7 +937,6 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* select/time sem “setinha colada” (mantém o picker, só esconde o indicador) */
         .no-native-indicator {
           appearance: none;
           -webkit-appearance: none;
@@ -1167,13 +1148,11 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CONCLUÍDOS</div>
-                      {/* ✅ pedido: concluídos em verde */}
-                      <div className="text-xl font-normal text-green-400">{concluidosDoDiaFaturamento.length}</div>
+                      <div className="text-xl font-normal text-white">{concluidosDoDiaFaturamento.length}</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CANCELADOS</div>
-                      {/* ✅ pedido: cancelados em vermelho */}
-                      <div className="text-xl font-normal text-red-400">{canceladosDoDiaFaturamento.length}</div>
+                      <div className="text-xl font-normal text-white">{canceladosDoDiaFaturamento.length}</div>
                       <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
@@ -1208,8 +1187,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* ✅ AGENDAMENTOS: FUTURO só quando data > hoje; no dia da execução some FUTURO e fica AGENDADO */}
-            {/* ✅ FUTURO + AGENDADO juntos quando for futuro */}
             {activeTab === 'agendamentos' && (
               <div>
                 <h2 className="text-2xl font-normal mb-6">Agendamentos</h2>
@@ -1243,7 +1220,6 @@ export default function Dashboard({ user, onLogout }) {
                                       FUTURO
                                     </div>
                                   )}
-                                  {/* ✅ AGENDADO sempre aparece até concluir */}
                                   <div className="px-3 py-1 rounded-button text-xs bg-blue-500/20 text-blue-400">
                                     AGENDADO
                                   </div>
@@ -1393,7 +1369,7 @@ export default function Dashboard({ user, onLogout }) {
                     onClick={() => {
                       setShowNovoServico(true);
                       setEditingServicoId(null);
-                      setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                      setFormServico({ nome: '', duracao_minutos: '', preco: '', preco_promocional: '', profissional_id: '' });
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal uppercase"
                   >
@@ -1419,43 +1395,65 @@ export default function Dashboard({ user, onLogout }) {
 
                           {lista.length ? (
                             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {lista.map(s => (
-                                <div key={s.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
-                                  <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                      <h3 className="text-lg font-normal">{s.nome}</h3>
-                                      <p className="text-xs text-gray-500">{p.nome}</p>
+                              {lista.map(s => {
+                                const preco = Number(s.preco ?? 0);
+                                const promo = (s.preco_promocional == null) ? null : Number(s.preco_promocional);
+
+                                return (
+                                  <div key={s.id} className="bg-dark-100 border border-gray-800 rounded-custom p-5">
+                                    <div className="flex justify-between items-start mb-3">
+                                      <div>
+                                        <h3 className="text-lg font-normal">{s.nome}</h3>
+                                        <p className="text-xs text-gray-500">{p.nome}</p>
+                                      </div>
+
+                                      {/* ✅ Preços (comparação estilo e-commerce) */}
+                                      <div className="text-right">
+                                        {promo != null && promo > 0 && promo < preco ? (
+                                          <div className="leading-tight">
+                                            <div className="text-sm font-normal text-red-400 line-through">
+                                              R$ {preco.toFixed(2)}
+                                            </div>
+                                            <div className="text-2xl font-normal text-green-400">
+                                              R$ {promo.toFixed(2)}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-2xl font-normal text-primary">R$ {preco.toFixed(2)}</div>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="text-2xl font-normal text-primary">R$ {s.preco}</div>
-                                  </div>
-                                  <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
 
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        setEditingServicoId(s.id);
-                                        setFormServico({
-                                          nome: s.nome || '',
-                                          duracao_minutos: String(s.duracao_minutos ?? ''),
-                                          preco: String(s.preco ?? ''),
-                                          profissional_id: s.profissional_id || ''
-                                        });
-                                        setShowNovoServico(true);
-                                      }}
-                                      className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-button text-sm font-normal uppercase"
-                                    >
-                                      EDITAR
-                                    </button>
+                                    <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
 
-                                    <button
-                                      onClick={() => deleteServico(s.id)}
-                                      className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-button text-sm font-normal uppercase"
-                                    >
-                                      EXCLUIR
-                                    </button>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingServicoId(s.id);
+                                          setFormServico({
+                                            nome: s.nome || '',
+                                            duracao_minutos: String(s.duracao_minutos ?? ''),
+                                            preco: String(s.preco ?? ''),
+                                            preco_promocional: String(s.preco_promocional ?? ''),
+                                            profissional_id: s.profissional_id || ''
+                                          });
+                                          setShowNovoServico(true);
+                                        }}
+                                        className="flex-1 py-2 bg-blue-500/20 border border-blue-500/50 text-blue-400 rounded-button text-sm font-normal uppercase"
+                                      >
+                                        EDITAR
+                                      </button>
+
+                                      <button
+                                        onClick={() => deleteServico(s.id)}
+                                        className="flex-1 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded-button text-sm font-normal uppercase"
+                                      >
+                                        EXCLUIR
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <p className="text-gray-500">Sem serviços ativos para este profissional.</p>
@@ -1468,7 +1466,6 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            {/* ✅ PROFISSIONAIS: botões arredondados (rounded-button) */}
             {activeTab === 'profissionais' && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -1479,7 +1476,7 @@ export default function Dashboard({ user, onLogout }) {
                       setEditingProfissional(null);
                       setFormProfissional({
                         nome: '',
-                        especialidade: '',
+                        profissao: '',
                         anos_experiencia: '',
                         horario_inicio: '08:00',
                         horario_fim: '18:00',
@@ -1520,8 +1517,8 @@ export default function Dashboard({ user, onLogout }) {
                               <span className="text-xs text-gray-400">{status.label}</span>
                             </div>
 
-                            {p.especialidade ? (
-                              <p className="text-xs text-gray-500 mt-1">{p.especialidade}</p>
+                            {p.profissao ? (
+                              <p className="text-xs text-gray-500 mt-1">{p.profissao}</p>
                             ) : null}
 
                             {p.anos_experiencia != null && (
@@ -1573,7 +1570,7 @@ export default function Dashboard({ user, onLogout }) {
                             setEditingProfissional(p);
                             setFormProfissional({
                               nome: p.nome || '',
-                              especialidade: p.especialidade || '',
+                              profissao: p.profissao || '',
                               anos_experiencia: String(p.anos_experiencia ?? ''),
                               horario_inicio: p.horario_inicio || '08:00',
                               horario_fim: p.horario_fim || '18:00',
@@ -1615,7 +1612,7 @@ export default function Dashboard({ user, onLogout }) {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">NOME DO NEGÓCIO</label>
+                    <label className="block text-sm mb-2">Nome do Negócio</label>
                     <input
                       value={formInfo.nome}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, nome: e.target.value }))}
@@ -1625,7 +1622,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">TELEFONE</label>
+                    <label className="block text-sm mb-2">Telefone</label>
                     <input
                       value={formInfo.telefone}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, telefone: e.target.value }))}
@@ -1634,41 +1631,23 @@ export default function Dashboard({ user, onLogout }) {
                     />
                   </div>
 
-                  {/* ✅ pedido: email da conta */}
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">EMAIL</label>
-                    <input
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="seu@email.com"
-                    />
-                  </div>
-
-                  {/* ✅ pedido: senha (nova) */}
-                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">NOVA SENHA</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="Digite uma nova senha"
-                    />                
-                  </div>
-
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">ENDEREÇO</label>
+                    <label className="block text-sm mb-2">Endereço</label>
                     <input
                       value={formInfo.endereco}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, endereco: e.target.value }))}
                       className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
-                      placeholder="Rua, número, bairro..."
+                      placeholder='Ex.: Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais'
                     />
+                    <p className="text-[12px] text-yellow-300 mt-2">
+                      ATENÇÃO: se você mudar o endereço, use sempre o padrão:
+                      <span className="text-gray-300">{" "}"RUA, NÚMERO - CIDADE, ESTADO"</span>.
+                      <span className="text-gray-500"> Ex.: Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais</span>
+                    </p>
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">SOBRE</label>
+                    <label className="block text-sm mb-2">Descrição</label>
                     <textarea
                       value={formInfo.descricao}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
@@ -1679,7 +1658,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">INSTAGRAM</label>
+                    <label className="block text-sm mb-2">Instagram (ID ou @)</label>
                     <input
                       value={formInfo.instagram}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, instagram: e.target.value }))}
@@ -1689,7 +1668,7 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
-                    <label className="block text-sm mb-2">FACEBOOK</label>
+                    <label className="block text-sm mb-2">Facebook (ID ou nome)</label>
                     <input
                       value={formInfo.facebook}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, facebook: e.target.value }))}
@@ -1758,7 +1737,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </div>
 
-      {/* ✅ Modal Serviço (com scroll também, caso estoure no desktop) */}
+      {/* ✅ Modal Serviço */}
       {showNovoServico && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8 max-h-[90vh] overflow-y-auto">
@@ -1768,7 +1747,7 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => {
                   setShowNovoServico(false);
                   setEditingServicoId(null);
-                  setFormServico({ nome: '', duracao_minutos: '', preco: '', profissional_id: '' });
+                  setFormServico({ nome: '', duracao_minutos: '', preco: '', preco_promocional: '', profissional_id: '' });
                 }}
               >
                 <X className="w-6 h-6" />
@@ -1804,6 +1783,9 @@ export default function Dashboard({ user, onLogout }) {
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
                 />
+                <p className="text-[12px] text-gray-500 mt-2">
+                  O nome será salvo automaticamente em CAIXA ALTA.
+                </p>
               </div>
 
               <div>
@@ -1829,6 +1811,21 @@ export default function Dashboard({ user, onLogout }) {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm mb-2">Preço de Oferta (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formServico.preco_promocional}
+                  onChange={(e) => setFormServico({ ...formServico, preco_promocional: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
+                  placeholder="Deixe vazio se não houver oferta"
+                />
+                <p className="text-[12px] text-gray-500 mt-2">
+                  Para oferta aparecer, o preço de oferta deve ser menor que o preço normal.
+                </p>
+              </div>
+
               <button type="submit" className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button font-normal uppercase">
                 {editingServicoId ? 'SALVAR' : 'CRIAR SERVIÇO'}
               </button>
@@ -1837,7 +1834,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       )}
 
-      {/* ✅ Modal Profissional: scroll no DESKTOP também (max-h + overflow-y-auto) */}
+      {/* ✅ Modal Profissional */}
       {showNovoProfissional && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-8 max-h-[90vh] overflow-y-auto">
@@ -1849,7 +1846,7 @@ export default function Dashboard({ user, onLogout }) {
                   setEditingProfissional(null);
                   setFormProfissional({
                     nome: '',
-                    especialidade: '',
+                    profissao: '',
                     anos_experiencia: '',
                     horario_inicio: '08:00',
                     horario_fim: '18:00',
@@ -1873,16 +1870,19 @@ export default function Dashboard({ user, onLogout }) {
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
                 />
+                <p className="text-[12px] text-gray-500 mt-2">
+                  O nome será salvo automaticamente em CAIXA ALTA.
+                </p>
               </div>
 
               <div>
-                <label className="block text-sm mb-2">Especialidade</label>
+                <label className="block text-sm mb-2">Profissão</label>
                 <input
                   type="text"
-                  value={formProfissional.especialidade}
-                  onChange={(e) => setFormProfissional({ ...formProfissional, especialidade: e.target.value })}
+                  value={formProfissional.profissao}
+                  onChange={(e) => setFormProfissional({ ...formProfissional, profissao: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  placeholder="Ex: Degradê, Barba, Navalha..."
+                  placeholder="Ex: Barbeiro, Manicure..."
                 />
               </div>
 
@@ -1948,7 +1948,6 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
               </div>
 
-              {/* ✅ Dias mais “compridos” no mobile: 4 colunas no mobile e 7 no desktop */}
               <div>
                 <label className="block text-sm mb-2">Dias de trabalho</label>
                 <div className="grid grid-cols-5 sm:grid-cols-7 gap-2">
