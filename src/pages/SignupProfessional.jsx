@@ -16,12 +16,7 @@ async function fetchProfileTypeWithRetry(userId) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && isValidType(data?.type)) {
-      console.log(`✅ Perfil encontrado na tentativa ${i + 1}`);
-      return data.type;
-    }
-
-    console.log(`⏳ Aguardando perfil... tentativa ${i + 1}/15`, { error, data });
+    if (!error && isValidType(data?.type)) return data.type;
     await sleep(500);
   }
   return null;
@@ -70,50 +65,37 @@ export default function SignupProfessional({ onLogin }) {
     setLoading(true);
 
     try {
-      console.log('📝 Iniciando cadastro de profissional...', {
-        email: formData.email,
-        slug: formData.urlNegocio,
-        tipoNegocio: formData.tipoNegocio
-      });
-
       if (formData.password.length < 6) throw new Error('A senha deve ter no mínimo 6 caracteres');
-      if (!formData.urlNegocio || formData.urlNegocio.length < 3) throw new Error('URL do negócio inválida');
-      if (!String(formData.tipoNegocio || '').trim()) throw new Error('Tipo de negócio é obrigatório');
+
+      if (!formData.urlNegocio || formData.urlNegocio.length < 3) {
+        throw new Error('URL do negócio inválida');
+      }
+
+      if (!String(formData.tipoNegocio || '').trim()) {
+        throw new Error('Tipo de negócio é obrigatório');
+      }
 
       // 1) Verificar se slug já existe
-      console.log('🔎 Verificando slug...');
       const { data: existingNegocio, error: slugError } = await supabase
         .from('negocios')
         .select('id')
         .eq('slug', formData.urlNegocio)
         .maybeSingle();
 
-      console.log('DEBUG existingNegocio:', existingNegocio);
-      console.log('DEBUG slugError:', slugError);
-
       if (slugError) throw slugError;
       if (existingNegocio) throw new Error('Esta URL já está em uso. Escolha outro nome para o negócio.');
 
-      console.log('✅ Slug disponível');
-
       // 2) Criar conta no Auth
-      console.log('🔐 Criando conta no Auth...');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: { type: 'professional', nome: formData.nome }
-        }
+        options: { data: { type: 'professional', nome: formData.nome } }
       });
-
-      console.log('DEBUG authError:', authError);
-      console.log('DEBUG authUserId:', authData?.user?.id);
 
       if (authError) throw authError;
       if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
       // 3) Aguardar trigger criar perfil
-      console.log('⏳ Aguardando criação do perfil no banco...');
       await sleep(1500);
 
       // 4) Garantir sessão
@@ -121,14 +103,10 @@ export default function SignupProfessional({ onLogin }) {
       let hasSession = !!authData.session;
 
       if (!hasSession) {
-        console.log('🔑 Fazendo login...');
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
-
-        console.log('DEBUG signInError:', signInError);
-        console.log('DEBUG signInUserId:', signInData?.user?.id);
 
         if (signInError) {
           throw new Error('Conta criada, mas não foi possível iniciar sessão. Tente fazer login manualmente.');
@@ -141,13 +119,9 @@ export default function SignupProfessional({ onLogin }) {
       if (!hasSession) throw new Error('Não foi possível iniciar sessão. Tente fazer login manualmente.');
 
       const userId = sessionUser.id;
-      console.log('✅ Sessão OK:', userId);
 
       // 5) Buscar tipo com retry
-      console.log('⏳ Buscando perfil do usuário...');
       const dbType = await fetchProfileTypeWithRetry(userId);
-
-      console.log('DEBUG dbType:', dbType);
 
       if (!dbType) {
         throw new Error('Perfil não foi criado no banco. Verifique se o trigger está ativo.');
@@ -156,94 +130,45 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('Perfil criado com tipo incorreto. Verifique o cadastro.');
       }
 
-      console.log('✅ Perfil validado:', dbType);
-
       // 6) Criar NEGÓCIO
-      console.log('🏪 Criando negócio...');
-      const payloadNegocio = {
-        owner_id: userId,
-        nome: String(formData.nomeNegocio || '').trim(),
-        slug: String(formData.urlNegocio || '').trim(),
-        tipo_negocio: String(formData.tipoNegocio || '').trim(),
-        descricao: String(formData.descricao || '').trim(),
-        telefone: String(formData.telefone || '').trim(),
-        endereco: String(formData.endereco || '').trim()
-      };
-
-      console.log('DEBUG payloadNegocio:', payloadNegocio);
-
       const { data: negocioInserted, error: negocioError } = await supabase
         .from('negocios')
-        .insert([payloadNegocio])
+        .insert([{
+          owner_id: userId,
+          nome: String(formData.nomeNegocio || '').trim(),
+          slug: String(formData.urlNegocio || '').trim(),
+          tipo_negocio: String(formData.tipoNegocio || '').trim(),
+          descricao: String(formData.descricao || '').trim(),
+          telefone: String(formData.telefone || '').trim(),
+          endereco: String(formData.endereco || '').trim()
+        }])
         .select('id')
         .maybeSingle();
 
-      console.log('DEBUG negocioInserted:', negocioInserted);
-      console.log('DEBUG negocioError:', negocioError);
-
-      if (negocioError) {
-        throw new Error('Erro ao criar negócio: ' + negocioError.message);
-      }
+      if (negocioError) throw new Error('Erro ao criar negócio: ' + negocioError.message);
 
       const negocioId = negocioInserted?.id;
-
-      if (!negocioId) {
-        // se não voltou id, checa no banco (debug)
-        const { data: debugNeg, error: debugNegErr } = await supabase
-          .from('negocios')
-          .select('id, owner_id, slug')
-          .eq('owner_id', userId)
-          .eq('slug', payloadNegocio.slug)
-          .maybeSingle();
-
-        console.log('DEBUG SELECT negocios owner+slug:', debugNeg);
-        console.log('DEBUG SELECT negocios erro:', debugNegErr);
-
-        if (!debugNeg?.id) {
-          throw new Error('Negócio NÃO foi localizado após o insert (provável problema no default do id / schema).');
-        }
-      }
-
-      const negocioIdFinal = negocioId;
-
-      console.log('✅ Negócio criado:', negocioIdFinal);
+      if (!negocioId) throw new Error('Negócio criado mas ID não retornado. Verifique policies/RLS.');
 
       // 7) Criar profissional
-      console.log('👤 Criando profissional...');
-      const payloadProf = {
-        negocio_id: negocioIdFinal,
-        user_id: userId,
-        nome: String(formData.nome || '').trim(),
-        anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
-      };
-
-      console.log('DEBUG payloadProfissional:', payloadProf);
-
-      const { data: profInserted, error: profissionalError } = await supabase
+      const { error: profissionalError } = await supabase
         .from('profissionais')
-        .insert([payloadProf])
-        .select('id')
-        .maybeSingle();
+        .insert([{
+          negocio_id: negocioId,
+          user_id: userId,
+          nome: String(formData.nome || '').trim(),
+          anos_experiencia: parseInt(formData.anosExperiencia, 10) || 0
+        }]);
 
-      console.log('DEBUG profInserted:', profInserted);
-      console.log('DEBUG profissionalError:', profissionalError);
+      if (profissionalError) throw new Error('Erro ao criar profissional: ' + profissionalError.message);
 
-      if (profissionalError) {
-        throw new Error('Erro ao criar profissional: ' + profissionalError.message);
-      }
-
-      console.log('✅ Profissional criado!');
-
+      // 8) Login no app
       onLogin(sessionUser, 'professional');
-      console.log('🎉 Cadastro completo! Redirecionando...');
       navigate('/dashboard');
     } catch (err) {
-      console.error('❌ Erro no cadastro:', err);
-
       if (!String(err?.message || '').includes('Perfil não foi criado')) {
         await supabase.auth.signOut();
       }
-
       setError(err?.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setLoading(false);
@@ -342,7 +267,6 @@ export default function SignupProfessional({ onLogin }) {
                   placeholder="elite-barbers"
                   className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all text-sm"
                   required
-                  // ✅ corrigido (sem erro de regex)
                   pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
                 />
               </div>
@@ -387,7 +311,7 @@ export default function SignupProfessional({ onLogin }) {
                 <textarea
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Ex: Oferecemos serviços completos..."
+                  placeholder="Ex: Oferecemos serviços completos de barbearia: do corte clássico ao degradê..."
                   rows={3}
                   className="w-full pl-11 pr-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all resize-none text-sm"
                   required
