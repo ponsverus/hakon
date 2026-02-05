@@ -108,6 +108,8 @@ function InputWithChevron({ children }) {
   );
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export default function Dashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('visao-geral');
 
@@ -164,6 +166,10 @@ export default function Dashboard({ user, onLogout }) {
     galeria: []
   });
 
+  // ✅ NOVO (Info do Negócio): email + senha (nova)
+  const [authEmail, setAuthEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
   useEffect(() => {
     if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,11 +186,31 @@ export default function Dashboard({ user, onLogout }) {
     setError(null);
 
     try {
-      const { data: negocioData, error: negocioError } = await supabase
-        .from('negocios')
-        .select('*')
-        .eq('owner_id', user.id)
-        .maybeSingle();
+      // ✅ Pega email real do Auth (pra Info do Negócio)
+      const { data: authUserData, error: authUserErr } = await supabase.auth.getUser();
+      if (!authUserErr) {
+        setAuthEmail(authUserData?.user?.email || '');
+      }
+
+      // ✅ Retry curto pra evitar o "Negócio não encontrado" por timing
+      let negocioData = null;
+      let negocioError = null;
+
+      for (let i = 0; i < 8; i++) {
+        const resp = await supabase
+          .from('negocios')
+          .select('*')
+          .eq('owner_id', user.id)
+          .maybeSingle();
+
+        negocioData = resp.data;
+        negocioError = resp.error;
+
+        if (negocioError) break; // erro real -> para
+        if (negocioData) break;  // achou -> para
+
+        await sleep(250); // não achou ainda -> espera e tenta de novo
+      }
 
       if (negocioError) throw negocioError;
 
@@ -348,9 +374,11 @@ export default function Dashboard({ user, onLogout }) {
 
   const salvarInfoNegocio = async () => {
     if (!negocio?.id) return alert('Negócio não carregado.');
+
     try {
       setInfoSaving(true);
 
+      // ✅ 1) Atualiza dados do NEGÓCIO (igual já era)
       const payload = {
         nome: String(formInfo.nome || '').trim(),
         descricao: String(formInfo.descricao || '').trim(),
@@ -367,6 +395,30 @@ export default function Dashboard({ user, onLogout }) {
         .eq('id', negocio.id);
 
       if (updErr) throw updErr;
+
+      // ✅ 2) Atualiza EMAIL (Auth) se foi preenchido
+      const emailTrim = String(authEmail || '').trim();
+      if (emailTrim) {
+        const { error: emailErr } = await supabase.auth.updateUser({ email: emailTrim });
+        if (emailErr) {
+          alert('⚠️ Negócio salvo, mas email não foi atualizado: ' + emailErr.message);
+        }
+      }
+
+      // ✅ 3) Atualiza SENHA (Auth) se foi preenchida
+      const passTrim = String(newPassword || '').trim();
+      if (passTrim) {
+        if (passTrim.length < 6) {
+          alert('⚠️ A senha precisa ter no mínimo 6 caracteres.');
+        } else {
+          const { error: passErr } = await supabase.auth.updateUser({ password: passTrim });
+          if (passErr) {
+            alert('⚠️ Negócio salvo, mas senha não foi atualizada: ' + passErr.message);
+          } else {
+            setNewPassword('');
+          }
+        }
+      }
 
       alert('✅ Informações atualizadas!');
       await loadData();
@@ -1112,16 +1164,16 @@ export default function Dashboard({ user, onLogout }) {
                     R$ {faturamentoDoDiaSelecionado.toFixed(2)}
                   </div>
 
-                  {/* ✅ removido o texto duplicado "Concluídos em ..." */}
-
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CONCLUÍDOS</div>
-                      <div className="text-xl font-normal text-white">{concluidosDoDiaFaturamento.length}</div>
+                      {/* ✅ pedido: concluídos em verde */}
+                      <div className="text-xl font-normal text-green-400">{concluidosDoDiaFaturamento.length}</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CANCELADOS</div>
-                      <div className="text-xl font-normal text-white">{canceladosDoDiaFaturamento.length}</div>
+                      {/* ✅ pedido: cancelados em vermelho */}
+                      <div className="text-xl font-normal text-red-400">{canceladosDoDiaFaturamento.length}</div>
                       <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
                     </div>
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
@@ -1580,6 +1632,32 @@ export default function Dashboard({ user, onLogout }) {
                       className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
                       placeholder="(xx) xxxxx-xxxx"
                     />
+                  </div>
+
+                  {/* ✅ pedido: email da conta */}
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm mb-2">Email da Conta</label>
+                    <input
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+
+                  {/* ✅ pedido: senha (nova) */}
+                  <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
+                    <label className="block text-sm mb-2">Senha (nova)</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-100 border border-gray-800 rounded-custom text-white"
+                      placeholder="Digite uma nova senha"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      A senha não aparece nem fica salva no banco. Isso altera a senha do login.
+                    </p>
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
