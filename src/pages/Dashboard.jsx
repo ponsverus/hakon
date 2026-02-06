@@ -1366,12 +1366,12 @@ export default function Dashboard({ user, onLogout }) {
                               : isDone ? 'bg-green-500/20 border border-green-500/50 text-green-300'
                               : 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
                             }`}>
-                              {isCancel ? 'Cancelado' : isDone ? 'Concluído' : 'Agendado'}
+                              {isCancel ? 'Cancelado' : isDone ? 'CONCLUÍDO' : 'Agendado'}
                             </div>
                           </div>
 
                           <div className="text-sm text-gray-300">
-                            Valor: <span className="text-primary">R$ {a.servicos?.preco ?? '0.00'}</span>
+                            VALOR: <span className="text-primary">R$ {a.servicos?.preco ?? '0.00'}</span>
                           </div>
                         </div>
                       );
@@ -1615,7 +1615,7 @@ export default function Dashboard({ user, onLogout }) {
             {activeTab === 'info-negocio' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-normal">Informações do Negócio</h2>
+                  <h2 className="text-2xl font-normal">Info do Negócio</h2>
 
                   <button
                     onClick={salvarInfoNegocio}
@@ -1661,14 +1661,14 @@ export default function Dashboard({ user, onLogout }) {
                       placeholder='Ex.: Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais'
                     />
                     <p className="text-[12px] text-yellow-300 mt-2">
-                      ATENÇÃO: se você mudar o endereço, use sempre o padrão:
+                      IMPORTANTE: se você mudar o endereço, use sempre o formato:
                       <span className="text-gray-300">{" "}"RUA, NÚMERO - CIDADE, ESTADO"</span>.
                       <span className="text-gray-500"> Ex.: Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais</span>
                     </p>
                   </div>
 
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5 md:col-span-2">
-                    <label className="block text-sm mb-2">Descrição</label>
+                    <label className="block text-sm mb-2">Sobre</label>
                     <textarea
                       value={formInfo.descricao}
                       onChange={(e) => setFormInfo(prev => ({ ...prev, descricao: e.target.value }))}
