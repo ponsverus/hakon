@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* ✅ ANNOUNCEMENT BAR - AJUSTADO */
+        /* ✅ ANNOUNCEMENT BAR - MATEMÁTICA CORRETA */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -975,28 +975,21 @@ export default function Dashboard({ user, onLogout }) {
           white-space: nowrap;
         }
 
-        /* 📱 MOBILE: BEM menos repetições, gap menor */
+        /* 📱 MOBILE: 6 repetições, gap médio */
         @media (max-width: 639px) {
           .announcement-bar-track {
-            gap: 2rem; /* Gap REDUZIDO (era 4rem) */
+            gap: 2rem;
           }
           
-          /* Esconde MUITO mais no mobile */
-          .announcement-bar-track .desktop-only,
-          .announcement-bar-track .mobile-hide {
+          .announcement-bar-track .desktop-extra {
             display: none;
           }
         }
 
-        /* 💻 DESKTOP: 5 repetições (era 6) */
+        /* 💻 DESKTOP: 12 repetições, gap menor */
         @media (min-width: 640px) {
           .announcement-bar-track {
             gap: 1.5rem;
-          }
-          
-          /* Esconde 1 repetição no desktop */
-          .announcement-bar-track .desktop-reduce {
-            display: none;
           }
         }
 
@@ -1110,73 +1103,91 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR AJUSTADO */}
+        {/* ✅ ANNOUNCEMENT BAR - 6 MOBILE / 12 DESKTOP */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
           <div className="announcement-bar-wrapper">
             {/* Track 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: Só 1 repetição básica */}
+              {/* 📱 MOBILE: 6 repetições (3 visíveis) */}
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
               
-              {/* Mais 1 repetição (mobile vê 2 no total) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
-              <span className="mobile-hide">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
-              <span className="mobile-hide">●</span>
-              
-              {/* 💻 DESKTOP: Mais repetições (desktop vê 5 no total) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              
-              {/* Última repetição que desktop NÃO mostra (reduz de 6 para 5) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
-              <span className="desktop-only desktop-reduce">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
-              <span className="desktop-only desktop-reduce">●</span>
+              {/* 💻 DESKTOP: +6 repetições extras (total 12) */}
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
             </div>
 
-            {/* Track 2 - CÓPIA EXATA */}
+            {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
               
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
-              <span className="mobile-hide">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
-              <span className="mobile-hide">●</span>
-              
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
-              <span className="desktop-only desktop-reduce">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
-              <span className="desktop-only desktop-reduce">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
             </div>
           </div>
         </div>
