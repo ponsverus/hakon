@@ -1109,7 +1109,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
                     <div className="text-3xl font-normal text-white">{hojeCancelados.length}</div>
-                    <div className="text-sm text-gray-300 mt-1">
+                    <div className="text-[10px] tracking-widest text-gray-400 mt-1">
                       TAXA: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
                     </div>
                   </div>
