@@ -954,31 +954,34 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* ✅ Announcement Bar (marquee) - contínuo, sem vazio, mais rápido, sem quebrar */
-        @keyframes announcement-marquee {
-          0% { transform: translateX(0); }
+        /* /* ✅ ANNOUNCEMENT BAR CORRIGIDO - MOBILE + DESKTOP */
+        @keyframes announcement-scroll {
+          0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
         }
 
-        .announcement-marquee {
-          width: 200%;
+        .announcement-bar-wrapper {
           display: flex;
-          will-change: transform;
-          animation: announcement-marquee 9s linear infinite;
+          width: 200%;
+          animation: announcement-scroll 20s linear infinite;
         }
 
-        .announcement-track {
+        .announcement-bar-track {
           width: 50%;
-          display: inline-flex;
+          display: flex;
           align-items: center;
-          gap: 18px;
-          padding: 12px 0;
+          justify-content: flex-start;
+          gap: 2rem;
+          padding: 0.75rem 0;
           white-space: nowrap;
-          flex-wrap: nowrap;
+        }
+
+        .announcement-bar-wrapper:hover {
+          animation-play-state: paused;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-marquee { animation: none; }
+          .announcement-bar-wrapper { animation: none; }
         }
       `}</style>
 
@@ -1085,83 +1088,45 @@ export default function Dashboard({ user, onLogout }) {
 
         {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - FULL WIDTH (tela toda) */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
-          <div className="announcement-marquee">
+          <div className="announcement-bar-wrapper">
             {/* Track 1 */}
-            <div className="announcement-track text-black font-normal uppercase">
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
+            <div className="announcement-bar-track text-black font-normal text-sm uppercase">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
             </div>
 
-            {/* Track 2 (cópia perfeita do Track 1) */}
-            <div className="announcement-track text-black font-normal uppercase" aria-hidden="true">
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
-
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
-                VER VITRINE
-              </Link>
-              <span className="whitespace-nowrap">●</span>
-              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
-                SUPORTE
-              </a>
-              <span className="whitespace-nowrap">●</span>
+            {/* Track 2 (cópia perfeita) */}
+            <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
             </div>
           </div>
         </div>
