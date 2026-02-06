@@ -1144,7 +1144,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h3 className="text-lg font-normal flex items-center gap-2 uppercase">
                       <span style={{ fontFamily: 'Roboto Condensed, sans-serif' }} className="font-normal text-2xl">
-                        R$
+                        $
                       </span>
                       FATURAMENTO
                     </h3>
@@ -1179,7 +1179,7 @@ export default function Dashboard({ user, onLogout }) {
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">FECHAMENTO</div>
                       <div className="text-xl font-normal text-white">{taxaConversaoDoDiaFaturamento.toFixed(1)}%</div>
-                      <div className="text-xs text-gray-500 mt-1">sobre {totalDoDiaFaturamento} agend.</div>
+                      <div className="text-xs text-gray-500 mt-1">sobre {totalDoDiaFaturamento} agendamento(s).</div>
                     </div>
 
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
@@ -1252,15 +1252,15 @@ export default function Dashboard({ user, onLogout }) {
 
                           <div className="grid grid-cols-3 gap-4 mb-4">
                             <div>
-                              <div className="text-xs text-gray-500">Data</div>
+                              <div className="text-xs text-gray-500">DATA</div>
                               <div className="text-sm">{formatDateBRFromISO(a.data)}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500">Horário</div>
+                              <div className="text-xs text-gray-500">HORÁRIO</div>
                               <div className="text-sm">{a.hora_inicio}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-gray-500">Valor</div>
+                              <div className="text-xs text-gray-500">VALOR</div>
                               <div className="text-sm">R$ {a.servicos?.preco}</div>
                             </div>
                           </div>
@@ -1366,7 +1366,7 @@ export default function Dashboard({ user, onLogout }) {
                               : isDone ? 'bg-green-500/20 border border-green-500/50 text-green-300'
                               : 'bg-blue-500/20 border border-blue-500/50 text-blue-300'
                             }`}>
-                              {isCancel ? 'Cancelado' : isDone ? 'CONCLUÍDO' : 'Agendado'}
+                              {isCancel ? 'CANCELADO' : isDone ? 'CONCLUÍDO' : 'AGENDADO'}
                             </div>
                           </div>
 
@@ -1743,7 +1743,7 @@ export default function Dashboard({ user, onLogout }) {
                           <button
                             onClick={() => removerImagemGaleria(url)}
                             className="
-                              absolute top-12 left-1/2 -translate-x-1/2
+                              absolute top-2 left-1/2 -translate-x-1/2
                               sm:left-auto sm:translate-x-0 sm:right-2
                               px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400
                               text-[12px] text-red-200 font-normal uppercase
