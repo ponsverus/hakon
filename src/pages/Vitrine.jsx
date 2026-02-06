@@ -691,11 +691,11 @@ export default function Vitrine({ user, userType }) {
   const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
   const instagramUrl = useMemo(() => resolveInstagram(barbearia?.instagram), [barbearia?.instagram]);
 
-  // ✅ GALERIA (MASONRY/ COLMEIA) — usa exatamente o array "galerias" do negócio
-  const galerias = useMemo(() => {
-    const arr = barbearia?.galerias;
+  // ✅ GALERIA (MASONRY/ COLMEIA) — usa exatamente o array "galeria" do negócio
+  const galeria = useMemo(() => {
+    const arr = barbearia?.galeria;
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
-  }, [barbearia?.galerias]);
+  }, [barbearia?.galeria]);
 
   const servicosPorProf = useMemo(() => {
     const map = new Map();
@@ -1016,11 +1016,11 @@ export default function Vitrine({ user, userType }) {
       </section>
 
       {/* ✅ GALERIA (MASONRY/COLMEIA) — ENTRE SERVIÇOS E AVALIAÇÕES */}
-      {galerias.length > 0 && (
+      {galeria.length > 0 && (
         <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [column-fill:_balance]">
-              {galerias.map((url, idx) => (
+              {galeria.map((url, idx) => (
                 <div
                   key={`${url}-${idx}`}
                   className="mb-3 w-full break-inside-avoid overflow-hidden rounded-custom border border-gray-800 bg-dark-100"
