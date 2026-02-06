@@ -7,7 +7,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
-const SUPORTE_HREF = 'mailto:suporte@hakon.app'; // ✅ TROQUE aqui se quiser (ex: WhatsApp / página / link)
+const SUPORTE_PHONE_E164 = '5533999037979'; // 55 + DDD + número (sem espaços)
+const SUPORTE_MSG = 'Sou profissional e preciso de ajuda em meu negócio, poderia me ajudar?';
+
+const SUPORTE_HREF =
+  `https://wa.me/${SUPORTE_PHONE_E164}?text=${encodeURIComponent(SUPORTE_MSG)}`;
 
 const toNumberOrNull = (v) => {
   if (v === '' || v == null) return null;
@@ -1739,7 +1743,7 @@ export default function Dashboard({ user, onLogout }) {
                           <button
                             onClick={() => removerImagemGaleria(url)}
                             className="
-                              absolute top-2 left-1/2 -translate-x-1/2
+                              absolute top-8 left-1/2 -translate-x-1/2
                               sm:left-auto sm:translate-x-0 sm:right-2
                               px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400
                               text-[12px] text-red-200 font-normal uppercase
