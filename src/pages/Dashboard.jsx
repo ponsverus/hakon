@@ -971,7 +971,7 @@ export default function Dashboard({ user, onLogout }) {
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          gap: 3rem; /* Mobile: espaço maior */
+          gap: 4rem; /* Mobile: espaço maior */
           padding: 0.75rem 0;
           white-space: nowrap;
         }
@@ -979,7 +979,7 @@ export default function Dashboard({ user, onLogout }) {
         /* Desktop: mais itens, espaço menor */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 2rem;
+            gap: 1.5rem;
           }
         }
 
