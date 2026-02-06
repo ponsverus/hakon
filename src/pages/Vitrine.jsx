@@ -1243,7 +1243,7 @@ export default function Vitrine({ user, userType }) {
                     onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
                     className="text-primary mb-4 uppercase font-normal"
                   >
-                    Voltar
+                    VOLTAR
                   </button>
 
                   <h3 className="text-xl font-normal mb-2">
@@ -1256,7 +1256,7 @@ export default function Vitrine({ user, userType }) {
                       <span className="font-normal">{totalSelecionado.qtd}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">Duração total:</span>
+                      <span className="text-gray-500 font-normal">Tempo estimado:</span>
                       <span className={`font-normal ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
                         {totalSelecionado.duracao} min
                       </span>
@@ -1376,7 +1376,7 @@ export default function Vitrine({ user, userType }) {
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Duração total:</span>
+                      <span className="text-gray-500 font-normal">Tempo estimado:</span>
                       <span className="font-normal">{totalSelecionado.duracao} min</span>
                     </div>
                     <div className="flex justify-between">
@@ -1390,13 +1390,13 @@ export default function Vitrine({ user, userType }) {
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
                       className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
                     >
-                      Voltar
+                      VOLTAR
                     </button>
                     <button
                       onClick={confirmarAgendamento}
                       className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button uppercase font-normal"
                     >
-                      Confirmar
+                      CONFIRMAR
                     </button>
                   </div>
                 </div>
@@ -1411,7 +1411,7 @@ export default function Vitrine({ user, userType }) {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-normal">Avaliar</h3>
+              <h3 className="text-2xl font-normal">AVALIAR</h3>
               <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
@@ -1441,7 +1441,7 @@ export default function Vitrine({ user, userType }) {
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  Profissional
+                  PROFISSIONAL
                 </button>
               </div>
             </div>
@@ -1506,7 +1506,7 @@ export default function Vitrine({ user, userType }) {
             </button>
 
             <p className="text-xs text-gray-500 mt-3 font-normal">
-              {avaliarTipo === 'PROFISSIONAL' && !avaliarProfissionalId
+              {avaliarTipo === 'profissional' && !avaliarProfissionalId
                 ? 'Selecione um profissional para continuar'
                 : 'Somente clientes logados podem avaliar.'}
             </p>
