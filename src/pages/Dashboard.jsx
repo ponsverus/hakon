@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Plus, X, ExternalLink, Eye, Copy, Check, Calendar,
+  Plus, X, ExternalLink, Eye, Calendar,
   Users, TrendingUp, Award, LogOut, AlertCircle, Clock,
   Save
 } from 'lucide-react';
@@ -136,8 +136,6 @@ export default function Dashboard({ user, onLogout }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [copied, setCopied] = useState(false);
 
   // ✅ HOJE DINÂMICO (corrige etiqueta FUTURO ao virar o dia)
   const [hoje, setHoje] = useState(() => getNowSP().date);
@@ -326,13 +324,6 @@ export default function Dashboard({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const copyLink = () => {
-    if (!negocio) return;
-    navigator.clipboard.writeText(`${window.location.origin}/v/${negocio.slug}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
   const uploadLogoNegocio = async (file) => {
@@ -963,21 +954,31 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* ✅ Announcement Bar (marquee) */
+        /* ✅ Announcement Bar (marquee) - contínuo, sem vazio, mais rápido, sem quebrar */
         @keyframes announcement-marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
+
+        .announcement-marquee {
+          width: 200%;
+          display: flex;
+          will-change: transform;
+          animation: announcement-marquee 9s linear infinite;
+        }
+
         .announcement-track {
-          width: max-content;
+          width: 50%;
           display: inline-flex;
           align-items: center;
           gap: 18px;
-          padding: 10px 0;
-          animation: announcement-marquee 14s linear infinite;
+          padding: 12px 0;
+          white-space: nowrap;
+          flex-wrap: nowrap;
         }
+
         @media (prefers-reduced-motion: reduce) {
-          .announcement-track { animation: none; }
+          .announcement-marquee { animation: none; }
         }
       `}</style>
 
@@ -1082,75 +1083,85 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - MOBILE + DESKTOP */}
-        <div className="bg-yellow-400 border border-yellow-300/50 rounded-custom mb-8 overflow-hidden">
-          <div className="relative">
-            <div className="flex w-[200%]">
-              <div className="announcement-track">
-                <Link
-                  to={`/v/${negocio.slug}`}
-                  target="_blank"
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  VER VITRINE
-                </Link>
-                <span className="font-normal">●</span>
-                <a
-                  href={SUPORTE_HREF}
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  SUPORTE
-                </a>
-                <span className="font-normal">●</span>
-                <Link
-                  to={`/v/${negocio.slug}`}
-                  target="_blank"
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  VER VITRINE
-                </Link>
-                <span className="font-normal">●</span>
-                <a
-                  href={SUPORTE_HREF}
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  SUPORTE
-                </a>
-                <span className="font-normal">●</span>
-              </div>
+        {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - FULL WIDTH (tela toda) */}
+        <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
+          <div className="announcement-marquee">
+            {/* Track 1 */}
+            <div className="announcement-track text-black font-normal uppercase">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
 
-              <div className="announcement-track" aria-hidden="true">
-                <Link
-                  to={`/v/${negocio.slug}`}
-                  target="_blank"
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  VER VITRINE
-                </Link>
-                <span className="font-normal">●</span>
-                <a
-                  href={SUPORTE_HREF}
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  SUPORTE
-                </a>
-                <span className="font-normal">●</span>
-                <Link
-                  to={`/v/${negocio.slug}`}
-                  target="_blank"
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  VER VITRINE
-                </Link>
-                <span className="font-normal">●</span>
-                <a
-                  href={SUPORTE_HREF}
-                  className="font-normal uppercase hover:opacity-80"
-                >
-                  SUPORTE
-                </a>
-                <span className="font-normal">●</span>
-              </div>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+            </div>
+
+            {/* Track 2 (cópia perfeita do Track 1) */}
+            <div className="announcement-track text-black font-normal uppercase" aria-hidden="true">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
             </div>
           </div>
         </div>
@@ -1805,7 +1816,7 @@ export default function Dashboard({ user, onLogout }) {
                         <div key={url} className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
                           <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
 
-                          {/* ✅ REMOVER: MOBILE CENTRAL / DESKTOP TOPO ESQUERDO */}
+                          {/* ✅ REMOVER: MOBILE CENTRALIZADO / DESKTOP TOPO ESQUERDO */}
                           <button
                             onClick={() => removerImagemGaleria(url)}
                             className="
