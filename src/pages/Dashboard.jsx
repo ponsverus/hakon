@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* /* ✅ ANNOUNCEMENT BAR CORRIGIDO - MOBILE + DESKTOP */
+        /* /* ✅ ANNOUNCEMENT BAR - RESPONSIVO MOBILE + DESKTOP */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -963,7 +963,7 @@ export default function Dashboard({ user, onLogout }) {
         .announcement-bar-wrapper {
           display: flex;
           width: 200%;
-          animation: announcement-scroll 20s linear infinite;
+          animation: announcement-scroll 25s linear infinite;
         }
 
         .announcement-bar-track {
@@ -971,9 +971,16 @@ export default function Dashboard({ user, onLogout }) {
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          gap: 2rem;
+          gap: 3rem; /* Mobile: espaço maior */
           padding: 0.75rem 0;
           white-space: nowrap;
+        }
+
+        /* Desktop: mais itens, espaço menor */
+        @media (min-width: 640px) {
+          .announcement-bar-track {
+            gap: 2rem;
+          }
         }
 
         .announcement-bar-wrapper:hover {
@@ -982,6 +989,17 @@ export default function Dashboard({ user, onLogout }) {
 
         @media (prefers-reduced-motion: reduce) {
           .announcement-bar-wrapper { animation: none; }
+        }
+
+        /* Esconder itens extras no mobile */
+        .announcement-item-desktop-only {
+          display: none;
+        }
+
+        @media (min-width: 640px) {
+          .announcement-item-desktop-only {
+            display: inline-flex;
+          }
         }
       `}</style>
 
@@ -1086,51 +1104,112 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - FULL WIDTH (tela toda) */}
+        {/* ✅ ANNOUNCEMENT BAR - RESPONSIVO */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
           <div className="announcement-bar-wrapper">
             {/* Track 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase">
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
             </div>
 
-            {/* Track 2 (cópia perfeita) */}
+            {/* Track 2 (cópia EXATA do Track 1) */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+
+              {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
+
+              {/* DESKTOP ONLY - mais repetições */}
+              <span className="announcement-item-desktop-only">
+                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
+              <span className="announcement-item-desktop-only">
+                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              </span>
+              <span className="announcement-item-desktop-only">●</span>
             </div>
           </div>
         </div>
-
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
             {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
