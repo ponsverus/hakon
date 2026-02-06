@@ -1810,14 +1810,11 @@ export default function Dashboard({ user, onLogout }) {
                   onChange={(e) => setFormServico({ ...formServico, nome: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
-                />
-                <p className="text-[12px] text-gray-500 mt-2">
-                  O nome será salvo automaticamente em CAIXA ALTA.
-                </p>
+                />                
               </div>
 
               <div>
-                <label className="block text-sm mb-2">Duração (min)</label>
+                <label className="block text-sm mb-2">Tempo estimado (min)</label>
                 <input
                   type="number"
                   value={formServico.duracao_minutos}
@@ -1840,7 +1837,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm mb-2">Preço de Oferta (opcional)</label>
+                <label className="block text-sm mb-2">Preço de OFERTA (opcional)</label>
                 <input
                   type="number"
                   step="0.01"
