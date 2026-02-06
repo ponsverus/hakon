@@ -962,6 +962,23 @@ export default function Dashboard({ user, onLogout }) {
           opacity: 0;
           cursor: pointer;
         }
+
+        /* ✅ Announcement Bar (marquee) */
+        @keyframes announcement-marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .announcement-track {
+          width: max-content;
+          display: inline-flex;
+          align-items: center;
+          gap: 18px;
+          padding: 10px 0;
+          animation: announcement-marquee 14s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .announcement-track { animation: none; }
+        }
       `}</style>
 
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
@@ -1065,25 +1082,77 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ SUBSTITUI “SUA VITRINE” NO MOBILE (DESKTOP: NÃO MOSTRA NADA) */}
-        
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              to={`/v/${negocio.slug}`}
-              target="_blank"
-              className="w-full py-3 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm font-normal uppercase flex items-center justify-center gap-2"
-            >
-              <Eye className="w-4 h-4" />
-              VER VITRINE
-            </Link>
+        {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - MOBILE + DESKTOP */}
+        <div className="bg-yellow-400 border border-yellow-300/50 rounded-custom mb-8 overflow-hidden">
+          <div className="relative">
+            <div className="flex w-[200%]">
+              <div className="announcement-track">
+                <Link
+                  to={`/v/${negocio.slug}`}
+                  target="_blank"
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  VER VITRINE
+                </Link>
+                <span className="font-normal">●</span>
+                <a
+                  href={SUPORTE_HREF}
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  SUPORTE
+                </a>
+                <span className="font-normal">●</span>
+                <Link
+                  to={`/v/${negocio.slug}`}
+                  target="_blank"
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  VER VITRINE
+                </Link>
+                <span className="font-normal">●</span>
+                <a
+                  href={SUPORTE_HREF}
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  SUPORTE
+                </a>
+                <span className="font-normal">●</span>
+              </div>
 
-            <a
-              href={SUPORTE_HREF}
-              className="w-full py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm font-normal uppercase flex items-center justify-center gap-2"
-            >
-              <ExternalLink className="w-4 h-4" />
-              SUPORTE
-            </a>
+              <div className="announcement-track" aria-hidden="true">
+                <Link
+                  to={`/v/${negocio.slug}`}
+                  target="_blank"
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  VER VITRINE
+                </Link>
+                <span className="font-normal">●</span>
+                <a
+                  href={SUPORTE_HREF}
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  SUPORTE
+                </a>
+                <span className="font-normal">●</span>
+                <Link
+                  to={`/v/${negocio.slug}`}
+                  target="_blank"
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  VER VITRINE
+                </Link>
+                <span className="font-normal">●</span>
+                <a
+                  href={SUPORTE_HREF}
+                  className="font-normal uppercase hover:opacity-80"
+                >
+                  SUPORTE
+                </a>
+                <span className="font-normal">●</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
@@ -1164,13 +1233,11 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CONCLUÍDOS</div>
-                      {/* ✅ VERDE */}
                       <div className="text-xl font-normal text-green-400">{concluidosDoDiaFaturamento.length}</div>
                     </div>
 
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CANCELADOS</div>
-                      {/* ✅ VERMELHO */}
                       <div className="text-xl font-normal text-red-400">{canceladosDoDiaFaturamento.length}</div>
                       <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
                     </div>
@@ -1215,7 +1282,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="space-y-4">
                     {agendamentosHojeEFuturos.map(a => {
                       const dataA = String(a.data || '');
-                      const isFuturo = dataA > String(hoje || ''); // ✅ FUTURO SÓ SE FOR > HOJE
+                      const isFuturo = dataA > String(hoje || '');
                       const isHoje = dataA === String(hoje || '');
                       const isDone = a.status === 'concluido';
 
@@ -1738,12 +1805,12 @@ export default function Dashboard({ user, onLogout }) {
                         <div key={url} className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
                           <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
 
-                          {/* ✅ REMOVER CENTRALIZADO SÓ NO MOBILE */}
+                          {/* ✅ REMOVER: MOBILE CENTRAL / DESKTOP TOPO ESQUERDO */}
                           <button
                             onClick={() => removerImagemGaleria(url)}
                             className="
                               absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                              sm:left-auto sm:top-10 sm:right-2 sm:transform-none
+                              sm:left-2 sm:top-2 sm:right-auto sm:transform-none
                               px-3 py-1 rounded-full bg-black/60 border border-gray-700
                               hover:border-red-400 text-[12px] text-red-200 font-normal uppercase
                             "
@@ -1809,7 +1876,7 @@ export default function Dashboard({ user, onLogout }) {
                   onChange={(e) => setFormServico({ ...formServico, nome: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
-                />                
+                />
               </div>
 
               <div>
@@ -1893,7 +1960,7 @@ export default function Dashboard({ user, onLogout }) {
                   onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
-                />                
+                />
               </div>
 
               <div>
