@@ -1445,7 +1445,7 @@ export default function Dashboard({ user, onLogout }) {
                                       </div>
                                     </div>
 
-                                    <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} min</p>
+                                    <p className="text-sm text-gray-400 mb-4">{s.duracao_minutos} MIN</p>
 
                                     <div className="flex gap-2">
                                       <button
