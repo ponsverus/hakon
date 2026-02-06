@@ -756,7 +756,7 @@ export default function Vitrine({ user, userType }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-normal animate-pulse">Carregando...</div>
+        <div className="text-primary text-2xl font-normal animate-pulse">CARREGANDO...</div>
       </div>
     );
   }
@@ -783,7 +783,7 @@ export default function Vitrine({ user, userType }) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado</h1>
+          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado :(</h1>
           <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
         </div>
       </div>
@@ -983,7 +983,7 @@ export default function Vitrine({ user, userType }) {
                       </div>
 
                       {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
+                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} ano(s) de experiência</p>
                       )}
 
                       <p className="text-xs text-gray-500 font-normal mt-2">
