@@ -1066,7 +1066,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         {/* ✅ SUBSTITUI “SUA VITRINE” NO MOBILE (DESKTOP: NÃO MOSTRA NADA) */}
-        <div className="sm:hidden bg-primary/10 border border-primary/30 rounded-custom p-4 mb-8">
+        
           <div className="grid grid-cols-2 gap-3">
             <Link
               to={`/v/${negocio.slug}`}
@@ -1084,7 +1084,6 @@ export default function Dashboard({ user, onLogout }) {
               <ExternalLink className="w-4 h-4" />
               SUPORTE
             </a>
-          </div>
         </div>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
