@@ -1844,7 +1844,7 @@ export default function Dashboard({ user, onLogout }) {
                   value={formServico.preco_promocional}
                   onChange={(e) => setFormServico({ ...formServico, preco_promocional: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
-                  placeholder="Deixe vazio se não houver oferta"
+                  placeholder="Preencha apenas se houver oferta"
                 />
                 <p className="text-[12px] text-gray-500 mt-2">
                   Para oferta aparecer, o preço de oferta deve ser menor que o preço normal.
@@ -1894,14 +1894,11 @@ export default function Dashboard({ user, onLogout }) {
                   onChange={(e) => setFormProfissional({ ...formProfissional, nome: e.target.value })}
                   className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white"
                   required
-                />
-                <p className="text-[12px] text-gray-500 mt-2">
-                  O nome será salvo automaticamente em CAIXA ALTA.
-                </p>
+                />                
               </div>
 
               <div>
-                <label className="block text-sm mb-2">Profissão</label>
+                <label className="block text-sm mb-2">Como te chamamos?</label>
                 <input
                   type="text"
                   value={formProfissional.profissao}
@@ -1912,7 +1909,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-sm mb-2">Anos de Experiência</label>
+                <label className="block text-sm mb-2">Ano(s) de experiência</label>
                 <input
                   type="number"
                   value={formProfissional.anos_experiencia}
@@ -1923,7 +1920,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm mb-2">Início</label>
+                  <label className="block text-sm mb-2">Início (Turno)</label>
                   <InputWithChevron>
                     <input
                       type="time"
@@ -1935,7 +1932,7 @@ export default function Dashboard({ user, onLogout }) {
                   </InputWithChevron>
                 </div>
                 <div>
-                  <label className="block text-sm mb-2">Fim</label>
+                  <label className="block text-sm mb-2">Fim (Turno)</label>
                   <InputWithChevron>
                     <input
                       type="time"
@@ -2000,7 +1997,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
 
                 <p className="text-[12px] text-gray-500 mt-2">
-                  Amarelo: aberto,.......Escuro: fechado
+                  • Amarelo aberto e cinza fechado.
                 </p>
               </div>
 
