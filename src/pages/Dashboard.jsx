@@ -989,7 +989,7 @@ export default function Dashboard({ user, onLogout }) {
         /* 💻 DESKTOP: 11 repetições */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 1rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
+            gap: 1.5rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
           }
         }
 
