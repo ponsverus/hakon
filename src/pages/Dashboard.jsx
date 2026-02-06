@@ -954,58 +954,31 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* /* ✅ ANNOUNCEMENT BAR - AJUSTADO */
-        @keyframes announcement-scroll {
-          0% { transform: translateX(0%); }
+        /* ✅ Announcement Bar (marquee) - contínuo, sem vazio, mais rápido, sem quebrar */
+        @keyframes announcement-marquee {
+          0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
 
-        .announcement-bar-wrapper {
-          display: flex;
+        .announcement-marquee {
           width: 200%;
-          animation: announcement-scroll 18s linear infinite;
-        }
-
-        .announcement-bar-track {
-          width: 50%;
           display: flex;
+          will-change: transform;
+          animation: announcement-marquee 9s linear infinite;
+        }
+
+        .announcement-track {
+          width: 50%;
+          display: inline-flex;
           align-items: center;
-          justify-content: flex-start;
-          padding: 0.75rem 0;
+          gap: 18px;
+          padding: 12px 0;
           white-space: nowrap;
-        }
-
-        /* 📱 MOBILE: BEM menos repetições, gap menor */
-        @media (max-width: 639px) {
-          .announcement-bar-track {
-            gap: 2rem; /* Gap REDUZIDO (era 4rem) */
-          }
-          
-          /* Esconde MUITO mais no mobile */
-          .announcement-bar-track .desktop-only,
-          .announcement-bar-track .mobile-hide {
-            display: none;
-          }
-        }
-
-        /* 💻 DESKTOP: 5 repetições (era 6) */
-        @media (min-width: 640px) {
-          .announcement-bar-track {
-            gap: 1.5rem;
-          }
-          
-          /* Esconde 1 repetição no desktop */
-          .announcement-bar-track .desktop-reduce {
-            display: none;
-          }
-        }
-
-        .announcement-bar-wrapper:hover {
-          animation-play-state: paused;
+          flex-wrap: nowrap;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-wrapper { animation: none; }
+          .announcement-marquee { animation: none; }
         }
       `}</style>
 
@@ -1110,139 +1083,85 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        DESKTOP: Tirar 1 repetição (de 6 para 5)
-MOBILE: Diminuir MUITO o gap E reduzir repetições drasticamente
-jsx/* ============================================
-   VERSÃO AJUSTADA - DESKTOP E MOBILE OTIMIZADOS
-   ============================================ */
-
-
-/* PARTE 1: CSS (dentro da tag <style>) */
-
-        /* ✅ ANNOUNCEMENT BAR - AJUSTADO */
-        @keyframes announcement-scroll {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
-        }
-
-        .announcement-bar-wrapper {
-          display: flex;
-          width: 200%;
-          animation: announcement-scroll 18s linear infinite;
-        }
-
-        .announcement-bar-track {
-          width: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 0.75rem 0;
-          white-space: nowrap;
-        }
-
-        /* 📱 MOBILE: BEM menos repetições, gap menor */
-        @media (max-width: 639px) {
-          .announcement-bar-track {
-            gap: 2rem; /* Gap REDUZIDO (era 4rem) */
-          }
-          
-          /* Esconde MUITO mais no mobile */
-          .announcement-bar-track .desktop-only,
-          .announcement-bar-track .mobile-hide {
-            display: none;
-          }
-        }
-
-        /* 💻 DESKTOP: 5 repetições (era 6) */
-        @media (min-width: 640px) {
-          .announcement-bar-track {
-            gap: 1.5rem;
-          }
-          
-          /* Esconde 1 repetição no desktop */
-          .announcement-bar-track .desktop-reduce {
-            display: none;
-          }
-        }
-
-        .announcement-bar-wrapper:hover {
-          animation-play-state: paused;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-wrapper { animation: none; }
-        }
-
-
-/* PARTE 2: HTML (substitua a faixa inteira) */
-
-        {/* ✅ ANNOUNCEMENT BAR AJUSTADO */}
+        {/* ✅ ANNOUNCEMENT BAR (substitui os botões) - FULL WIDTH (tela toda) */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
-          <div className="announcement-bar-wrapper">
+          <div className="announcement-marquee">
             {/* Track 1 */}
-            <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: Só 1 repetição básica */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
-              
-              {/* Mais 1 repetição (mobile vê 2 no total) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
-              <span className="mobile-hide">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
-              <span className="mobile-hide">●</span>
-              
-              {/* 💻 DESKTOP: Mais repetições (desktop vê 5 no total) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              
-              {/* Última repetição que desktop NÃO mostra (reduz de 6 para 5) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
-              <span className="desktop-only desktop-reduce">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
-              <span className="desktop-only desktop-reduce">●</span>
+            <div className="announcement-track text-black font-normal uppercase">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
             </div>
 
-            {/* Track 2 - CÓPIA EXATA */}
-            <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
-              
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
-              <span className="mobile-hide">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
-              <span className="mobile-hide">●</span>
-              
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
-              
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
-              <span className="desktop-only desktop-reduce">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
-              <span className="desktop-only desktop-reduce">●</span>
+            {/* Track 2 (cópia perfeita do Track 1) */}
+            <div className="announcement-track text-black font-normal uppercase" aria-hidden="true">
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
+
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 whitespace-nowrap">
+                VER VITRINE
+              </Link>
+              <span className="whitespace-nowrap">●</span>
+              <a href={SUPORTE_HREF} className="hover:opacity-80 whitespace-nowrap">
+                SUPORTE
+              </a>
+              <span className="whitespace-nowrap">●</span>
             </div>
           </div>
         </div>
