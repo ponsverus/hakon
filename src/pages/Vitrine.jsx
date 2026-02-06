@@ -46,6 +46,7 @@ function getNowSP() {
   };
 }
 
+// ✅ FIX: formata data sem new Date() (evita +1 dia por fuso)
 function formatDateBR(ymd) {
   if (!ymd) return '';
   const [y, m, d] = String(ymd).split('-');
@@ -53,8 +54,11 @@ function formatDateBR(ymd) {
   return `${d}/${m}/${y}`;
 }
 
+// ✅ pega DOW (0=DOM..6=SÁB) para uma data YYYY-MM-DD em SP
 function getDowFromDateSP(dateStr) {
   if (!dateStr) return null;
+
+  // meio-dia evita bug de fuso/UTC mudando o dia
   const dt = new Date(`${dateStr}T12:00:00`);
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
@@ -77,6 +81,7 @@ const withTimeout = (promise, ms, label = 'timeout') => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 };
 
+// ✅ 1 estrela (para header/nota geral e botão avaliar)
 function StarChar({ size = 18, className = 'text-primary' }) {
   return (
     <span
@@ -89,6 +94,7 @@ function StarChar({ size = 18, className = 'text-primary' }) {
   );
 }
 
+// ✅ 5 estrelas com apagadas (para cards/lista de avaliações)
 function Stars5Char({ value = 0, size = 14 }) {
   const v = Math.max(0, Math.min(5, Number(value || 0)));
   return (
@@ -107,6 +113,7 @@ function Stars5Char({ value = 0, size = 14 }) {
   );
 }
 
+// ✅ Resolve logo_url: se for URL, usa direto; se for path do bucket, monta publicUrl
 function resolveLogoUrl(logo_url) {
   const raw = String(logo_url || '').trim();
   if (!raw) return null;
@@ -130,6 +137,7 @@ function normalizeDiasTrabalho(arr) {
   return Array.from(new Set(cleaned)).sort((a, b) => a - b);
 }
 
+// ✅ Instagram: aceita @usuario, usuario ou URL
 function resolveInstagram(instaRaw) {
   const raw = String(instaRaw || '').trim();
   if (!raw) return null;
@@ -140,6 +148,7 @@ function resolveInstagram(instaRaw) {
   return `https://instagram.com/${handle}`;
 }
 
+// ✅ DatePicker "botão" com bolinha amarela (sem seta)
 function DatePickerButton({
   value,
   onChange,
@@ -155,6 +164,7 @@ function DatePickerButton({
     const el = inputRef.current;
     if (!el) return;
 
+    // alguns browsers suportam showPicker()
     if (typeof el.showPicker === 'function') {
       el.showPicker();
     } else {
@@ -170,12 +180,16 @@ function DatePickerButton({
         onClick={openPicker}
         className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white flex items-center justify-between uppercase"
       >
+        {/* números da data em text-base (como você pediu) */}
         <span className={`text-base ${value ? 'text-white' : 'text-gray-400'}`}>
           {label}
         </span>
+
+        {/* bolinha amarela visual (não captura clique) */}
         <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0 pointer-events-none" />
       </button>
 
+      {/* input real invisível para manter nativo e regra intacta */}
       <input
         ref={inputRef}
         type="date"
@@ -193,7 +207,7 @@ export default function Vitrine({ user, userType }) {
   const { slug } = useParams();
   const navigate = useNavigate();
 
-  const [negocio, setNegocio] = useState(null);
+  const [barbearia, setBarbearia] = useState(null);
   const [profissionais, setProfissionais] = useState([]);
   const [servicos, setServicos] = useState([]);
   const [avaliacoes, setAvaliacoes] = useState([]);
@@ -202,6 +216,7 @@ export default function Vitrine({ user, userType }) {
 
   const [isFavorito, setIsFavorito] = useState(false);
 
+  // Agendamento (NOVO FLUXO)
   const [showAgendamento, setShowAgendamento] = useState(false);
   const [flow, setFlow] = useState({
     step: 1,
@@ -211,16 +226,19 @@ export default function Vitrine({ user, userType }) {
     servicosSelecionados: [],
   });
 
+  // ✅ FIX: data mínima do datepicker em SP (sem UTC)
   const minDateSP = useMemo(() => getNowSP().date, []);
 
+  // Avaliar
   const [showAvaliar, setShowAvaliar] = useState(false);
   const [avaliarNota, setAvaliarNota] = useState(5);
   const [avaliarTexto, setAvaliarTexto] = useState('');
   const [avaliarLoading, setAvaliarLoading] = useState(false);
-  const [avaliarTipo, setAvaliarTipo] = useState('negocio');
+  const [avaliarTipo, setAvaliarTipo] = useState('barbearia'); // 'barbearia' ou 'profissional'
   const [avaliarProfissionalId, setAvaliarProfissionalId] = useState(null);
 
   const isProfessional = user && userType === 'professional';
+  const isClient = user && userType === 'client';
 
   useEffect(() => {
     loadVitrine();
@@ -228,10 +246,10 @@ export default function Vitrine({ user, userType }) {
   }, [slug]);
 
   useEffect(() => {
-    if (user && negocio?.id) checkFavorito();
+    if (user && barbearia?.id) checkFavorito();
     else setIsFavorito(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, userType, negocio?.id]);
+  }, [user?.id, userType, barbearia?.id]);
 
   const loadVitrine = async () => {
     setLoading(true);
@@ -243,26 +261,26 @@ export default function Vitrine({ user, userType }) {
     }, 12000);
 
     try {
-      const { data: negocioData, error: negocioError } = await withTimeout(
-        supabase.from('negocios').select('*').eq('slug', slug).maybeSingle(),
+      const { data: barbeariaData, error: barbeariaError } = await withTimeout(
+        supabase.from('barbearias').select('*').eq('slug', slug).maybeSingle(),
         7000,
-        'negocio'
+        'barbearia'
       );
 
-      if (negocioError) throw negocioError;
+      if (barbeariaError) throw barbeariaError;
 
-      if (!negocioData) {
-        setNegocio(null);
+      if (!barbeariaData) {
+        setBarbearia(null);
         setProfissionais([]);
         setServicos([]);
         setAvaliacoes([]);
         return;
       }
 
-      setNegocio(negocioData);
+      setBarbearia(barbeariaData);
 
       const { data: profissionaisData, error: profErr } = await withTimeout(
-        supabase.from('profissionais').select('*').eq('negocio_id', negocioData.id),
+        supabase.from('profissionais').select('*').eq('barbearia_id', barbeariaData.id),
         7000,
         'profissionais'
       );
@@ -289,8 +307,8 @@ export default function Vitrine({ user, userType }) {
       const { data: avaliacoesData, error: avalErr } = await withTimeout(
         supabase
           .from('avaliacoes')
-          .select(`*, users (nome), profissionais (nome), negocios (nome)`)
-          .eq('negocio_id', negocioData.id)
+          .select(`*, users (nome), profissionais (nome)`)
+          .eq('barbearia_id', barbeariaData.id)
           .order('created_at', { ascending: false })
           .limit(10),
         7000,
@@ -302,7 +320,7 @@ export default function Vitrine({ user, userType }) {
     } catch (e) {
       console.error('Erro ao carregar vitrine:', e);
       setError(e?.message || 'Erro ao carregar a vitrine.');
-      setNegocio(null);
+      setBarbearia(null);
     } finally {
       clearTimeout(watchdog);
       setLoading(false);
@@ -310,27 +328,27 @@ export default function Vitrine({ user, userType }) {
   };
 
   const checkFavorito = async () => {
-    if (!user || userType !== 'client' || !negocio?.id) {
+    if (!user || userType !== 'client' || !barbearia?.id) {
       setIsFavorito(false);
       return;
     }
 
     try {
-      const { data, error: favErr } = await withTimeout(
+      const { data, error } = await withTimeout(
         supabase
           .from('favoritos')
           .select('id')
           .eq('cliente_id', user.id)
-          .eq('negocio_id', negocio.id)
+          .eq('barbearia_id', barbearia.id)
+          .eq('tipo', 'barbearia')
           .maybeSingle(),
         6000,
         'favorito'
       );
 
-      if (favErr) throw favErr;
+      if (error) throw error;
       setIsFavorito(!!data);
-    } catch (e) {
-      console.warn('checkFavorito falhou:', e?.message || e);
+    } catch {
       setIsFavorito(false);
     }
   };
@@ -341,33 +359,31 @@ export default function Vitrine({ user, userType }) {
       return;
     }
     if (userType !== 'client') {
-      alert('Apenas CLIENTE pode favoritar negócios.');
-      return;
-    }
-    if (!negocio?.id) {
-      alert('Negócio inválido.');
+      alert('Apenas CLIENTE pode favoritar barbearias.');
       return;
     }
 
     try {
       if (isFavorito) {
-        const { error: delErr } = await supabase
+        const { error } = await supabase
           .from('favoritos')
           .delete()
           .eq('cliente_id', user.id)
-          .eq('negocio_id', negocio.id);
+          .eq('barbearia_id', barbearia.id)
+          .eq('tipo', 'barbearia');
 
-        if (delErr) throw delErr;
+        if (error) throw error;
         setIsFavorito(false);
       } else {
-        const { error: insErr } = await supabase
+        const { error } = await supabase
           .from('favoritos')
           .insert({
             cliente_id: user.id,
-            negocio_id: negocio.id
+            tipo: 'barbearia',
+            barbearia_id: barbearia.id
           });
 
-        if (insErr) throw insErr;
+        if (error) throw error;
         setIsFavorito(true);
       }
     } catch (e) {
@@ -397,6 +413,7 @@ export default function Vitrine({ user, userType }) {
     setShowAgendamento(true);
   };
 
+  // Serviços do prof selecionado (modal)
   const servicosDoProf = useMemo(() => {
     if (!flow.profissional) return [];
     return servicos.filter(s => s.profissional_id === flow.profissional.id);
@@ -404,6 +421,7 @@ export default function Vitrine({ user, userType }) {
 
   const [horariosDisponiveis, setHorariosDisponiveis] = useState([]);
 
+  // ✅ regra: dia de trabalho do profissional (0..6)
   const diaSelecionadoEhTrabalho = useMemo(() => {
     if (!flow.profissional || !flow.data) return true;
     const dias = normalizeDiasTrabalho(flow.profissional.dias_trabalho);
@@ -453,7 +471,9 @@ export default function Vitrine({ user, userType }) {
         'slots'
       );
 
-      if (slotErr) console.warn('slots_temporarios indisponível:', slotErr.message);
+      if (slotErr) {
+        console.warn('slots_temporarios indisponível:', slotErr.message);
+      }
 
       const agendamentosValidos = (ags || [])
         .filter(a => !String(a.status || '').includes('cancelado'))
@@ -494,7 +514,9 @@ export default function Vitrine({ user, userType }) {
         let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
 
         const slotExato = slotsList.find(s => s.ini === cur);
-        if (slotExato) freeEnd = Math.min(freeEnd, slotExato.fim);
+        if (slotExato) {
+          freeEnd = Math.min(freeEnd, slotExato.fim);
+        }
 
         const maxMinutos = freeEnd - cur;
 
@@ -522,6 +544,7 @@ export default function Vitrine({ user, userType }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAgendamento, flow.profissional?.id, flow.data, flow.step, diaSelecionadoEhTrabalho]);
 
+  // ✅ totais dos serviços selecionados
   const totalSelecionado = useMemo(() => {
     const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
     const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
@@ -529,6 +552,7 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
+  // ✅ serviços possíveis
   const servicosPossiveis = useMemo(() => {
     if (!flow.horario) return [];
     return servicosDoProf
@@ -541,23 +565,7 @@ export default function Vitrine({ user, userType }) {
       });
   }, [servicosDoProf, flow.horario]);
 
-  const getAlmocoRange = (p) => {
-    const ini = p?.almoco_inicio || p?.horario_almoco_inicio || null;
-    const fim = p?.almoco_fim || p?.horario_almoco_fim || null;
-    return { ini, fim };
-  };
-
-  const isInLunchNow = (p) => {
-    const { ini, fim } = getAlmocoRange(p);
-    if (!ini || !fim) return false;
-    const now = getNowSP();
-    const a = timeToMinutes(ini);
-    const b = timeToMinutes(fim);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
-    if (b < a) return (now.minutes >= a || now.minutes < b);
-    return (now.minutes >= a && now.minutes < b);
-  };
-
+  // ✅ status ABERTO/FECHADO pro card
   const getProfStatus = (p) => {
     const ativo = (p?.ativo === undefined) ? true : !!p.ativo;
     if (!ativo) return { label: 'FECHADO', color: 'bg-red-500' };
@@ -573,19 +581,13 @@ export default function Vitrine({ user, userType }) {
     const trabalhaHoje = hojeDow == null ? true : diasEfetivos.includes(hojeDow);
     const dentroHorario = now.minutes >= ini && now.minutes < fim;
 
-    if (!(trabalhaHoje && dentroHorario)) return { label: 'FECHADO', color: 'bg-red-500' };
-    if (isInLunchNow(p)) return { label: 'ALMOÇO', color: 'bg-yellow-400' };
-
-    return { label: 'ABERTO', color: 'bg-green-500' };
+    if (trabalhaHoje && dentroHorario) return { label: 'ABERTO', color: 'bg-green-500' };
+    return { label: 'FECHADO', color: 'bg-red-500' };
   };
 
   const confirmarAgendamento = async () => {
     if (!user || userType !== 'client') {
       alert('Você precisa estar logado como CLIENTE para agendar.');
-      return;
-    }
-    if (!negocio?.id) {
-      alert('Negócio inválido. Recarregue a vitrine.');
       return;
     }
 
@@ -620,11 +622,10 @@ export default function Vitrine({ user, userType }) {
 
           const curFim = addMinutes(curInicio, dur);
 
-          const { data: inserted, error: insErr } = await withTimeout(
+          const { data: inserted, error } = await withTimeout(
             supabase
               .from('agendamentos')
               .insert({
-                negocio_id: negocio.id,
                 profissional_id: flow.profissional.id,
                 cliente_id: user.id,
                 servico_id: s.id,
@@ -639,7 +640,7 @@ export default function Vitrine({ user, userType }) {
             'criar-agendamento'
           );
 
-          if (insErr) throw insErr;
+          if (error) throw error;
           if (inserted?.id) insertedIds.push(inserted.id);
 
           curInicio = curFim;
@@ -671,33 +672,32 @@ export default function Vitrine({ user, userType }) {
     }
     setAvaliarNota(5);
     setAvaliarTexto('');
-    setAvaliarTipo('negocio');
+    setAvaliarTipo('barbearia');
     setAvaliarProfissionalId(null);
     setShowAvaliar(true);
   };
 
   const enviarAvaliacao = async () => {
     if (!user || userType !== 'client') return;
-    if (!negocio?.id) return alert('Negócio inválido.');
 
     try {
       setAvaliarLoading(true);
 
       const payload = {
         cliente_id: user.id,
-        negocio_id: negocio.id,
+        barbearia_id: barbearia.id,
         nota: avaliarNota,
         comentario: avaliarTexto || null,
         profissional_id: avaliarTipo === 'profissional' ? avaliarProfissionalId : null
       };
 
-      const { error: avErr } = await withTimeout(
+      const { error } = await withTimeout(
         supabase.from('avaliacoes').insert(payload),
         7000,
         'enviar-avaliacao'
       );
 
-      if (avErr) throw avErr;
+      if (error) throw error;
 
       setShowAvaliar(false);
       await loadVitrine();
@@ -710,19 +710,19 @@ export default function Vitrine({ user, userType }) {
     }
   };
 
-  const logoUrl = useMemo(() => resolveLogoUrl(negocio?.logo_url), [negocio?.logo_url]);
-  const instagramUrl = useMemo(() => resolveInstagram(negocio?.instagram), [negocio?.instagram]);
+  // ✅ logo no hero
+  const logoUrl = useMemo(() => resolveLogoUrl(barbearia?.logo_url), [barbearia?.logo_url]);
 
-  // ✅ GALERIA: tenta "galeria" e também variações comuns (sem alterar design)
-  const galeria = useMemo(() => {
-    const arr =
-      negocio?.galeria ??
-      negocio?.galeria ??
-      negocio?.fotos ??
-      [];
+  // ✅ instagram no hero
+  const instagramUrl = useMemo(() => resolveInstagram(barbearia?.instagram), [barbearia?.instagram]);
+
+  // ✅ galerias (colmeia/masonry)
+  const galerias = useMemo(() => {
+    const arr = barbearia?.galerias;
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
-  }, [negocio?.galeria, negocio?.galeria, negocio?.fotos]);
+  }, [barbearia?.galerias]);
 
+  // ✅ serviços agrupados por profissional (para seção Serviços)
   const servicosPorProf = useMemo(() => {
     const map = new Map();
     for (const p of profissionais) map.set(p.id, []);
@@ -733,16 +733,19 @@ export default function Vitrine({ user, userType }) {
     return map;
   }, [profissionais, servicos]);
 
+  // ✅ Cálculo de média de avaliações por profissional
   const avaliacoesPorProf = useMemo(() => {
     const map = new Map();
-
+    
     for (const av of avaliacoes) {
       if (av.profissional_id) {
-        if (!map.has(av.profissional_id)) map.set(av.profissional_id, []);
+        if (!map.has(av.profissional_id)) {
+          map.set(av.profissional_id, []);
+        }
         map.get(av.profissional_id).push(av);
       }
     }
-
+    
     const medias = new Map();
     for (const [profId, avs] of map.entries()) {
       const media = avs.length > 0
@@ -750,7 +753,7 @@ export default function Vitrine({ user, userType }) {
         : null;
       medias.set(profId, { media, count: avs.length });
     }
-
+    
     return medias;
   }, [avaliacoes]);
 
@@ -767,7 +770,7 @@ export default function Vitrine({ user, userType }) {
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-dark-100 border border-red-500/40 rounded-custom p-8 text-center">
           <AlertCircle className="w-14 h-14 text-red-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-normal text-white mb-2">Não foi possível carregar</h1>
+          <h1 className="text-2xl font-black text-white mb-2">Não foi possível carregar</h1>
           <p className="text-gray-400 mb-6">{error}</p>
           <button
             onClick={loadVitrine}
@@ -780,11 +783,11 @@ export default function Vitrine({ user, userType }) {
     );
   }
 
-  if (!negocio) {
+  if (!barbearia) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado</h1>
+          <h1 className="text-3xl font-black text-white mb-4">Barbearia não encontrada</h1>
           <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
         </div>
       </div>
@@ -793,12 +796,43 @@ export default function Vitrine({ user, userType }) {
 
   const mediaAvaliacoes = avaliacoes.length > 0
     ? (avaliacoes.reduce((sum, a) => sum + a.nota, 0) / avaliacoes.length).toFixed(1)
-    : '0.0';
-
-  const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
+    : '5.0';
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Announcement Bar */}
+      <div className="bg-primary overflow-hidden relative h-10">
+        <div className="announcement-scroll flex items-center h-full whitespace-nowrap">
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes scroll-announcement {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+
+        .announcement-scroll {
+          animation: scroll-announcement 20s linear infinite;
+        }
+
+        .announcement-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
       {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -848,44 +882,49 @@ export default function Vitrine({ user, userType }) {
       <section className="relative bg-gradient-to-br from-primary/20 via-black to-yellow-600/20 py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start gap-6">
+            {/* ✅ LOGO */}
             {logoUrl ? (
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border border-primary/30 bg-dark-100">
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-normal text-black">
-                {negocio.nome?.[0] || 'N'}
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-4xl sm:text-5xl font-black text-black">
+                {barbearia.nome?.[0] || 'B'}
               </div>
             )}
 
             <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal mb-3">{negocio.nome}</h1>
-              <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{negocio.descricao}</p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3">{barbearia.nome}</h1>
+              <p className="text-base sm:text-lg text-gray-400 mb-4 font-normal">{barbearia.descricao}</p>
 
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                {/* ✅ 1 estrela + nota */}
                 <div className="flex items-center gap-2">
                   <StarChar size={18} className="text-primary" />
                   <span className="text-xl font-normal text-primary">{mediaAvaliacoes}</span>
                   <span className="text-sm text-gray-500">({avaliacoes.length} avaliações)</span>
                 </div>
 
-                {negocio.endereco && (
+                {barbearia.endereco && (
                   <div className="flex items-center gap-2 text-gray-400 text-sm">
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <MapPin className="w-4 h-4" strokeWidth={1.5} />
-                    <span className="font-normal">{negocio.endereco}</span>
+                    <span className="font-normal">{barbearia.endereco}</span>
                   </div>
                 )}
 
-                {negocio.telefone && (
+                {barbearia.telefone && (
                   <a
-                    href={`tel:${negocio.telefone}`}
+                    href={`tel:${barbearia.telefone}`}
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                   >
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <Phone className="w-4 h-4" strokeWidth={1.5} />
-                    {negocio.telefone}
+                    {barbearia.telefone}
                   </a>
                 )}
 
+                {/* ✅ Instagram (no mesmo bloco do telefone/localização) */}
                 {instagramUrl && (
                   <a
                     href={instagramUrl}
@@ -894,6 +933,7 @@ export default function Vitrine({ user, userType }) {
                     className="flex items-center gap-2 text-primary hover:text-yellow-500 text-sm font-normal transition-colors"
                     aria-label="Instagram"
                   >
+                    {/* ✅ ÍCONE MAIS FINO (strokeWidth=1.5) */}
                     <Instagram className="w-4 h-4" strokeWidth={1.5} />
                     Instagram
                   </a>
@@ -915,22 +955,8 @@ export default function Vitrine({ user, userType }) {
               const status = getProfStatus(prof);
               const avalInfo = avaliacoesPorProf.get(prof.id);
 
-              const profissao = String(
-                prof?.profissao ?? prof?.profissao_nome ?? prof?.especialidade ?? ''
-              ).trim();
-
-              const { ini: almIni, fim: almFim } = getAlmocoRange(prof);
-
               return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
-                  {profissao && (
-                    <div className="flex justify-end mb-2">
-                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
-                        {profissao}
-                      </span>
-                    </div>
-                  )}
-
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-normal text-black">
                       {prof.nome?.[0] || 'P'}
@@ -938,6 +964,7 @@ export default function Vitrine({ user, userType }) {
                     <div className="flex-1">
                       <h3 className="text-lg font-normal mb-1">{prof.nome}</h3>
 
+                      {/* ✅ Nota individual do profissional */}
                       {avalInfo && avalInfo.media && (
                         <div className="flex items-center gap-2 mb-1">
                           <StarChar size={16} className="text-primary" />
@@ -954,17 +981,9 @@ export default function Vitrine({ user, userType }) {
                       {prof.anos_experiencia != null && (
                         <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
-
                       <p className="text-xs text-gray-500 font-normal mt-2">
                         Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
-
-                      {(almIni && almFim) && (
-                        <p className="text-xs text-gray-500 font-normal mt-1">
-                          Almoço: <span className="text-gray-300">{almIni} - {almFim}</span>
-                        </p>
-                      )}
-
                       <p className="text-xs text-gray-600 font-normal mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
@@ -993,7 +1012,7 @@ export default function Vitrine({ user, userType }) {
       {/* Serviços */}
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-normal mb-6">Serviços</h2>
+          <h2 className="text-2xl sm:text-3xl font-black mb-6">Serviços</h2>
 
           {profissionais.length === 0 ? (
             <p className="text-gray-500 font-normal">Nenhum profissional cadastrado.</p>
@@ -1012,51 +1031,22 @@ export default function Vitrine({ user, userType }) {
                 return (
                   <div key={p.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="font-normal text-lg">{p.nome}</div>
+                      <div className="font-black text-lg">{p.nome}</div>
                       <div className="text-xs text-gray-500 font-normal">{lista.length} serviço(s)</div>
                     </div>
 
                     {lista.length ? (
                       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {lista.map(s => {
-                          const preco = Number(s.preco ?? 0);
-                          const promo = Number(s.preco_promocional ?? 0);
-                          const temPromo = Number.isFinite(promo) && promo > 0 && promo < preco;
-
-                          return (
-                            <div key={s.id} className="relative bg-dark-200 border border-gray-800 rounded-custom p-4">
-                              {/* ✅ Etiqueta OFERTA (somente quando tem promo) */}
-                              {temPromo && (
-                                <div className="absolute top-3 right-3">
-                                  <span className="inline-block px-2 py-1 bg-green-500/20 border border-green-500/40 rounded-button text-[10px] text-green-400 font-normal uppercase">
-                                    OFERTA
-                                  </span>
-                                </div>
-                              )}
-
-                              <div className="font-normal">{s.nome}</div>
-                              <div className="text-xs text-gray-500 font-normal mt-1">
-                                <Clock className="w-4 h-4 inline mr-1" />
-                                {s.duracao_minutos} min
-                              </div>
-
-                              {!temPromo ? (
-                                <div className="text-primary font-normal text-lg mt-2">
-                                  R$ {preco.toFixed(2)}
-                                </div>
-                              ) : (
-                                <div className="mt-2">
-                                  <div className="text-green-400 font-normal text-lg">
-                                    R$ {promo.toFixed(2)}
-                                  </div>
-                                  <div className="text-red-400 text-sm font-normal line-through">
-                                    R$ {preco.toFixed(2)}
-                                  </div>
-                                </div>
-                              )}
+                        {lista.map(s => (
+                          <div key={s.id} className="bg-dark-200 border border-gray-800 rounded-custom p-4">
+                            <div className="font-black">{s.nome}</div>
+                            <div className="text-xs text-gray-500 font-normal mt-1">
+                              <Clock className="w-4 h-4 inline mr-1" />
+                              {s.duracao_minutos} min
                             </div>
-                          );
-                        })}
+                            <div className="text-primary font-black text-lg mt-2">R$ {s.preco}</div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <p className="text-gray-500 font-normal">Sem serviços ativos para este profissional.</p>
@@ -1069,12 +1059,12 @@ export default function Vitrine({ user, userType }) {
         </div>
       </section>
 
-      {/* ✅ GALERIA (Masonry/Colmeia) — ENTRE SERVIÇOS E AVALIAÇÕES */}
-      {galeria.length > 0 && (
+      {/* ✅ GALERIA — sem fundo, sem título, sem ícone */}
+      {galerias.length > 0 && (
         <section className="py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [column-fill:_balance]">
-              {galeria.map((url, idx) => (
+              {galerias.map((url, idx) => (
                 <div
                   key={`${url}-${idx}`}
                   className="mb-3 w-full break-inside-avoid overflow-hidden rounded-custom border border-gray-800 bg-dark-100"
@@ -1096,7 +1086,7 @@ export default function Vitrine({ user, userType }) {
       <section className="py-12 px-4 sm:px-6 lg:px-8 bg-dark-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl sm:text-3xl font-normal">Avaliações</h2>
+            <h2 className="text-2xl sm:text-3xl font-black">Avaliações</h2>
             <button
               onClick={abrirAvaliar}
               disabled={!!isProfessional}
@@ -1114,6 +1104,7 @@ export default function Vitrine({ user, userType }) {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {avaliacoes.map(av => (
                 <div key={av.id} className="bg-dark-100 border border-gray-800 rounded-custom p-4 relative">
+                  {/* ✅ Tag/Etiqueta no canto superior direito com tamanho menor */}
                   <div className="absolute top-3 right-3">
                     {av.profissional_id && av.profissionais?.nome ? (
                       <span className="inline-block px-1.5 py-0.5 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
@@ -1121,7 +1112,7 @@ export default function Vitrine({ user, userType }) {
                       </span>
                     ) : (
                       <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded-button text-[10px] text-blue-400 font-normal uppercase">
-                        {nomeNegocioLabel}
+                        Barbearia
                       </span>
                     )}
                   </div>
@@ -1158,10 +1149,12 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="p-6">
+              {/* STEP 1: DATA */}
               {flow.step === 1 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">Escolha a Data</h3>
+                  <h3 className="text-xl font-black mb-4">Escolha a Data</h3>
 
+                  {/* ✅ calendário estilo "botão" com bolinha amarela (sem seta) */}
                   <DatePickerButton
                     value={flow.data}
                     min={minDateSP}
@@ -1193,6 +1186,7 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 2: HORÁRIO */}
               {flow.step === 2 && (
                 <div>
                   <button
@@ -1202,7 +1196,7 @@ export default function Vitrine({ user, userType }) {
                     Voltar
                   </button>
 
-                  <h3 className="text-xl font-normal mb-4">Escolha o Horário</h3>
+                  <h3 className="text-xl font-black mb-4">Escolha o Horário</h3>
 
                   {!diaSelecionadoEhTrabalho ? (
                     <p className="text-gray-500 font-normal">Esse profissional está fechado nessa data.</p>
@@ -1237,16 +1231,17 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 3: SERVIÇOS */}
               {flow.step === 3 && (
                 <div>
                   <button
                     onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
                     className="text-primary mb-4 uppercase font-normal"
                   >
-                    VOLTAR
+                    Voltar
                   </button>
 
-                  <h3 className="text-xl font-normal mb-2">
+                  <h3 className="text-xl font-black mb-2">
                     Escolha o(s) Serviço(s) <span className="text-sm text-gray-500 font-normal">(cabe até {flow.horario?.maxMinutos} min)</span>
                   </h3>
 
@@ -1256,7 +1251,7 @@ export default function Vitrine({ user, userType }) {
                       <span className="font-normal">{totalSelecionado.qtd}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500 font-normal">Tempo estimado:</span>
+                      <span className="text-gray-500 font-normal">Duração total:</span>
                       <span className={`font-normal ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
                         {totalSelecionado.duracao} min
                       </span>
@@ -1300,13 +1295,13 @@ export default function Vitrine({ user, userType }) {
                           >
                             <div className="flex justify-between items-center">
                               <div>
-                                <p className="font-normal">{s.nome}</p>
+                                <p className="font-black">{s.nome}</p>
                                 <p className="text-sm text-gray-500 font-normal">
                                   <Clock className="w-4 h-4 inline mr-1" />
                                   {s.duracao_minutos} min
                                 </p>
                               </div>
-                              <div className="text-2xl font-normal text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
+                              <div className="text-2xl font-black text-primary">R$ {Number(s.preco || 0).toFixed(2)}</div>
                             </div>
                           </button>
                         );
@@ -1343,9 +1338,10 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 4: CONFIRMAR */}
               {flow.step === 4 && (
                 <div>
-                  <h3 className="text-xl font-normal mb-4">Confirmar Agendamento</h3>
+                  <h3 className="text-xl font-black mb-4">Confirmar Agendamento</h3>
 
                   <div className="bg-dark-200 rounded-custom p-4 space-y-3 mb-6">
                     <div className="flex justify-between">
@@ -1376,12 +1372,12 @@ export default function Vitrine({ user, userType }) {
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-500 font-normal">Tempo estimado:</span>
+                      <span className="text-gray-500 font-normal">Duração total:</span>
                       <span className="font-normal">{totalSelecionado.duracao} min</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500 font-normal">Valor total:</span>
-                      <span className="font-normal text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
+                      <span className="font-black text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -1390,13 +1386,13 @@ export default function Vitrine({ user, userType }) {
                       onClick={() => setFlow(prev => ({ ...prev, step: 3 }))}
                       className="flex-1 py-3 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
                     >
-                      VOLTAR
+                      Voltar
                     </button>
                     <button
                       onClick={confirmarAgendamento}
                       className="flex-1 py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button uppercase font-normal"
                     >
-                      CONFIRMAR
+                      Confirmar
                     </button>
                   </div>
                 </div>
@@ -1407,31 +1403,33 @@ export default function Vitrine({ user, userType }) {
         </div>
       )}
 
+      {/* Modal Avaliar */}
       {showAvaliar && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-dark-100 border border-gray-800 rounded-custom max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-normal">AVALIAR</h3>
+              <h3 className="text-2xl font-black">Avaliar</h3>
               <button onClick={() => setShowAvaliar(false)} className="text-gray-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
+            {/* ✅ Seleção: Barbearia ou Profissional */}
             <div className="mb-4">
               <div className="text-sm text-gray-300 font-normal mb-2">Você está avaliando</div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    setAvaliarTipo('negocio');
+                    setAvaliarTipo('barbearia');
                     setAvaliarProfissionalId(null);
                   }}
                   className={`px-4 py-3 rounded-custom border transition-all font-normal ${
-                    avaliarTipo === 'negocio'
+                    avaliarTipo === 'barbearia'
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  {nomeNegocioLabel}
+                  Barbearia
                 </button>
                 <button
                   onClick={() => setAvaliarTipo('profissional')}
@@ -1441,11 +1439,12 @@ export default function Vitrine({ user, userType }) {
                       : 'bg-dark-200 border-gray-800 text-gray-400'
                   }`}
                 >
-                  PROFISSIONAL
+                  Profissional
                 </button>
               </div>
             </div>
 
+            {/* ✅ Se escolheu profissional, mostrar lista de profissionais */}
             {avaliarTipo === 'profissional' && (
               <div className="mb-4">
                 <div className="text-sm text-gray-300 font-normal mb-2">Qual profissional?</div>
@@ -1474,7 +1473,7 @@ export default function Vitrine({ user, userType }) {
                   <button
                     key={n}
                     onClick={() => setAvaliarNota(n)}
-                    className={`w-12 h-8 rounded-button border transition-all font-normal ${
+                    className={`w-10 h-10 rounded-custom border transition-all font-normal ${
                       avaliarNota >= n
                         ? 'bg-primary/20 border-primary/50 text-primary'
                         : 'bg-dark-200 border-gray-800 text-gray-500'
@@ -1492,7 +1491,7 @@ export default function Vitrine({ user, userType }) {
                 value={avaliarTexto}
                 onChange={(e) => setAvaliarTexto(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none resize-none"
+                className="w-full px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white placeholder-gray-500 focus:border-primary focus:outline-none"
                 placeholder="Conte como foi sua experiência..."
               />
             </div>
@@ -1502,7 +1501,7 @@ export default function Vitrine({ user, userType }) {
               disabled={avaliarLoading || (avaliarTipo === 'profissional' && !avaliarProfissionalId)}
               className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button disabled:opacity-60 uppercase font-normal"
             >
-              {avaliarLoading ? 'Enviando...' : 'AVALIAR AGORA'}
+              {avaliarLoading ? 'Enviando...' : 'Enviar avaliação'}
             </button>
 
             <p className="text-xs text-gray-500 mt-3 font-normal">
