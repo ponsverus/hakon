@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* /* ✅ ANNOUNCEMENT BAR - LAYOUTS INDEPENDENTES AJUSTADOS */
+        /* /* ✅ ANNOUNCEMENT BAR - AJUSTADO */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -975,26 +975,28 @@ export default function Dashboard({ user, onLogout }) {
           white-space: nowrap;
         }
 
-        /* 📱 MOBILE: SÓ 1 REPETIÇÃO, espaço GIGANTE */
+        /* 📱 MOBILE: BEM menos repetições, gap menor */
         @media (max-width: 639px) {
           .announcement-bar-track {
-            gap: 6rem; /* Espaço BEM MAIOR no mobile */
+            gap: 2rem; /* Gap REDUZIDO (era 4rem) */
           }
           
-          /* Esconde repetições extras no mobile */
-          .announcement-bar-track .desktop-only {
-            display: none;
-          }
-          
+          /* Esconde MUITO mais no mobile */
+          .announcement-bar-track .desktop-only,
           .announcement-bar-track .mobile-hide {
             display: none;
           }
         }
 
-        /* 💻 DESKTOP: 5 repetições */
+        /* 💻 DESKTOP: 5 repetições (era 6) */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 1rem;
+            gap: 1.5rem;
+          }
+          
+          /* Esconde 1 repetição no desktop */
+          .announcement-bar-track .desktop-reduce {
+            display: none;
           }
         }
 
@@ -1108,24 +1110,90 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
+        DESKTOP: Tirar 1 repetição (de 6 para 5)
+MOBILE: Diminuir MUITO o gap E reduzir repetições drasticamente
+jsx/* ============================================
+   VERSÃO AJUSTADA - DESKTOP E MOBILE OTIMIZADOS
+   ============================================ */
+
+
+/* PARTE 1: CSS (dentro da tag <style>) */
+
+        /* ✅ ANNOUNCEMENT BAR - AJUSTADO */
+        @keyframes announcement-scroll {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+
+        .announcement-bar-wrapper {
+          display: flex;
+          width: 200%;
+          animation: announcement-scroll 18s linear infinite;
+        }
+
+        .announcement-bar-track {
+          width: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          padding: 0.75rem 0;
+          white-space: nowrap;
+        }
+
+        /* 📱 MOBILE: BEM menos repetições, gap menor */
+        @media (max-width: 639px) {
+          .announcement-bar-track {
+            gap: 2rem; /* Gap REDUZIDO (era 4rem) */
+          }
+          
+          /* Esconde MUITO mais no mobile */
+          .announcement-bar-track .desktop-only,
+          .announcement-bar-track .mobile-hide {
+            display: none;
+          }
+        }
+
+        /* 💻 DESKTOP: 5 repetições (era 6) */
+        @media (min-width: 640px) {
+          .announcement-bar-track {
+            gap: 1.5rem;
+          }
+          
+          /* Esconde 1 repetição no desktop */
+          .announcement-bar-track .desktop-reduce {
+            display: none;
+          }
+        }
+
+        .announcement-bar-wrapper:hover {
+          animation-play-state: paused;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .announcement-bar-wrapper { animation: none; }
+        }
+
+
+/* PARTE 2: HTML (substitua a faixa inteira) */
+
         {/* ✅ ANNOUNCEMENT BAR AJUSTADO */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
           <div className="announcement-bar-wrapper">
             {/* Track 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: Só 1 repetição visível */}
+              {/* 📱 MOBILE: Só 1 repetição básica */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
               
-              {/* Segunda repetição - ESCONDE no mobile */}
+              {/* Mais 1 repetição (mobile vê 2 no total) */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
               <span className="mobile-hide">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
               <span className="mobile-hide">●</span>
               
-              {/* 💻 DESKTOP: Mais 3 repetições extras (total 5) */}
+              {/* 💻 DESKTOP: Mais repetições (desktop vê 5 no total) */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
               <span className="desktop-only">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
@@ -1138,6 +1206,12 @@ export default function Dashboard({ user, onLogout }) {
               <span className="desktop-only">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
               <span className="desktop-only">●</span>
+              
+              {/* Última repetição que desktop NÃO mostra (reduz de 6 para 5) */}
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
+              <span className="desktop-only desktop-reduce">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
+              <span className="desktop-only desktop-reduce">●</span>
             </div>
 
             {/* Track 2 - CÓPIA EXATA */}
@@ -1164,6 +1238,11 @@ export default function Dashboard({ user, onLogout }) {
               <span className="desktop-only">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
               <span className="desktop-only">●</span>
+              
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only desktop-reduce">VER VITRINE</Link>
+              <span className="desktop-only desktop-reduce">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only desktop-reduce">SUPORTE</a>
+              <span className="desktop-only desktop-reduce">●</span>
             </div>
           </div>
         </div>
