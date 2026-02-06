@@ -1246,6 +1246,7 @@ jsx/* ============================================
             </div>
           </div>
         </div>
+
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
             {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
