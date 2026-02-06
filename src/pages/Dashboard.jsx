@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
+const SUPORTE_HREF = 'mailto:suporte@hakon.app'; // ✅ TROQUE aqui se quiser (ex: WhatsApp / página / link)
+
 const toNumberOrNull = (v) => {
   if (v === '' || v == null) return null;
   const n = Number(v);
@@ -115,9 +117,6 @@ const toUpperClean = (s) =>
     .toUpperCase();
 
 const isEnderecoPadrao = (s) => {
-  // Regra simples e objetiva para não virar bagunça:
-  // "Rua Serra do Sincorá, 1038 - Belo Horizonte, Minas Gerais"
-  // - precisa ter vírgula com número, um " - " e outra vírgula (cidade/estado)
   const v = String(s || '').trim();
   const re = /^.+,\s*\d+.*\s-\s.+,\s.+$/;
   return re.test(v);
@@ -136,7 +135,14 @@ export default function Dashboard({ user, onLogout }) {
 
   const [copied, setCopied] = useState(false);
 
-  const hoje = useMemo(() => getNowSP().date, []);
+  // ✅ HOJE DINÂMICO (corrige etiqueta FUTURO ao virar o dia)
+  const [hoje, setHoje] = useState(() => getNowSP().date);
+  useEffect(() => {
+    const tick = () => setHoje(getNowSP().date);
+    const id = setInterval(tick, 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [historicoData, setHistoricoData] = useState(hoje);
   const [faturamentoData, setFaturamentoData] = useState(hoje);
 
@@ -184,6 +190,12 @@ export default function Dashboard({ user, onLogout }) {
     if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // ✅ se HOJE mudar, mantém filtros coerentes (sem quebrar UX)
+  useEffect(() => {
+    setHistoricoData(prev => (prev ? prev : hoje));
+    setFaturamentoData(prev => (prev ? prev : hoje));
+  }, [hoje]);
 
   const loadData = async () => {
     if (!user?.id) {
@@ -1049,24 +1061,25 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        <div className="bg-primary/10 border border-primary/30 rounded-custom p-6 mb-8">
-          <h3 className="text-lg font-normal mb-3 flex items-center gap-2 uppercase">
-            <ExternalLink className="w-5 h-5 text-primary" />SUA VITRINE
-          </h3>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={`${window.location.origin}/v/${negocio.slug}`}
-              readOnly
-              className="flex-1 px-4 py-3 bg-dark-200 border border-gray-800 rounded-custom text-white text-sm"
-            />
-            <button
-              onClick={copyLink}
-              className="px-6 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm flex items-center gap-2 font-normal uppercase"
+        {/* ✅ SUBSTITUI “SUA VITRINE” NO MOBILE (DESKTOP: NÃO MOSTRA NADA) */}
+        <div className="sm:hidden bg-primary/10 border border-primary/30 rounded-custom p-4 mb-8">
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              to={`/v/${negocio.slug}`}
+              target="_blank"
+              className="w-full py-3 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm font-normal uppercase flex items-center justify-center gap-2"
             >
-              {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-              {copied ? 'COPIADO' : 'COPIAR'}
-            </button>
+              <Eye className="w-4 h-4" />
+              VER VITRINE
+            </Link>
+
+            <a
+              href={SUPORTE_HREF}
+              className="w-full py-3 bg-primary/20 hover:bg-primary/30 border border-primary/50 text-primary rounded-button text-sm font-normal uppercase flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              SUPORTE
+            </a>
           </div>
         </div>
 
@@ -1148,18 +1161,23 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CONCLUÍDOS</div>
-                      <div className="text-xl font-normal text-white">{concluidosDoDiaFaturamento.length}</div>
+                      {/* ✅ VERDE */}
+                      <div className="text-xl font-normal text-green-400">{concluidosDoDiaFaturamento.length}</div>
                     </div>
+
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">CANCELADOS</div>
-                      <div className="text-xl font-normal text-white">{canceladosDoDiaFaturamento.length}</div>
+                      {/* ✅ VERMELHO */}
+                      <div className="text-xl font-normal text-red-400">{canceladosDoDiaFaturamento.length}</div>
                       <div className="text-xs text-gray-500 mt-1">{taxaCancelamentoDoDiaFaturamento.toFixed(1)}%</div>
                     </div>
+
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">FECHAMENTO</div>
                       <div className="text-xl font-normal text-white">{taxaConversaoDoDiaFaturamento.toFixed(1)}%</div>
                       <div className="text-xs text-gray-500 mt-1">sobre {totalDoDiaFaturamento} agend.</div>
                     </div>
+
                     <div className="bg-dark-100 border border-gray-800 rounded-custom p-4">
                       <div className="text-xs text-gray-500 mb-1">TICKET MÉDIO</div>
                       <div className="text-xl font-normal text-primary">R$ {ticketMedioDoDiaFaturamento.toFixed(2)}</div>
@@ -1194,7 +1212,7 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="space-y-4">
                     {agendamentosHojeEFuturos.map(a => {
                       const dataA = String(a.data || '');
-                      const isFuturo = dataA > String(hoje || '');
+                      const isFuturo = dataA > String(hoje || ''); // ✅ FUTURO SÓ SE FOR > HOJE
                       const isHoje = dataA === String(hoje || '');
                       const isDone = a.status === 'concluido';
 
@@ -1407,7 +1425,6 @@ export default function Dashboard({ user, onLogout }) {
                                         <p className="text-xs text-gray-500">{p.nome}</p>
                                       </div>
 
-                                      {/* ✅ Preços (comparação estilo e-commerce) */}
                                       <div className="text-right">
                                         {promo != null && promo > 0 && promo < preco ? (
                                           <div className="leading-tight">
@@ -1717,9 +1734,16 @@ export default function Dashboard({ user, onLogout }) {
                       {formInfo.galeria.map((url) => (
                         <div key={url} className="relative bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
                           <img src={url} alt="Galeria" className="w-full h-28 object-cover" />
+
+                          {/* ✅ REMOVER CENTRALIZADO SÓ NO MOBILE */}
                           <button
                             onClick={() => removerImagemGaleria(url)}
-                            className="absolute top-2 right-2 px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400 text-[12px] text-red-200 font-normal uppercase"
+                            className="
+                              absolute top-2 left-1/2 -translate-x-1/2
+                              sm:left-auto sm:translate-x-0 sm:right-2
+                              px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400
+                              text-[12px] text-red-200 font-normal uppercase
+                            "
                             title="Remover"
                           >
                             REMOVER
