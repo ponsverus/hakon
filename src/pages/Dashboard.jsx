@@ -989,7 +989,7 @@ export default function Dashboard({ user, onLogout }) {
         /* 💻 DESKTOP: 11 repetições */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 1.5rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
+            gap: 1rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
           }
         }
 
@@ -1132,6 +1132,8 @@ export default function Dashboard({ user, onLogout }) {
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
               <span className="desktop-extra">●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
+              <span className="desktop-extra">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">CLIQUE PARA IR</a>
               <span className="desktop-extra">●</span>
             </div>
 
