@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* ✅ ANNOUNCEMENT BAR - MATEMÁTICA CORRETA */
+        /* ✅ ANNOUNCEMENT BAR - QUANTIDADE ÍMPAR */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -975,10 +975,10 @@ export default function Dashboard({ user, onLogout }) {
           white-space: nowrap;
         }
 
-        /* 📱 MOBILE: 6 repetições, gap médio */
+        /* 📱 MOBILE: 5 repetições */
         @media (max-width: 639px) {
           .announcement-bar-track {
-            gap: 2rem;
+            gap: 2rem; /* ← AJUSTE AQUI para mudar espaçamento mobile */
           }
           
           .announcement-bar-track .desktop-extra {
@@ -986,10 +986,10 @@ export default function Dashboard({ user, onLogout }) {
           }
         }
 
-        /* 💻 DESKTOP: 12 repetições, gap menor */
+        /* 💻 DESKTOP: 11 repetições */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 1.5rem;
+            gap: 1.5rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
           }
         }
 
@@ -1103,12 +1103,12 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR - 6 MOBILE / 12 DESKTOP */}
+        {/* ✅ ANNOUNCEMENT BAR - 5 MOBILE / 11 DESKTOP */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
           <div className="announcement-bar-wrapper">
             {/* Track 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: 6 repetições (3 visíveis) */}
+              {/* 📱 MOBILE: 5 repetições */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
@@ -1120,11 +1120,15 @@ export default function Dashboard({ user, onLogout }) {
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               
-              {/* 💻 DESKTOP: +6 repetições extras (total 12) */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
+              {/* 💻 DESKTOP: +6 repetições extras (total 11) */}
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
               <span className="desktop-extra">●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
@@ -1146,6 +1150,8 @@ export default function Dashboard({ user, onLogout }) {
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
             </div>
 
@@ -1163,9 +1169,13 @@ export default function Dashboard({ user, onLogout }) {
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
+              <span>●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
+              <span>●</span>
               
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
               <span className="desktop-extra">●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
@@ -1187,6 +1197,8 @@ export default function Dashboard({ user, onLogout }) {
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
             </div>
           </div>
