@@ -1743,10 +1743,10 @@ export default function Dashboard({ user, onLogout }) {
                           <button
                             onClick={() => removerImagemGaleria(url)}
                             className="
-                              absolute top-2 left-1/2 -translate-x-1/2
-                              sm:left-auto sm:translate-x-0 sm:right-2
-                              px-3 py-1 rounded-full bg-black/60 border border-gray-700 hover:border-red-400
-                              text-[12px] text-red-200 font-normal uppercase
+                              absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+                              sm:left-auto sm:top-10 sm:right-2 sm:transform-none
+                              px-3 py-1 rounded-full bg-black/60 border border-gray-700
+                              hover:border-red-400 text-[12px] text-red-200 font-normal uppercase
                             "
                             title="Remover"
                           >
