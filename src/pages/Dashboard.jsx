@@ -1131,16 +1131,6 @@ export default function Dashboard({ user, onLogout }) {
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
 
-              {/* DESKTOP ONLY - mais repetições */}
-              <span className="announcement-item-desktop-only">
-                <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              </span>
-              <span className="announcement-item-desktop-only">●</span>
-              <span className="announcement-item-desktop-only">
-                <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              </span>
-              <span className="announcement-item-desktop-only">●</span>
-
               {/* MOBILE + DESKTOP */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
