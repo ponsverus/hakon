@@ -1920,7 +1920,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm mb-2">Início (Turno)</label>
+                  <label className="block text-sm mb-2">Das</label>
                   <InputWithChevron>
                     <input
                       type="time"
@@ -1932,7 +1932,7 @@ export default function Dashboard({ user, onLogout }) {
                   </InputWithChevron>
                 </div>
                 <div>
-                  <label className="block text-sm mb-2">Fim (Turno)</label>
+                  <label className="block text-sm mb-2">Até</label>
                   <InputWithChevron>
                     <input
                       type="time"
