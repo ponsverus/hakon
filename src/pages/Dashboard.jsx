@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* /* ✅ ANNOUNCEMENT BAR - COM LAYOUTS INDEPENDENTES */
+        /* /* ✅ ANNOUNCEMENT BAR - LAYOUTS INDEPENDENTES AJUSTADOS */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -975,22 +975,26 @@ export default function Dashboard({ user, onLogout }) {
           white-space: nowrap;
         }
 
-        /* 📱 MOBILE: Menos repetições, mais espaço entre palavras */
+        /* 📱 MOBILE: SÓ 1 REPETIÇÃO, espaço GIGANTE */
         @media (max-width: 639px) {
           .announcement-bar-track {
-            gap: 4rem; /* Espaço MAIOR no mobile */
+            gap: 6rem; /* Espaço BEM MAIOR no mobile */
           }
           
           /* Esconde repetições extras no mobile */
           .announcement-bar-track .desktop-only {
             display: none;
           }
+          
+          .announcement-bar-track .mobile-hide {
+            display: none;
+          }
         }
 
-        /* 💻 DESKTOP: Mais repetições, menos espaço entre palavras */
+        /* 💻 DESKTOP: 5 repetições */
         @media (min-width: 640px) {
           .announcement-bar-track {
-            gap: 1.5rem; /* Espaço MENOR no desktop */
+            gap: 1.5rem;
           }
         }
 
@@ -1104,26 +1108,24 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR COM LAYOUTS INDEPENDENTES */}
+        {/* ✅ ANNOUNCEMENT BAR AJUSTADO */}
         <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
           <div className="announcement-bar-wrapper">
             {/* Track 1 */}
             <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: Só 2 repetições */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
+              {/* 📱 MOBILE: Só 1 repetição visível */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
               
-              {/* 💻 DESKTOP: Mais 4 repetições extras */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
+              {/* Segunda repetição - ESCONDE no mobile */}
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
+              <span className="mobile-hide">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
+              <span className="mobile-hide">●</span>
+              
+              {/* 💻 DESKTOP: Mais 3 repetições extras (total 5) */}
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
               <span className="desktop-only">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
@@ -1144,15 +1146,12 @@ export default function Dashboard({ user, onLogout }) {
               <span>●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
               
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
-              <span className="desktop-only">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
-              <span className="desktop-only">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 mobile-hide">VER VITRINE</Link>
+              <span className="mobile-hide">●</span>
+              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 mobile-hide">SUPORTE</a>
+              <span className="mobile-hide">●</span>
+              
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-only">VER VITRINE</Link>
               <span className="desktop-only">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-only">SUPORTE</a>
