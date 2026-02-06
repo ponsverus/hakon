@@ -922,8 +922,15 @@ export default function Vitrine({ user, userType }) {
               const { ini: almIni, fim: almFim } = getAlmocoRange(prof);
 
               return (
-                return (
                 <div key={prof.id} className="bg-dark-100 border border-gray-800 rounded-custom p-6 hover:border-primary/50 transition-all">
+                  {profissao && (
+                    <div className="flex justify-end mb-2">
+                      <span className="inline-block px-2 py-1 bg-primary/20 border border-primary/30 rounded-button text-[10px] text-primary font-normal uppercase">
+                        {profissao}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-yellow-600 rounded-custom flex items-center justify-center text-xl font-normal text-black">
                       {prof.nome?.[0] || 'P'}
@@ -952,26 +959,18 @@ export default function Vitrine({ user, userType }) {
                         Horário: <span className="text-gray-300">{prof.horario_inicio || '08:00'} - {prof.horario_fim || '18:00'}</span>
                       </p>
 
+                      {(almIni && almFim) && (
+                        <p className="text-xs text-gray-500 font-normal mt-1">
+                          Almoço: <span className="text-gray-300">{almIni} - {almFim}</span>
+                        </p>
+                      )}
+
                       <p className="text-xs text-gray-600 font-normal mt-2">
                         {totalServ} serviço(s) disponíveis
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => iniciarAgendamento(prof)}
-                    className={`w-full py-3 rounded-button hover:shadow-lg transition-all flex items-center justify-center gap-2 uppercase font-normal ${
-                      isProfessional
-                        ? 'bg-dark-200 border border-gray-800 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary to-yellow-600 text-black'
-                    }`}
-                    disabled={!!isProfessional}
-                  >
-                    <Calendar className="w-5 h-5" />
-                    Agendar
-                  </button>
-                </div>
-              );
                   <button
                     onClick={() => iniciarAgendamento(prof)}
                     className={`w-full py-3 rounded-button hover:shadow-lg transition-all flex items-center justify-center gap-2 uppercase font-normal ${
@@ -1503,11 +1502,11 @@ export default function Vitrine({ user, userType }) {
               disabled={avaliarLoading || (avaliarTipo === 'profissional' && !avaliarProfissionalId)}
               className="w-full py-3 bg-gradient-to-r from-primary to-yellow-600 text-black rounded-button disabled:opacity-60 uppercase font-normal"
             >
-              {avaliarLoading ? 'Enviando...' : 'Enviar avaliação'}
+              {avaliarLoading ? 'Enviando...' : 'AVALIAR AGORA'}
             </button>
 
             <p className="text-xs text-gray-500 mt-3 font-normal">
-              {avaliarTipo === 'profissional' && !avaliarProfissionalId
+              {avaliarTipo === 'PROFISSIONAL' && !avaliarProfissionalId
                 ? 'Selecione um profissional para continuar'
                 : 'Somente clientes logados podem avaliar.'}
             </p>
