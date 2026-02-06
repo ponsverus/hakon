@@ -1109,8 +1109,8 @@ export default function Dashboard({ user, onLogout }) {
                   <div className="bg-dark-200 border border-gray-800 rounded-custom p-5">
                     <div className="text-xs text-gray-500 mb-2">CANCELAMENTOS HOJE</div>
                     <div className="text-3xl font-normal text-white">{hojeCancelados.length}</div>
-                    <div className="text-sm text-gray-400 mt-1">
-                      Taxa: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
+                    <div className="text-sm text-gray-300 mt-1">
+                      TAXA: <span className="text-primary">{cancelRateHoje.toFixed(1)}%</span>
                     </div>
                   </div>
 
@@ -1118,7 +1118,7 @@ export default function Dashboard({ user, onLogout }) {
                     <div className="text-xs text-gray-500 mb-2">CONCLUÍDOS HOJE</div>
                     <div className="text-3xl font-normal text-white">{hojeConcluidos.length}</div>
                     <div className="text-sm text-gray-400 mt-1">
-                      Ticket médio: <span className="text-primary">R$ {ticketMedioHoje.toFixed(2)}</span>
+                      TICKET MÉDIO: <span className="text-primary">R$ {ticketMedioHoje.toFixed(2)}</span>
                     </div>
                   </div>
 
