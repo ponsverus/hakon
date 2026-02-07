@@ -810,8 +810,6 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
 
             {/* 💻 DESKTOP: +4 repetições extras (total 8) */}
             <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -827,8 +825,6 @@ export default function Vitrine({ user, userType }) {
           {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
           <div className="announcement-bar-track" aria-hidden="true">
             {/* 📱 MOBILE: 4 repetições */}
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
