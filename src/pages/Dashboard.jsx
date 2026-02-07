@@ -1097,7 +1097,7 @@ export default function Dashboard({ user, onLogout }) {
               <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
                 {[...Array(12)].map((_, index) => (
                   <div key={index} className="flex items-center">
-                    <span className="text-black font-bold text-sm uppercase mr-6">CLIQUE PARA IR</span>
+                    <span className="text-black font-normal text-sm uppercase mr-6">CLIQUE PARA IR</span>
                     <span className="text-black mx-4">●</span>
 
                     <Link
