@@ -1304,7 +1304,7 @@ export default function Dashboard({ user, onLogout }) {
                           {!isDone && isHoje && (
                             <button
                               onClick={() => confirmarAtendimento(a.id)}
-                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-custom text-sm font-normal uppercase"
+                              className="w-full py-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-400 rounded-button text-sm font-normal uppercase"
                             >
                               CONFIRMAR ATENDIMENTO
                             </button>
