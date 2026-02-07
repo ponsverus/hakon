@@ -1144,6 +1144,8 @@ export default function Dashboard({ user, onLogout }) {
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>                            
               
+              <span className="desktop-extra">●</span>
+              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
               <span className="desktop-extra">●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
@@ -1157,9 +1159,7 @@ export default function Dashboard({ user, onLogout }) {
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>              
+              <span className="desktop-extra">●</span>                            
             </div>
           </div>
         </div>
