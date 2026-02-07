@@ -25,24 +25,20 @@ async function ensureProfileRow(authUser) {
   const type = isValidType(meta.type) ? meta.type : 'client';
   const nome = meta.nome || null;
 
-  // precisa da policy users_insert_self / users_update_self
   await supabase
     .from('users')
     .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
 }
 
 async function fetchProfileTypeWithRetryAndHeal(authUser) {
-  // tenta pegar normalmente
   for (let i = 0; i < 6; i++) {
     const t = await fetchProfileType(authUser.id);
     if (t) return t;
     await sleep(300);
   }
 
-  // ✅ se não achou, tenta “auto-curar”
   await ensureProfileRow(authUser);
 
-  // tenta de novo depois do heal
   for (let i = 0; i < 10; i++) {
     const t = await fetchProfileType(authUser.id);
     if (t) return t;
@@ -87,11 +83,10 @@ export default function Login({ onLogin }) {
   const [resetMsg, setResetMsg] = useState('');
 
   useEffect(() => {
-    // Detecta recovery por URL (hash/query) ou pelo evento do Supabase
     const byUrl = isPasswordRecoveryUrl();
     if (byUrl) {
       setIsRecovery(true);
-      setStep(2); // mantém no card
+      setStep(2);
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -133,7 +128,6 @@ export default function Login({ onLogin }) {
         );
       }
 
-      // validar tipo selecionado
       if (dbType !== userType) {
         await supabase.auth.signOut();
         throw new Error(
@@ -156,7 +150,6 @@ export default function Login({ onLogin }) {
     else navigate('/cadastro/profissional');
   };
 
-  // ✅ envia e-mail de recuperação
   const handleForgotPassword = async () => {
     setResetMsg('');
     setResetLoading(true);
@@ -165,8 +158,6 @@ export default function Login({ onLogin }) {
       const email = String(formData.email || '').trim();
       if (!email) throw new Error('Digite seu e-mail acima para recuperar a senha.');
 
-      // Importante: redirectTo deve apontar para uma rota do seu app.
-      // Aqui usamos /login para cair no fluxo de recovery que criamos.
       const redirectTo = `${window.location.origin}/login`;
 
       const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
@@ -180,7 +171,6 @@ export default function Login({ onLogin }) {
     }
   };
 
-  // ✅ define nova senha durante recovery
   const handleSetNewPassword = async (e) => {
     e.preventDefault();
     setRecoveryError('');
@@ -198,7 +188,7 @@ export default function Login({ onLogin }) {
       if (upErr) throw upErr;
 
       alert('✅ Senha atualizada! Faça login novamente.');
-      await supabase.auth.signOut(); // limpa sessão de recovery
+      await supabase.auth.signOut();
       setIsRecovery(false);
       setNewPassword('');
       setNewPassword2('');
@@ -212,7 +202,6 @@ export default function Login({ onLogin }) {
     }
   };
 
-  // Se estiver em recovery, não faz sentido escolher tipo (é redefinição)
   const title = useMemo(() => {
     if (isRecovery) return 'Definir Nova Senha';
     if (step === 1) return 'ENTRAR COMO:';
@@ -230,7 +219,6 @@ export default function Login({ onLogin }) {
         <div className="bg-dark-100 border border-gray-800 rounded-custom p-6 shadow-2xl">
           <h2 className="text-xl font-normal text-center mb-6">{title}</h2>
 
-          {/* ====== RECOVERY FORM ====== */}
           {isRecovery ? (
             <form onSubmit={handleSetNewPassword} className="space-y-4">
               <div>
@@ -287,7 +275,6 @@ export default function Login({ onLogin }) {
             </form>
           ) : (
             <>
-              {/* ====== STEP 1: ESCOLHER TIPO ====== */}
               {step === 1 && (
                 <div className="grid grid-cols-2 gap-4">
                   <button
@@ -308,7 +295,6 @@ export default function Login({ onLogin }) {
                 </div>
               )}
 
-              {/* ====== STEP 2: LOGIN ====== */}
               {step === 2 && (
                 <>
                   <button
@@ -353,7 +339,6 @@ export default function Login({ onLogin }) {
                       </div>
                     </div>
 
-                    {/* ✅ ESQUECEU A SENHA */}
                     <div className="flex items-center justify-between">
                       <button
                         type="button"
@@ -364,7 +349,6 @@ export default function Login({ onLogin }) {
                         {resetLoading ? 'ENVIANDO...' : 'ESQUECEU A SENHA?'}
                       </button>
 
-                      {/* mensagem curta do reset */}
                       {resetMsg && (
                         <span className="text-xs text-gray-400 text-right max-w-[60%]">
                           {resetMsg}
