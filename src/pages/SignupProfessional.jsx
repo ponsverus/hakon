@@ -8,17 +8,48 @@ import { supabase } from '../supabase';
 const isValidType = (t) => t === 'client' || t === 'professional';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchProfileTypeWithRetry(userId) {
-  for (let i = 0; i < 15; i++) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('type')
-      .eq('id', userId)
-      .maybeSingle();
+async function fetchProfileType(userId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('type')
+    .eq('id', userId)
+    .maybeSingle();
 
-    if (!error && isValidType(data?.type)) return data.type;
-    await sleep(500);
+  if (error) return null;
+  return isValidType(data?.type) ? data.type : null;
+}
+
+// ✅ AUTO-HEAL: se o trigger falhar, cria/atualiza o perfil usando user_metadata
+async function ensureProfileRow(authUser) {
+  const userId = authUser.id;
+  const email = authUser.email || '';
+  const meta = authUser.user_metadata || {};
+  const type = isValidType(meta.type) ? meta.type : 'client';
+  const nome = meta.nome || null;
+
+  await supabase
+    .from('users')
+    .upsert([{ id: userId, email, type, nome }], { onConflict: 'id' });
+}
+
+async function fetchProfileTypeWithRetryAndHeal(authUser) {
+  // tenta pegar normalmente
+  for (let i = 0; i < 6; i++) {
+    const t = await fetchProfileType(authUser.id);
+    if (t) return t;
+    await sleep(300);
   }
+
+  // se não achou, tenta auto-curar
+  await ensureProfileRow(authUser);
+
+  // tenta de novo
+  for (let i = 0; i < 10; i++) {
+    const t = await fetchProfileType(authUser.id);
+    if (t) return t;
+    await sleep(400);
+  }
+
   return null;
 }
 
@@ -48,7 +79,6 @@ export default function SignupProfessional({ onLogin }) {
     anosExperiencia: '',
     descricao: '',
 
-    // ✅ Endereço coletado separado
     rua: '',
     numero: '',
     bairro: '',
@@ -106,7 +136,6 @@ export default function SignupProfessional({ onLogin }) {
         throw new Error('Tipo de negócio é obrigatório');
       }
 
-      // ✅ Nova regra: endereço completo obrigatório
       const enderecoMsg = validarEnderecoCompleto();
       if (enderecoMsg) throw new Error(enderecoMsg);
 
@@ -139,7 +168,7 @@ export default function SignupProfessional({ onLogin }) {
       if (!authData?.user?.id) throw new Error('Usuário não retornado pelo Supabase.');
 
       // 3) Aguardar trigger criar perfil
-      await sleep(1500);
+      await sleep(1200);
 
       // 4) Garantir sessão
       let sessionUser = authData.user;
@@ -161,19 +190,19 @@ export default function SignupProfessional({ onLogin }) {
 
       if (!hasSession) throw new Error('Não foi possível iniciar sessão. Tente fazer login manualmente.');
 
-      const userId = sessionUser.id;
-
-      // 5) Buscar tipo com retry
-      const dbType = await fetchProfileTypeWithRetry(userId);
+      // 5) Buscar tipo com retry + heal
+      const dbType = await fetchProfileTypeWithRetryAndHeal(sessionUser);
 
       if (!dbType) {
-        throw new Error('Perfil não foi criado no banco. Verifique se o trigger está ativo.');
+        throw new Error('Perfil não foi criado no banco. Verifique policies/RLS (users_insert_self).');
       }
       if (dbType !== 'professional') {
         throw new Error('Perfil criado com tipo incorreto. Verifique o cadastro.');
       }
 
-      // 6) Criar NEGÓCIO (✅ já salva endereço único montado)
+      const userId = sessionUser.id;
+
+      // 6) Criar NEGÓCIO
       const { data: negocioInserted, error: negocioError } = await supabase
         .from('negocios')
         .insert([{
@@ -362,7 +391,7 @@ export default function SignupProfessional({ onLogin }) {
               </div>
             </div>
 
-            {/* ✅ ENDEREÇO COMPLETO (coletado separado, salvo como 1 string) */}
+            {/* ✅ ENDEREÇO COMPLETO */}
             <div>
               <label className="block text-sm text-gray-300 mb-2">Endereço Completo do Negócio *</label>
 
