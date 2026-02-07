@@ -798,135 +798,85 @@ export default function Vitrine({ user, userType }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Announcement Bar */}
+      {/* Announcement Bar - Estilo Impact (Infinito Contínuo) */}
       <div className="bg-primary overflow-hidden relative h-10">
         {/* 📱 MOBILE */}
-        <div className="announcement-bar-loop block sm:hidden">
-          <div className="announcement-bar-track-loop">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-          </div>
-          {/* DUPLICAÇÃO AUTOMÁTICA */}
-          <div className="announcement-bar-track-loop" aria-hidden="true">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-          </div>
+        <div className="announcement-bar-marquee block sm:hidden">
+          {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
+          {[...Array(10)].map((_, index) => (
+            <div key={index} className="announcement-bar-item-mobile" aria-hidden={index > 0}>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            </div>
+          ))}
         </div>
 
         {/* 💻 DESKTOP */}
-        <div className="announcement-bar-loop hidden sm:flex">
-          <div className="announcement-bar-track-loop">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-          </div>
-          {/* DUPLICAÇÃO AUTOMÁTICA */}
-          <div className="announcement-bar-track-loop" aria-hidden="true">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-          </div>
+        <div className="announcement-bar-marquee hidden sm:grid">
+          {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
+          {[...Array(10)].map((_, index) => (
+            <div key={index} className="announcement-bar-item-desktop" aria-hidden={index > 0}>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            </div>
+          ))}
         </div>
       </div>
 
       <style>{`
-        /* ✅ LOOP INFINITO PERFEITO - SEM ESPAÇOS VAZIOS */
-        @keyframes scroll-loop {
+        /* ✅ MARQUEE INFINITO - ESTILO IMPACT */
+        @keyframes marquee-scroll {
           0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          100% { transform: translateX(-100%); }
         }
 
-        .announcement-bar-loop {
-          display: flex;
-          width: 200%;
-          animation: scroll-loop 20s linear infinite;
+        /* Container principal */
+        .announcement-bar-marquee {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: max-content;
+          justify-content: center;
+          overflow: hidden;
         }
 
-        .announcement-bar-track-loop {
-          width: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 0.75rem 0;
-          white-space: nowrap;
+        /* 📱 MOBILE - Item */
+        .announcement-bar-item-mobile {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: auto 3rem; /* palavra + espaço */
+          place-items: center;
+          animation: marquee-scroll 20s linear infinite;
         }
 
-        /* 📱 MOBILE */
-        .announcement-bar-loop.block .announcement-bar-track-loop {
-          gap: 2rem;
+        /* 💻 DESKTOP - Item */
+        .announcement-bar-item-desktop {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: auto 2.5rem; /* palavra + espaço */
+          place-items: center;
+          animation: marquee-scroll 25s linear infinite;
         }
 
-        /* 💻 DESKTOP */
-        .announcement-bar-loop.hidden .announcement-bar-track-loop {
-          gap: 1.5rem;
-        }
-
-        /* Pausa ao passar o mouse */
-        .announcement-bar-loop:hover {
+        /* Pausa ao hover */
+        .announcement-bar-marquee:hover .announcement-bar-item-mobile,
+        .announcement-bar-marquee:hover .announcement-bar-item-desktop {
           animation-play-state: paused;
         }
 
         /* Respeita preferências de movimento */
         @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-loop {
+          .announcement-bar-item-mobile,
+          .announcement-bar-item-desktop {
             animation: none;
           }
         }
