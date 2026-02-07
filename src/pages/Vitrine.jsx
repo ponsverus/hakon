@@ -800,8 +800,8 @@ export default function Vitrine({ user, userType }) {
     <div className="min-h-screen bg-black text-white">
       {/* Announcement Bar - Estilo Impact (Infinito Contínuo) */}
       <div className="bg-primary overflow-hidden relative h-10">
-        {/* 📱 MOBILE */}
-        <div className="announcement-bar-marquee block sm:hidden">
+        {/* 📱 MOBILE - Aparece SOMENTE em telas pequenas */}
+        <div className="announcement-bar-marquee sm:hidden">
           {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
           {[...Array(10)].map((_, index) => (
             <div key={index} className="announcement-bar-item-mobile" aria-hidden={index > 0}>
@@ -815,7 +815,7 @@ export default function Vitrine({ user, userType }) {
           ))}
         </div>
 
-        {/* 💻 DESKTOP */}
+        {/* 💻 DESKTOP - Aparece SOMENTE em telas grandes */}
         <div className="announcement-bar-marquee hidden sm:grid">
           {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
           {[...Array(10)].map((_, index) => (
@@ -853,7 +853,7 @@ export default function Vitrine({ user, userType }) {
         .announcement-bar-item-mobile {
           display: grid;
           grid-auto-flow: column;
-          grid-auto-columns: auto 3rem; /* palavra + espaço */
+          grid-auto-columns: auto 3rem;
           place-items: center;
           animation: marquee-scroll 20s linear infinite;
         }
@@ -862,7 +862,7 @@ export default function Vitrine({ user, userType }) {
         .announcement-bar-item-desktop {
           display: grid;
           grid-auto-flow: column;
-          grid-auto-columns: auto 2.5rem; /* palavra + espaço */
+          grid-auto-columns: auto 2.5rem;
           place-items: center;
           animation: marquee-scroll 25s linear infinite;
         }
