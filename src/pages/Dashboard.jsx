@@ -188,6 +188,38 @@ export default function Dashboard({ user, onLogout }) {
     galeria: []
   });
 
+  // ✅ convite parceiro (só adiciona isso)
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  const gerarLinkParceiro = async () => {
+    try {
+      if (!negocio?.id) return alert('Negócio não carregado.');
+
+      setInviteLoading(true);
+
+      const { data: token, error: rpcErr } = await supabase.rpc('create_professional_invite', {
+        p_negocio_id: negocio.id
+      });
+
+      if (rpcErr) throw rpcErr;
+      if (!token) throw new Error('Convite não gerado.');
+
+      const link = `${window.location.origin}/convite/${token}`;
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+        alert('✅ Link de convite COPIADO!\n\nEnvie para o parceiro no WhatsApp.');
+      } else {
+        prompt('Copie o link abaixo e envie ao parceiro:', link);
+      }
+    } catch (e) {
+      console.error('gerarLinkParceiro:', e);
+      alert('❌ Erro ao gerar convite: ' + (e?.message || ''));
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.id) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1086,6 +1118,18 @@ export default function Dashboard({ user, onLogout }) {
                     >
                       SUPORTE
                     </a>
+
+                    <span className="text-black mx-4">●</span>
+
+                    {/* ✅ NOVO ITEM: CHAMAR PARCEIRO (SEM MEXER NO DESIGN) */}
+                    <button
+                      type="button"
+                      onClick={gerarLinkParceiro}
+                      disabled={inviteLoading}
+                      className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all disabled:opacity-60"
+                    >
+                      {inviteLoading ? 'GERANDO...' : 'CHAMAR PARCEIRO'}
+                    </button>
 
                     <span className="text-black mx-4">●</span>
                   </div>
