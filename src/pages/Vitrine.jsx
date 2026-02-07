@@ -797,7 +797,8 @@ export default function Vitrine({ user, userType }) {
   const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
 
   return (
-    {/* Announcement Bar */}
+    <div className="min-h-screen bg-black text-white">
+      {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
         {/* 📱 MOBILE */}
         <div className="announcement-bar-serrote block sm:hidden">
