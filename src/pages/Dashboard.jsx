@@ -1147,7 +1147,7 @@ export default function Dashboard({ user, onLogout }) {
             .announcement-bar-wrapper {
               display: flex;
               width: max-content;
-              animation: announcement-scroll 30s linear infinite;
+              animation: announcement-scroll 60s linear infinite;
             }
 
             /* Interrompe a animação ao passar o mouse (Desktop) ou tocar (Mobile) */
