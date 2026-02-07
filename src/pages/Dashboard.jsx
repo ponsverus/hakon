@@ -954,7 +954,7 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        <style>{`
+       {`
     @keyframes announcement-scroll {
       0% { transform: translateX(0); }
       100% { transform: translateX(-50%); }
