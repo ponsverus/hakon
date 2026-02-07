@@ -797,34 +797,27 @@ export default function Vitrine({ user, userType }) {
   const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Announcement Bar */}
+    {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
-        {/* 📱 MOBILE ONLY - menos repetições */}
-        <div className="announcement-bar-wrapper block sm:hidden">
-          {/* Track 1 Mobile */}
-          <div className="announcement-bar-track">
+        {/* 📱 MOBILE */}
+        <div className="announcement-bar-serrote block sm:hidden">
+          <div className="announcement-bar-track-serrote">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase"></span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase"></span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
         </div>
 
-        {/* 💻 DESKTOP ONLY - mais repetições */}
-        <div className="announcement-bar-wrapper hidden sm:flex">
-          {/* Track 1 Desktop */}
-          <div className="announcement-bar-track">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+        {/* 💻 DESKTOP */}
+        <div className="announcement-bar-serrote hidden sm:flex">
+          <div className="announcement-bar-track-serrote">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -850,34 +843,57 @@ export default function Vitrine({ user, userType }) {
       </div>
 
       <style>{`
-        /* ✅ ANNOUNCEMENT BAR - RESPONSIVO */
-        @keyframes announcement-scroll {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
+        /* ✅ EFEITO SERROTE - VAI E VOLTA */
+        @keyframes serrote-mobile {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-20px); }
         }
 
-        .announcement-bar-wrapper {
+        @keyframes serrote-desktop {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-30px); }
+        }
+
+        .announcement-bar-serrote {
           display: flex;
-          width: 200%;
-          animation: announcement-scroll 18s linear infinite;
+          width: 100%;
+          overflow: hidden;
         }
 
-        .announcement-bar-track {
-          width: 50%;
+        .announcement-bar-track-serrote {
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          gap: 1rem;
           padding: 0.75rem 0;
           white-space: nowrap;
         }
 
-        .announcement-bar-wrapper:hover {
+        /* 📱 MOBILE */
+        .announcement-bar-serrote.block {
+          animation: serrote-mobile 4s ease-in-out infinite;
+        }
+
+        .block .announcement-bar-track-serrote {
+          gap: 2rem;
+        }
+
+        /* 💻 DESKTOP */
+        .announcement-bar-serrote.hidden {
+          animation: serrote-desktop 5s ease-in-out infinite;
+        }
+
+        .hidden .announcement-bar-track-serrote {
+          gap: 1.5rem;
+        }
+
+        .announcement-bar-serrote:hover {
           animation-play-state: paused;
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-wrapper { animation: none; }
+          .announcement-bar-serrote {
+            animation: none;
+          }
         }
       `}</style>
 
