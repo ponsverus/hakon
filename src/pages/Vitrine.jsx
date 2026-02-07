@@ -756,7 +756,7 @@ export default function Vitrine({ user, userType }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary text-2xl font-normal animate-pulse">CARREGANDO...</div>
+        <div className="text-primary text-2xl font-normal animate-pulse">Carregando...</div>
       </div>
     );
   }
@@ -783,7 +783,7 @@ export default function Vitrine({ user, userType }) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado :(</h1>
+          <h1 className="text-3xl font-normal text-white mb-4">Negócio não encontrado</h1>
           <Link to="/" className="text-primary hover:text-yellow-500 font-normal">Voltar para Home</Link>
         </div>
       </div>
@@ -797,8 +797,7 @@ export default function Vitrine({ user, userType }) {
   const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
 
   return (
-    /* PARTE 2: HTML (cole ANTES do <header> no Vitrine.jsx) */
-
+    <div className="min-h-screen bg-black text-white">
       {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
         <div className="announcement-bar-wrapper">
@@ -851,7 +850,7 @@ export default function Vitrine({ user, userType }) {
       </div>
 
       <style>{`
-        /* ✅ ANNOUNCEMENT BAR - FRETE GRÁTIS */
+        /* ✅ ANNOUNCEMENT BAR - RESPONSIVO */
         @keyframes announcement-scroll {
           0% { transform: translateX(0%); }
           100% { transform: translateX(-50%); }
@@ -1051,7 +1050,7 @@ export default function Vitrine({ user, userType }) {
                       </div>
 
                       {prof.anos_experiencia != null && (
-                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} ano(s) de experiência</p>
+                        <p className="text-sm text-gray-500 font-normal mt-1">{prof.anos_experiencia} anos de experiência</p>
                       )}
 
                       <p className="text-xs text-gray-500 font-normal mt-2">
