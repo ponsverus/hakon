@@ -801,8 +801,8 @@ export default function Vitrine({ user, userType }) {
       {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
         {/* 📱 MOBILE */}
-        <div className="announcement-bar-serrote block sm:hidden">
-          <div className="announcement-bar-track-serrote">
+        <div className="announcement-bar-loop block sm:hidden">
+          <div className="announcement-bar-track-loop">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -813,6 +813,9 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
+          {/* DUPLICAÇÃO AUTOMÁTICA */}
+          <div className="announcement-bar-track-loop" aria-hidden="true">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -823,20 +826,12 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
+        </div>
+
+        {/* 💻 DESKTOP */}
+        <div className="announcement-bar-loop hidden sm:flex">
+          <div className="announcement-bar-track-loop">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -854,55 +849,8 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
-        </div>
-
-        {/* 💻 DESKTOP */}
-        <div className="announcement-bar-serrote hidden sm:flex">
-          <div className="announcement-bar-track-serrote">
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+          {/* DUPLICAÇÃO AUTOMÁTICA */}
+          <div className="announcement-bar-track-loop" aria-hidden="true">
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
