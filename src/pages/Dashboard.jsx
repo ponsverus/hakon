@@ -1138,9 +1138,7 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
-            <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">:)</Link>
-              <span>●</span>
+            <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">              
               <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
               <span>●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
