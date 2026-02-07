@@ -927,12 +927,12 @@ export default function Vitrine({ user, userType }) {
         /* ✅ EFEITO SERROTE - VAI E VOLTA */
         @keyframes serrote-mobile {
           0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(-20px); }
+          60% { transform: translateX(-30px); }
         }
 
         @keyframes serrote-desktop {
           0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(-30px); }
+          60% { transform: translateX(-40px); }
         }
 
         .announcement-bar-serrote {
@@ -951,7 +951,7 @@ export default function Vitrine({ user, userType }) {
 
         /* 📱 MOBILE */
         .announcement-bar-serrote.block {
-          animation: serrote-mobile 4s ease-in-out infinite;
+          animation: serrote-mobile 5s ease-in-out infinite;
         }
 
         .block .announcement-bar-track-serrote {
@@ -960,7 +960,7 @@ export default function Vitrine({ user, userType }) {
 
         /* 💻 DESKTOP */
         .announcement-bar-serrote.hidden {
-          animation: serrote-desktop 5s ease-in-out infinite;
+          animation: serrote-desktop 6s ease-in-out infinite;
         }
 
         .hidden .announcement-bar-track-serrote {
