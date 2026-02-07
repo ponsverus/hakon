@@ -800,41 +800,69 @@ export default function Vitrine({ user, userType }) {
     <div className="min-h-screen bg-black text-white">
       {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
-        <div className="announcement-bar-wrapper">
-          {/* Track 1 */}
+        {/* 📱 MOBILE ONLY - menos repetições */}
+        <div className="announcement-bar-wrapper block sm:hidden">
+          {/* Track 1 Mobile */}
           <div className="announcement-bar-track">
-            {/* 📱 MOBILE: 4 repetições */}
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-
-            {/* 💻 DESKTOP: +4 repetições extras (total 8) */}
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
 
-          {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
+          {/* Track 2 Mobile */}
           <div className="announcement-bar-track" aria-hidden="true">
-            {/* 📱 MOBILE: 4 repetições */}
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
+        </div>
 
-            {/* 💻 DESKTOP: +4 repetições extras (total 8) */}
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+        {/* 💻 DESKTOP ONLY - mais repetições */}
+        <div className="announcement-bar-wrapper hidden sm:flex">
+          {/* Track 1 Desktop */}
+          <div className="announcement-bar-track">
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
+
+          {/* Track 2 Desktop */}
+          <div className="announcement-bar-track" aria-hidden="true">
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
         </div>
       </div>
@@ -857,26 +885,9 @@ export default function Vitrine({ user, userType }) {
           display: flex;
           align-items: center;
           justify-content: flex-start;
+          gap: 3rem;
           padding: 0.75rem 0;
           white-space: nowrap;
-        }
-
-        /* 📱 MOBILE: menos repetições, espaço maior */
-        @media (max-width: 639px) {
-          .announcement-bar-track {
-            gap: 2rem;
-          }
-          
-          .announcement-bar-track .desktop-extra {
-            display: none;
-          }
-        }
-
-        /* 💻 DESKTOP: mais repetições, espaço menor */
-        @media (min-width: 640px) {
-          .announcement-bar-track {
-            gap: 2rem;
-          }
         }
 
         .announcement-bar-wrapper:hover {
