@@ -798,89 +798,54 @@ export default function Vitrine({ user, userType }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Announcement Bar - Estilo Impact (Infinito Contínuo) */}
-      <div className="bg-primary overflow-hidden relative h-10">
-        {/* 📱 MOBILE - Aparece SOMENTE em telas pequenas */}
-        <div className="announcement-bar-marquee sm:hidden">
-          {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
-          {[...Array(10)].map((_, index) => (
-            <div key={index} className="announcement-bar-item-mobile" aria-hidden={index > 0}>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            </div>
-          ))}
+      {/* Announcement Bar - Estilo Impact */}
+<div className="bg-primary overflow-hidden relative h-10 flex items-center">
+  {/* O segredo é ter UM único container de animação que agrupa os itens */}
+  <div className="announcement-bar-marquee flex whitespace-nowrap">
+    
+    {/* Conteúdo - Note que removi o SM:HIDDEN das divs internas para simplificar */}
+    <div className="flex animate-marquee-infinite">
+      {[...Array(20)].map((_, index) => (
+        <div key={index} className="flex items-center px-4 shrink-0">
+          <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="mx-4 text-black font-normal text-sm">●</span>
         </div>
+      ))}
+    </div>
 
-        {/* 💻 DESKTOP - Aparece SOMENTE em telas grandes */}
-        <div className="announcement-bar-marquee hidden sm:grid">
-          {/* Repetimos o conteúdo 10x para garantir scroll infinito */}
-          {[...Array(10)].map((_, index) => (
-            <div key={index} className="announcement-bar-item-desktop" aria-hidden={index > 0}>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-              <span className="inline-block text-black font-normal text-sm uppercase">●</span>
-            </div>
-          ))}
+    {/* Duplicamos o conteúdo para o efeito de loop infinito sem "buracos" */}
+    <div className="flex animate-marquee-infinite" aria-hidden="true">
+      {[...Array(20)].map((_, index) => (
+        <div key={index} className="flex items-center px-4 shrink-0">
+          <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+          <span className="mx-4 text-black font-normal text-sm">●</span>
         </div>
-      </div>
+      ))}
+    </div>
+  </div>
 
       <style>{`
-        /* ✅ MARQUEE INFINITO - ESTILO IMPACT */
-        @keyframes marquee-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-100%); }
-        }
+    @keyframes marquee-infinite {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
 
-        /* Container principal */
-        .announcement-bar-marquee {
-          display: grid;
-          grid-auto-flow: column;
-          grid-auto-columns: max-content;
-          justify-content: center;
-          overflow: hidden;
-        }
+    .animate-marquee-infinite {
+      animation: marquee-infinite 30s linear infinite;
+      display: flex;
+    }
 
-        /* 📱 MOBILE - Item */
-        .announcement-bar-item-mobile {
-          display: grid;
-          grid-auto-flow: column;
-          grid-auto-columns: auto 3rem;
-          place-items: center;
-          animation: marquee-scroll 20s linear infinite;
-        }
+    .announcement-bar-marquee:hover .animate-marquee-infinite {
+      animation-play-state: paused;
+    }
 
-        /* 💻 DESKTOP - Item */
-        .announcement-bar-item-desktop {
-          display: grid;
-          grid-auto-flow: column;
-          grid-auto-columns: auto 2.5rem;
-          place-items: center;
-          animation: marquee-scroll 25s linear infinite;
-        }
-
-        /* Pausa ao hover */
-        .announcement-bar-marquee:hover .announcement-bar-item-mobile,
-        .announcement-bar-marquee:hover .announcement-bar-item-desktop {
-          animation-play-state: paused;
-        }
-
-        /* Respeita preferências de movimento */
-        @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-item-mobile,
-          .announcement-bar-item-desktop {
-            animation: none;
-          }
-        }
-      `}</style>
+    @media (prefers-reduced-motion: reduce) {
+      .animate-marquee-infinite {
+        animation: none;
+      }
+    }
+  `}</style>
+</div>
 
       {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-40">
