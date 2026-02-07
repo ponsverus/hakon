@@ -1133,8 +1133,6 @@ export default function Dashboard({ user, onLogout }) {
               <span className="desktop-extra">●</span>
               <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
               <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
             </div>
 
             {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
