@@ -813,6 +813,26 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
         </div>
 
