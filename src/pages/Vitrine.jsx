@@ -797,37 +797,105 @@ export default function Vitrine({ user, userType }) {
   const nomeNegocioLabel = String(negocio?.nome || '').trim() || 'NEGÓCIO';
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    /* PARTE 2: HTML (cole ANTES do <header> no Vitrine.jsx) */
+
       {/* Announcement Bar */}
       <div className="bg-primary overflow-hidden relative h-10">
-        <div className="announcement-scroll flex items-center h-full whitespace-nowrap">
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="inline-block px-8 text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+        <div className="announcement-bar-wrapper">
+          {/* Track 1 */}
+          <div className="announcement-bar-track">
+            {/* 📱 MOBILE: 4 repetições */}
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+
+            {/* 💻 DESKTOP: +4 repetições extras (total 8) */}
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
+
+          {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
+          <div className="announcement-bar-track" aria-hidden="true">
+            {/* 📱 MOBILE: 4 repetições */}
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+
+            {/* 💻 DESKTOP: +4 repetições extras (total 8) */}
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="desktop-extra inline-block text-black font-normal text-sm uppercase">●</span>
+          </div>
         </div>
       </div>
 
       <style>{`
-        @keyframes scroll-announcement {
-          0% {
-            transform: translateX(0);
+        /* ✅ ANNOUNCEMENT BAR - FRETE GRÁTIS */
+        @keyframes announcement-scroll {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+
+        .announcement-bar-wrapper {
+          display: flex;
+          width: 200%;
+          animation: announcement-scroll 18s linear infinite;
+        }
+
+        .announcement-bar-track {
+          width: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          padding: 0.75rem 0;
+          white-space: nowrap;
+        }
+
+        /* 📱 MOBILE: menos repetições, espaço maior */
+        @media (max-width: 639px) {
+          .announcement-bar-track {
+            gap: 3rem;
           }
-          100% {
-            transform: translateX(-50%);
+          
+          .announcement-bar-track .desktop-extra {
+            display: none;
           }
         }
 
-        .announcement-scroll {
-          animation: scroll-announcement 20s linear infinite;
+        /* 💻 DESKTOP: mais repetições, espaço menor */
+        @media (min-width: 640px) {
+          .announcement-bar-track {
+            gap: 2rem;
+          }
         }
 
-        .announcement-scroll:hover {
+        .announcement-bar-wrapper:hover {
           animation-play-state: paused;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .announcement-bar-wrapper { animation: none; }
         }
       `}</style>
 
