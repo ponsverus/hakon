@@ -845,10 +845,18 @@ export default function Vitrine({ user, userType }) {
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
           </div>
 
           {/* Track 2 Desktop */}
           <div className="announcement-bar-track" aria-hidden="true">
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+            <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
             <span className="inline-block text-black font-normal text-sm uppercase">●</span>
             <span className="inline-block text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
@@ -889,7 +897,7 @@ export default function Vitrine({ user, userType }) {
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          gap: 4rem;
+          gap: 1rem;
           padding: 0.75rem 0;
           white-space: nowrap;
         }
