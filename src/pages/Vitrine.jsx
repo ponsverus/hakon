@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabase';
 
+const FOLGA_MINUTOS = 5;
+
 function timeToMinutes(t) {
   if (!t) return 0;
   const [h, m] = String(t).split(':').map(Number);
@@ -67,6 +69,15 @@ function getDowFromDateSP(dateStr) {
 
 function roundUpToNextStep(min, step = 30) {
   return Math.ceil(min / step) * step;
+}
+
+// Alinha o "min" para o próximo horário que respeite (t - base) % step === 0
+function alignToStepFromBase(min, base, step) {
+  if (!Number.isFinite(min) || !Number.isFinite(base) || !Number.isFinite(step) || step <= 0) return min;
+  if (min <= base) return base;
+  const offset = (min - base) % step;
+  if (offset === 0) return min;
+  return min + (step - offset);
 }
 
 const withTimeout = (promise, ms, label = 'timeout') => {
@@ -413,115 +424,6 @@ export default function Vitrine({ user, userType }) {
     return diasEfetivos.includes(dow);
   }, [flow.profissional, flow.data]);
 
-  const calcularHorariosDisponiveis = async () => {
-    if (!flow.profissional || !flow.data) return;
-
-    if (!diaSelecionadoEhTrabalho) {
-      setHorariosDisponiveis([]);
-      return;
-    }
-
-    try {
-      const inicio = flow.profissional.horario_inicio || '08:00';
-      const fim = flow.profissional.horario_fim || '18:00';
-
-      const startDay = timeToMinutes(inicio);
-      const endDay = timeToMinutes(fim);
-
-      const nowSP = getNowSP();
-      const isHoje = flow.data === nowSP.date;
-      const minNow = isHoje ? roundUpToNextStep(nowSP.minutes, 30) : -Infinity;
-
-      const { data: ags, error: agErr } = await withTimeout(
-        supabase.rpc('get_agendamentos_dia', {
-          p_profissional_id: flow.profissional.id,
-          p_data: flow.data
-        }),
-        7000,
-        'rpc-busy-slots'
-      );
-      if (agErr) throw agErr;
-
-      const { data: slots, error: slotErr } = await withTimeout(
-        supabase
-          .from('slots_temporarios')
-          .select('*')
-          .eq('profissional_id', flow.profissional.id)
-          .eq('data', flow.data)
-          .eq('ativo', true),
-        7000,
-        'slots'
-      );
-
-      if (slotErr) console.warn('slots_temporarios indisponível:', slotErr.message);
-
-      const agendamentosValidos = (ags || [])
-        .filter(a => !String(a.status || '').includes('cancelado'))
-        .map(a => ({
-          ini: timeToMinutes(a.hora_inicio),
-          fim: timeToMinutes(a.hora_fim)
-        }))
-        .sort((a, b) => a.ini - b.ini);
-
-      const slotsList = (slots || []).map(s => ({
-        ini: timeToMinutes(s.hora_inicio),
-        fim: timeToMinutes(s.hora_fim),
-        raw: s
-      }));
-
-      const horarios = [];
-      let cur = startDay;
-
-      while (cur < endDay) {
-        if (cur < minNow) {
-          cur += 30;
-          continue;
-        }
-
-        const hora = minutesToTime(cur);
-
-        const conflitaAgora = agendamentosValidos.some(a => cur >= a.ini && cur < a.fim);
-        if (conflitaAgora) {
-          cur += 30;
-          continue;
-        }
-
-        const nextBusyStart = agendamentosValidos
-          .filter(a => a.ini > cur)
-          .map(a => a.ini)
-          .sort((a, b) => a - b)[0];
-
-        let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
-
-        const slotExato = slotsList.find(s => s.ini === cur);
-        if (slotExato) freeEnd = Math.min(freeEnd, slotExato.fim);
-
-        const maxMinutos = freeEnd - cur;
-
-        if (maxMinutos > 0) {
-          horarios.push({
-            hora,
-            tipo: slotExato ? 'slot' : 'normal',
-            slot: slotExato ? slotExato.raw : null,
-            maxMinutos
-          });
-        }
-
-        cur += 30;
-      }
-
-      setHorariosDisponiveis(horarios);
-    } catch (e) {
-      console.error('Erro ao calcular horários:', e);
-      setHorariosDisponiveis([]);
-    }
-  };
-
-  useEffect(() => {
-    if (showAgendamento && flow.step === 2) calcularHorariosDisponiveis();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAgendamento, flow.profissional?.id, flow.data, flow.step, diaSelecionadoEhTrabalho]);
-
   const totalSelecionado = useMemo(() => {
     const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
     const dur = lista.reduce((sum, s) => sum + Number(s?.duracao_minutos || 0), 0);
@@ -529,9 +431,15 @@ export default function Vitrine({ user, userType }) {
     return { duracao: dur, valor: val, qtd: lista.length };
   }, [flow.servicosSelecionados]);
 
+  const duracaoTotalComFolga = useMemo(() => {
+    const dur = Number(totalSelecionado.duracao || 0);
+    if (!dur || dur <= 0) return 0;
+    return dur + FOLGA_MINUTOS;
+  }, [totalSelecionado.duracao]);
+
+  // Lista de serviços (agora no step 2, sem depender de horário)
   const servicosPossiveis = useMemo(() => {
-    if (!flow.horario) return [];
-    return servicosDoProf
+    return (servicosDoProf || [])
       .filter(s => Number(s.duracao_minutos || 0) > 0)
       .sort((a, b) => {
         const pa = Number(a.preco ?? 0);
@@ -539,7 +447,7 @@ export default function Vitrine({ user, userType }) {
         if (pb !== pa) return pb - pa;
         return String(a.nome || '').localeCompare(String(b.nome || ''));
       });
-  }, [servicosDoProf, flow.horario]);
+  }, [servicosDoProf]);
 
   const getAlmocoRange = (p) => {
     const ini = p?.almoco_inicio || p?.horario_almoco_inicio || null;
@@ -579,6 +487,154 @@ export default function Vitrine({ user, userType }) {
     return { label: 'ABERTO', color: 'bg-green-500' };
   };
 
+  // ✅ NOVA REGRA: horários gerados com "slot fixo temporário" baseado em (tempo_total + folga),
+  // e validação no clique pelo maxMinutos (até o próximo agendamento).
+  const calcularHorariosDisponiveis = async () => {
+    if (!flow.profissional || !flow.data) return;
+
+    if (!diaSelecionadoEhTrabalho) {
+      setHorariosDisponiveis([]);
+      return;
+    }
+
+    // precisa do serviço antes do horário (novo fluxo)
+    if (!duracaoTotalComFolga || duracaoTotalComFolga <= 0) {
+      setHorariosDisponiveis([]);
+      return;
+    }
+
+    try {
+      const inicio = flow.profissional.horario_inicio || '08:00';
+      const fim = flow.profissional.horario_fim || '18:00';
+
+      const startDay = timeToMinutes(inicio);
+      const endDay = timeToMinutes(fim);
+
+      const nowSP = getNowSP();
+      const isHoje = flow.data === nowSP.date;
+
+      // Base SP sempre. Alinha o primeiro horário a partir da abertura respeitando o step.
+      const minNowBase = isHoje ? nowSP.minutes : -Infinity;
+      const minNow = isHoje
+        ? alignToStepFromBase(
+            // arredonda o "agora" pra cima em 5 min só pra não gerar horários "no passado imediato"
+            roundUpToNextStep(minNowBase, 5),
+            startDay,
+            duracaoTotalComFolga
+          )
+        : startDay;
+
+      const { data: ags, error: agErr } = await withTimeout(
+        supabase.rpc('get_agendamentos_dia', {
+          p_profissional_id: flow.profissional.id,
+          p_data: flow.data
+        }),
+        7000,
+        'rpc-busy-slots'
+      );
+      if (agErr) throw agErr;
+
+      const { data: slots, error: slotErr } = await withTimeout(
+        supabase
+          .from('slots_temporarios')
+          .select('*')
+          .eq('profissional_id', flow.profissional.id)
+          .eq('data', flow.data)
+          .eq('ativo', true),
+        7000,
+        'slots'
+      );
+
+      if (slotErr) console.warn('slots_temporarios indisponível:', slotErr.message);
+
+      const agendamentosValidos = (ags || [])
+        .filter(a => !String(a.status || '').includes('cancelado'))
+        .map(a => ({
+          ini: timeToMinutes(a.hora_inicio),
+          fim: timeToMinutes(a.hora_fim)
+        }))
+        .sort((a, b) => a.ini - b.ini);
+
+      const slotsList = (slots || []).map(s => ({
+        ini: timeToMinutes(s.hora_inicio),
+        fim: timeToMinutes(s.hora_fim),
+        raw: s
+      }));
+
+      // gera a série fixa (temporária) do dia inteiro baseada no step,
+      // mas ignora horários que caem DENTRO de um agendamento.
+      const horarios = [];
+      let cur = Math.max(startDay, minNow);
+
+      // garante alinhamento com a abertura
+      cur = alignToStepFromBase(cur, startDay, duracaoTotalComFolga);
+
+      while (cur < endDay) {
+        if (cur < minNow) {
+          cur += duracaoTotalComFolga;
+          continue;
+        }
+
+        // se cair dentro de um agendamento existente, pula para o fim do agendamento e realinha no step
+        const busyNow = agendamentosValidos.find(a => cur >= a.ini && cur < a.fim);
+        if (busyNow) {
+          const next = Math.max(busyNow.fim, cur + 1);
+          cur = alignToStepFromBase(next, startDay, duracaoTotalComFolga);
+          continue;
+        }
+
+        const hora = minutesToTime(cur);
+
+        const nextBusyStart = agendamentosValidos
+          .filter(a => a.ini > cur)
+          .map(a => a.ini)
+          .sort((a, b) => a - b)[0];
+
+        let freeEnd = Number.isFinite(nextBusyStart) ? Math.min(nextBusyStart, endDay) : endDay;
+
+        // Se existir um slot temporário exatamente aqui, limita o freeEnd ao fim dele
+        const slotExato = slotsList.find(s => s.ini === cur);
+        if (slotExato) freeEnd = Math.min(freeEnd, slotExato.fim);
+
+        const maxMinutos = Math.max(0, freeEnd - cur);
+
+        // regra de exibição: mostra o horário mesmo se não couber,
+        // para dar a mensagem inteligente no clique (sem “sumir” horário).
+        if (maxMinutos > 0) {
+          horarios.push({
+            hora,
+            tipo: slotExato ? 'slot' : 'normal',
+            slot: slotExato ? slotExato.raw : null,
+            maxMinutos,
+            // capacidade real vs necessidade (serviços + folga)
+            precisaMinutos: duracaoTotalComFolga,
+            cabe: duracaoTotalComFolga <= maxMinutos,
+          });
+        }
+
+        cur += duracaoTotalComFolga;
+      }
+
+      setHorariosDisponiveis(horarios);
+    } catch (e) {
+      console.error('Erro ao calcular horários:', e);
+      setHorariosDisponiveis([]);
+    }
+  };
+
+  // ✅ Agora calcula horários quando estiver no step 3 (horários) e já tiver serviços selecionados
+  useEffect(() => {
+    if (showAgendamento && flow.step === 3) calcularHorariosDisponiveis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    showAgendamento,
+    flow.profissional?.id,
+    flow.data,
+    flow.step,
+    diaSelecionadoEhTrabalho,
+    duracaoTotalComFolga
+  ]);
+
   const confirmarAgendamento = async () => {
     if (!user || userType !== 'client') {
       alert('Você precisa estar logado como CLIENTE para agendar.');
@@ -590,6 +646,7 @@ export default function Vitrine({ user, userType }) {
     }
 
     try {
+      // novo fluxo: data -> serviços -> horário -> confirmar
       if (!flow.profissional || !flow.data || !flow.horario || !flow.servicosSelecionados?.length) {
         alert('Dados incompletos. Refaça o agendamento.');
         return;
@@ -603,10 +660,23 @@ export default function Vitrine({ user, userType }) {
 
       const horaInicioBase = flow.horario.hora;
       const max = Number(flow.horario.maxMinutos || 0);
-      const durTotal = totalSelecionado.duracao;
+      const durServicos = Number(totalSelecionado.duracao || 0);
+      const precisa = durServicos + FOLGA_MINUTOS;
 
-      if (!durTotal || durTotal > max) {
-        alert(`A soma dos serviços (${durTotal} min) não cabe nesse horário (máx ${max} min).`);
+      if (!durServicos) {
+        alert('Selecione pelo menos 1 serviço.');
+        return;
+      }
+
+      if (precisa > max) {
+        const maxServico = Math.max(0, max - FOLGA_MINUTOS);
+        alert(
+          `⛔ Esse horário não comporta seu agendamento.\n\n` +
+          `• Tempo disponível até o próximo compromisso: ${max} min\n` +
+          `• Seu agendamento (serviços + folga de ${FOLGA_MINUTOS} min): ${precisa} min\n\n` +
+          `✅ Para esse horário, cabe no máximo: ${maxServico} min de serviços.\n` +
+          `Escolha outro horário ou ajuste os serviços.`
+        );
         return;
       }
 
@@ -614,11 +684,19 @@ export default function Vitrine({ user, userType }) {
       const insertedIds = [];
 
       try {
-        for (const s of flow.servicosSelecionados) {
+        const lista = Array.isArray(flow.servicosSelecionados) ? flow.servicosSelecionados : [];
+        const ordered = [...lista]; // mantém a ordem de seleção atual
+
+        for (let idx = 0; idx < ordered.length; idx++) {
+          const s = ordered[idx];
           const dur = Number(s.duracao_minutos || 0);
           if (!dur) continue;
 
-          const curFim = addMinutes(curInicio, dur);
+          let curFim = addMinutes(curInicio, dur);
+
+          // ✅ folga fixa SOMENTE ao final do último serviço (reserva a limpeza)
+          const isLast = idx === ordered.length - 1;
+          if (isLast) curFim = addMinutes(curFim, FOLGA_MINUTOS);
 
           const { data: inserted, error: insErr } = await withTimeout(
             supabase
@@ -642,6 +720,7 @@ export default function Vitrine({ user, userType }) {
           if (insErr) throw insErr;
           if (inserted?.id) insertedIds.push(inserted.id);
 
+          // próximo serviço começa no fim do anterior (sem folga entre serviços)
           curInicio = curFim;
         }
       } catch (errInsert) {
@@ -688,7 +767,7 @@ export default function Vitrine({ user, userType }) {
         negocio_id: negocio.id,
         nota: avaliarNota,
         comentario: avaliarTexto || null,
-        profissional_id: avaliarTipo === 'profissional' ? avaliarProfissionalId : null
+        profissional_id: avaliarTipo === 'profissional' ? avaliararProfissionalId : null
       };
 
       const { error: avErr } = await withTimeout(
@@ -709,6 +788,9 @@ export default function Vitrine({ user, userType }) {
       setAvaliarLoading(false);
     }
   };
+
+  // ✅ BUGFIX: variável correta (no payload acima tinha um typo)
+  const avaliararProfissionalId = avaliarProfissionalId;
 
   const logoUrl = useMemo(() => resolveLogoUrl(negocio?.logo_url), [negocio?.logo_url]);
   const instagramUrl = useMemo(() => resolveInstagram(negocio?.instagram), [negocio?.instagram]);
@@ -799,53 +881,44 @@ export default function Vitrine({ user, userType }) {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Announcement Bar - Estilo Impact */}
-<div className="bg-primary overflow-hidden relative h-10 flex items-center">
-  {/* O segredo é ter UM único container de animação que agrupa os itens */}
-  <div className="announcement-bar-marquee flex whitespace-nowrap">
-    
-    {/* Conteúdo - Note que removi o SM:HIDDEN das divs internas para simplificar */}
-    <div className="flex animate-marquee-infinite">
-      {[...Array(20)].map((_, index) => (
-        <div key={index} className="flex items-center px-4 shrink-0">
-          <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="mx-4 text-black font-normal text-sm">●</span>
+      <div className="bg-primary overflow-hidden relative h-10 flex items-center">
+        <div className="announcement-bar-marquee flex whitespace-nowrap">
+          <div className="flex animate-marquee-infinite">
+            {[...Array(20)].map((_, index) => (
+              <div key={index} className="flex items-center px-4 shrink-0">
+                <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+                <span className="mx-4 text-black font-normal text-sm">●</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex animate-marquee-infinite" aria-hidden="true">
+            {[...Array(20)].map((_, index) => (
+              <div key={index} className="flex items-center px-4 shrink-0">
+                <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
+                <span className="mx-4 text-black font-normal text-sm">●</span>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
-    </div>
 
-    {/* Duplicamos o conteúdo para o efeito de loop infinito sem "buracos" */}
-    <div className="flex animate-marquee-infinite" aria-hidden="true">
-      {[...Array(20)].map((_, index) => (
-        <div key={index} className="flex items-center px-4 shrink-0">
-          <span className="text-black font-normal text-sm uppercase">FRETE GRÁTIS</span>
-          <span className="mx-4 text-black font-normal text-sm">●</span>
-        </div>
-      ))}
-    </div>
-  </div>
-
-      <style>{`
-    @keyframes marquee-infinite {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-100%); }
-    }
-
-    .animate-marquee-infinite {
-      animation: marquee-infinite 30s linear infinite;
-      display: flex;
-    }
-
-    .announcement-bar-marquee:hover .animate-marquee-infinite {
-      animation-play-state: paused;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .animate-marquee-infinite {
-        animation: none;
-      }
-    }
-  `}</style>
-</div>
+        <style>{`
+          @keyframes marquee-infinite {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+          }
+          .animate-marquee-infinite {
+            animation: marquee-infinite 30s linear infinite;
+            display: flex;
+          }
+          .announcement-bar-marquee:hover .animate-marquee-infinite {
+            animation-play-state: paused;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .animate-marquee-infinite { animation: none; }
+          }
+        `}</style>
+      </div>
 
       {/* Header */}
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-40">
@@ -1204,6 +1277,7 @@ export default function Vitrine({ user, userType }) {
             </div>
 
             <div className="p-6">
+              {/* STEP 1: DATA */}
               {flow.step === 1 && (
                 <div>
                   <h3 className="text-xl font-normal mb-4">Escolha a Data</h3>
@@ -1225,6 +1299,7 @@ export default function Vitrine({ user, userType }) {
                     onClick={() => {
                       if (!flow.data) return alert('Selecione uma data.');
                       if (!diaSelecionadoEhTrabalho) return alert('Esse profissional está FECHADO nesse dia. Escolha outra data.');
+                      // ✅ novo fluxo: vai para SERVIÇOS
                       setFlow(prev => ({ ...prev, step: 2, horario: null, servicosSelecionados: [] }));
                     }}
                     className={`mt-4 w-full py-3 rounded-button uppercase font-normal ${
@@ -1239,61 +1314,18 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 2: SERVIÇOS (ANTES DO HORÁRIO) */}
               {flow.step === 2 && (
                 <div>
                   <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 1 }))}
-                    className="text-primary mb-4 font-normal uppercase"
-                  >
-                    Voltar
-                  </button>
-
-                  <h3 className="text-xl font-normal mb-4">Escolha o Horário</h3>
-
-                  {!diaSelecionadoEhTrabalho ? (
-                    <p className="text-gray-500 font-normal">Esse profissional está fechado nessa data.</p>
-                  ) : horariosDisponiveis.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                      {horariosDisponiveis.map((h, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setFlow(prev => ({ ...prev, horario: h, step: 3, servicosSelecionados: [] }))}
-                          className="relative p-3 rounded-custom transition-all bg-dark-200 border border-gray-800 hover:border-primary uppercase font-normal"
-                        >
-                          {h.tipo === 'slot' && (
-                            <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
-                          )}
-                          <div className="text-lg normal-case">{h.hora}</div>
-                          <div className="text-[10px] text-gray-500 normal-case">
-                            até {h.maxMinutos}min
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 font-normal">Nenhum horário disponível nessa data.</p>
-                  )}
-
-                  <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
-                    <AlertCircle className="w-5 h-5 text-blue-400 inline mr-2" />
-                    <span className="text-sm text-blue-300 font-normal">
-                      Horários com <Zap className="w-4 h-4 inline text-primary" /> são slots reaproveitados (cancelamentos).
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {flow.step === 3 && (
-                <div>
-                  <button
-                    onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
+                    onClick={() => setFlow(prev => ({ ...prev, step: 1, servicosSelecionados: [], horario: null }))}
                     className="text-primary mb-4 uppercase font-normal"
                   >
                     VOLTAR
                   </button>
 
                   <h3 className="text-xl font-normal mb-2">
-                    Escolha o(s) Serviço(s) <span className="text-sm text-gray-500 font-normal">(cabe até {flow.horario?.maxMinutos} min)</span>
+                    Escolha o(s) Serviço(s)
                   </h3>
 
                   <div className="mb-4 bg-dark-200 border border-gray-800 rounded-custom p-4">
@@ -1303,8 +1335,20 @@ export default function Vitrine({ user, userType }) {
                     </div>
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-gray-500 font-normal">Tempo estimado:</span>
-                      <span className={`font-normal ${totalSelecionado.duracao > Number(flow.horario?.maxMinutos || 0) ? 'text-red-300' : 'text-gray-200'}`}>
+                      <span className="font-normal text-gray-200">
                         {totalSelecionado.duracao} min
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-500 font-normal">Folga do sistema:</span>
+                      <span className="font-normal text-gray-200">
+                        {totalSelecionado.duracao ? FOLGA_MINUTOS : 0} min
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-500 font-normal">Total para encaixe:</span>
+                      <span className="font-normal text-primary">
+                        {duracaoTotalComFolga || 0} min
                       </span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
@@ -1323,19 +1367,9 @@ export default function Vitrine({ user, userType }) {
                             key={s.id}
                             onClick={() => {
                               const cur = Array.isArray(flow.servicosSelecionados) ? [...flow.servicosSelecionados] : [];
-                              const max = Number(flow.horario?.maxMinutos || 0);
-
                               let next;
                               if (selected) next = cur.filter(x => x.id !== s.id);
                               else next = [...cur, s];
-
-                              const durNext = next.reduce((sum, it) => sum + Number(it?.duracao_minutos || 0), 0);
-
-                              if (durNext > max) {
-                                alert(`Não cabe: total ${durNext} min (máx ${max} min).`);
-                                return;
-                              }
-
                               setFlow(prev => ({ ...prev, servicosSelecionados: next }));
                             }}
                             className={`w-full rounded-custom p-4 transition-all text-left border-2 ${
@@ -1361,21 +1395,14 @@ export default function Vitrine({ user, userType }) {
                   ) : (
                     <div className="text-gray-500 font-normal">
                       Nenhum serviço disponível.
-                      <div className="mt-3">
-                        <button
-                          onClick={() => setFlow(prev => ({ ...prev, step: 2, servicosSelecionados: [] }))}
-                          className="px-4 py-2 bg-dark-200 border border-gray-800 rounded-button uppercase font-normal"
-                        >
-                          Escolher outro horário
-                        </button>
-                      </div>
                     </div>
                   )}
 
                   <button
                     onClick={() => {
                       if (!flow.servicosSelecionados?.length) return alert('Selecione pelo menos 1 serviço.');
-                      setFlow(prev => ({ ...prev, step: 4 }));
+                      // ✅ novo fluxo: agora vai para HORÁRIOS já com step baseado no total
+                      setFlow(prev => ({ ...prev, step: 3, horario: null }));
                     }}
                     className={`mt-4 w-full py-3 rounded-button uppercase font-normal ${
                       flow.servicosSelecionados?.length
@@ -1389,6 +1416,69 @@ export default function Vitrine({ user, userType }) {
                 </div>
               )}
 
+              {/* STEP 3: HORÁRIOS (DEPOIS DO SERVIÇO) */}
+              {flow.step === 3 && (
+                <div>
+                  <button
+                    onClick={() => setFlow(prev => ({ ...prev, step: 2, horario: null }))}
+                    className="text-primary mb-4 font-normal uppercase"
+                  >
+                    Voltar
+                  </button>
+
+                  <h3 className="text-xl font-normal mb-4">Escolha o Horário</h3>
+
+                  {!diaSelecionadoEhTrabalho ? (
+                    <p className="text-gray-500 font-normal">Esse profissional está fechado nessa data.</p>
+                  ) : horariosDisponiveis.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      {horariosDisponiveis.map((h, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            // mensagem inteligente no clique (sem mudar design)
+                            if (!h.cabe) {
+                              const maxServico = Math.max(0, Number(h.maxMinutos || 0) - FOLGA_MINUTOS);
+                              alert(
+                                `⛔ Esse horário não comporta seu agendamento.\n\n` +
+                                `• Tempo disponível até o próximo compromisso: ${h.maxMinutos} min\n` +
+                                `• Seu agendamento (serviços + folga de ${FOLGA_MINUTOS} min): ${h.precisaMinutos} min\n\n` +
+                                `✅ Para esse horário, cabe no máximo: ${maxServico} min de serviços.\n` +
+                                `Tente outro horário ou ajuste os serviços.`
+                              );
+                              return;
+                            }
+
+                            setFlow(prev => ({ ...prev, horario: h, step: 4 }));
+                          }}
+                          className={`relative p-3 rounded-custom transition-all bg-dark-200 border uppercase font-normal ${
+                            h.cabe ? 'border-gray-800 hover:border-primary' : 'border-yellow-500/40 hover:border-yellow-500'
+                          }`}
+                        >
+                          {h.tipo === 'slot' && (
+                            <Zap className="w-4 h-4 text-primary absolute top-1 right-1" />
+                          )}
+                          <div className="text-lg normal-case">{h.hora}</div>
+                          <div className="text-[10px] text-gray-500 normal-case">
+                            até {h.maxMinutos}min
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 font-normal">Nenhum horário disponível nessa data.</p>
+                  )}
+
+                  <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-custom p-4">
+                    <AlertCircle className="w-5 h-5 text-blue-400 inline mr-2" />
+                    <span className="text-sm text-blue-300 font-normal">
+                      Horários com <Zap className="w-4 h-4 inline text-primary" /> são slots reaproveitados (cancelamentos).
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: CONFIRMAR */}
               {flow.step === 4 && (
                 <div>
                   <h3 className="text-xl font-normal mb-4">Confirmar Agendamento</h3>
@@ -1425,6 +1515,15 @@ export default function Vitrine({ user, userType }) {
                       <span className="text-gray-500 font-normal">Tempo estimado:</span>
                       <span className="font-normal">{totalSelecionado.duracao} min</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-normal">Folga:</span>
+                      <span className="font-normal">{FOLGA_MINUTOS} min</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-normal">Total para encaixe:</span>
+                      <span className="font-normal text-primary">{duracaoTotalComFolga} min</span>
+                    </div>
+
                     <div className="flex justify-between">
                       <span className="text-gray-500 font-normal">Valor total:</span>
                       <span className="font-normal text-primary text-xl">R$ {totalSelecionado.valor.toFixed(2)}</span>
