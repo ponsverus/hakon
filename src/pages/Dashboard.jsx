@@ -927,194 +927,203 @@ export default function Dashboard({ user, onLogout }) {
   };
 
   return (
-  <div className="min-h-screen bg-black text-white">
-    {/* ✅ ESTILOS CSS */}
-    <style>{`
-      .date-no-arrow {
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-      }
-      .date-no-arrow::-webkit-inner-spin-button,
-      .date-no-arrow::-webkit-clear-button {
-        display: none;
-        -webkit-appearance: none;
-      }
-      .date-no-arrow::-webkit-calendar-picker-indicator {
-        opacity: 0;
-        cursor: pointer;
-      }
+    <div className="min-h-screen bg-black text-white">
+      <style>{`
+        .date-no-arrow {
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+        }
+        .date-no-arrow::-webkit-inner-spin-button,
+        .date-no-arrow::-webkit-clear-button {
+          display: none;
+          -webkit-appearance: none;
+        }
+        .date-no-arrow::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+        }
 
-      .no-native-indicator {
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-      }
-      .no-native-indicator::-webkit-calendar-picker-indicator {
-        opacity: 0;
-        cursor: pointer;
-      }
+        .no-native-indicator {
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+        }
+        .no-native-indicator::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+        }
 
-      @keyframes announcement-scroll {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-50%); }
-      }
+        <style>{`
+    @keyframes announcement-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
 
-      .announcement-bar-wrapper {
-        display: flex;
-        width: max-content;
-        animation: announcement-scroll 30s linear infinite;
-      }
+    .announcement-bar-wrapper {
+      display: flex;
+      width: max-content;
+      animation: announcement-scroll 30s linear infinite;
+    }
 
-      .announcement-bar-wrapper:hover {
-        animation-play-state: paused;
-      }
+    /* Interrompe a animação ao passar o mouse (Desktop) ou tocar (Mobile) */
+    .announcement-bar-wrapper:hover {
+      animation-play-state: paused;
+    }
 
-      .announcement-bar-track a {
-        position: relative;
-        z-index: 10;
-        cursor: pointer;
-        display: inline-block;
-      }
+    /* Garante que os links dentro da track sejam clicáveis e fáceis de tocar */
+    .announcement-bar-track a {
+      position: relative;
+      z-index: 10;
+      cursor: pointer;
+      display: inline-block;
+    }
 
-      @media (prefers-reduced-motion: reduce) {
-        .announcement-bar-wrapper { animation: none; }
-      }
-    `}</style>
+    @media (prefers-reduced-motion: reduce) {
+      .announcement-bar-wrapper { animation: none; }
+    }
+  `}</style>
+</div>
 
-    {/* ✅ ANNOUNCEMENT BAR - ESTILO DINÂMICO COM LINKS (Fora do style agora) */}
-    <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 overflow-hidden h-10 flex items-center">
-      <div className="announcement-bar-wrapper flex">
-        {[1, 2].map((i) => (
-          <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
-            {[...Array(12)].map((_, index) => (
-              <div key={index} className="flex items-center">
-                <span className="text-black font-bold text-sm uppercase">CLIQUE PARA IR</span>
-                <span className="text-black mx-4">●</span>
-                <Link 
-                  to={`/v/${negocio.slug}`} 
-                  target="_blank" 
-                  className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
-                >
-                  VER VITRINE
-                </Link>
-                <span className="text-black mx-4">●</span>
-                <a 
-                  href={SUPORTE_HREF} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
-                >
-                  SUPORTE
-                </a>
-                <span className="text-black mx-4 text-sm">●</span>
-                <span className="mr-6"></span> {/* Espaçamento entre as repetições */}
+      <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
+                {negocio.logo_url ? (
+                  <img src={negocio.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
+                    <Award className="w-7 h-7 text-black" />
+                  </div>
+                )}
               </div>
-            ))}
+
+              <div>
+                <h1 className="text-xl font-normal">{negocio.nome}</h1>
+                <p className="text-xs text-gray-500 -mt-1">DASHBOARD</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to={`/v/${negocio.slug}`}
+                target="_blank"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm font-normal uppercase"
+              >
+                <Eye className="w-4 h-4" />VER VITRINE
+              </Link>
+
+              <label className="inline-block">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => uploadLogoNegocio(e.target.files?.[0])}
+                  disabled={logoUploading}
+                />
+                <span
+                  className={`inline-flex items-center justify-center text-center rounded-button font-normal border transition-all uppercase ${
+                    logoUploading
+                      ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+                      : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
+                  }
+                  px-3 py-2 text-[11px]
+                  sm:px-4 sm:py-2 sm:text-sm
+                  `}
+                >
+                  <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
+                  <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
+                </span>
+              </label>
+
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button text-sm font-normal uppercase"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">SAIR</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
+            <div className="mb-2 flex items-center gap-2">
+              <span style={{ fontFamily: 'Roboto Condensed, sans-serif' }} className="text-green-400 font-normal text-3xl leading-none">
+                $
+              </span>
+              <span className="text-sm text-gray-500">FATURAMENTO HOJE</span>
+            </div>
+
+            <div className="text-3xl font-normal text-white mb-1">
+              R$ {agendamentosHoje
+                .filter(a => a.status === 'concluido')
+                .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
+                .toFixed(2)}
+            </div>
+          </div>
+
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <Calendar className="w-8 h-8 text-blue-400 mb-2" />
+            <div className="text-3xl font-normal text-white mb-1">{hojeValidos.length}</div>
+            <div className="text-sm text-gray-400">AGENDAMENTOS HOJE</div>
+          </div>
+
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <Users className="w-8 h-8 text-purple-400 mb-2" />
+            <div className="text-3xl font-normal text-white mb-1">{profissionais.length}</div>
+            <div className="text-sm text-gray-400">PROFISSIONAIS</div>
+          </div>
+
+          <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
+            <TrendingUp className="w-8 h-8 text-primary mb-2" />
+            <div className="text-3xl font-normal text-white mb-1">{servicos.length}</div>
+            <div className="text-sm text-gray-400">SERVIÇOS</div>
+          </div>
+        </div>
+
+        {/* ✅ ANNOUNCEMENT BAR - ESTILO DINÂMICO COM LINKS */}
+<div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden h-10 flex items-center">
+  <div className="announcement-bar-wrapper flex">
+    
+    {/* Criamos uma função simples para não repetir código manualmente */}
+    {[1, 2].map((i) => (
+      <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
+        {[...Array(12)].map((_, index) => (
+          <div key={index} className="flex items-center">
+            <span className="text-black font-bold text-sm uppercase mr-6">CLIQUE PARA IR</span>
+            <span className="text-black mx-4">●</span>
+            
+            <Link 
+              to={`/v/${negocio.slug}`} 
+              target="_blank" 
+              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+            >
+              VER VITRINE
+            </Link>
+            
+            <span className="text-black mx-4">●</span>
+            
+            <a 
+              href={SUPORTE_HREF} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+            >
+              SUPORTE
+            </a>
+            
+            <span className="text-black mx-4">●</span>
           </div>
         ))}
       </div>
-    </div>
-
-    {/* ✅ SEU HEADER */}
-    <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-800 bg-dark-200 flex items-center justify-center">
-              {negocio.logo_url ? (
-                <img src={negocio.logo_url} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-12 h-12 bg-gradient-to-br from-primary to-yellow-600 rounded-full flex items-center justify-center">
-                  <Award className="w-7 h-7 text-black" />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h1 className="text-xl font-normal">{negocio.nome}</h1>
-              <p className="text-xs text-gray-500 -mt-1">DASHBOARD</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              to={`/v/${negocio.slug}`}
-              target="_blank"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-dark-200 border border-gray-800 hover:border-primary rounded-button text-sm font-normal uppercase"
-            >
-              <Eye className="w-4 h-4" />VER VITRINE
-            </Link>
-
-            <label className="inline-block">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => uploadLogoNegocio(e.target.files?.[0])}
-                disabled={logoUploading}
-              />
-              <span
-                className={`inline-flex items-center justify-center text-center rounded-button font-normal border transition-all uppercase ${
-                  logoUploading
-                    ? 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
-                    : 'bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer'
-                } px-3 py-2 text-[11px] sm:px-4 sm:py-2 sm:text-sm`}
-              >
-                <span className="sm:hidden">{logoUploading ? '...' : 'LOGO'}</span>
-                <span className="hidden sm:inline">{logoUploading ? 'ENVIANDO...' : 'ALTERAR LOGO'}</span>
-              </span>
-            </label>
-
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-button text-sm font-normal uppercase"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">SAIR</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    {/* ✅ CONTEÚDO DO DASHBOARD */}
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 rounded-custom p-6">
-          <div className="mb-2 flex items-center gap-2">
-            <span style={{ fontFamily: 'Roboto Condensed, sans-serif' }} className="text-green-400 font-normal text-3xl leading-none">$</span>
-            <span className="text-sm text-gray-500">FATURAMENTO HOJE</span>
-          </div>
-          <div className="text-3xl font-normal text-white mb-1">
-            R$ {agendamentosHoje
-              .filter(a => a.status === 'concluido')
-              .reduce((s, a) => s + Number(a.servicos?.preco || 0), 0)
-              .toFixed(2)}
-          </div>
-        </div>
-
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-          <Calendar className="w-8 h-8 text-blue-400 mb-2" />
-          <div className="text-3xl font-normal text-white mb-1">{hojeValidos.length}</div>
-          <div className="text-sm text-gray-400">AGENDAMENTOS HOJE</div>
-        </div>
-
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-          <Users className="w-8 h-8 text-purple-400 mb-2" />
-          <div className="text-3xl font-normal text-white mb-1">{profissionais.length}</div>
-          <div className="text-sm text-gray-400">PROFISSIONAIS</div>
-        </div>
-
-        <div className="bg-dark-100 border border-gray-800 rounded-custom p-6">
-          <TrendingUp className="w-8 h-8 text-primary mb-2" />
-          <div className="text-3xl font-normal text-white mb-1">{servicos.length}</div>
-          <div className="text-sm text-gray-400">SERVIÇOS</div>
-        </div>
-      </div>
-    </div>
+    ))}
   </div>
-);
+
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
             {['visao-geral', 'agendamentos', 'cancelados', 'historico', 'servicos', 'profissionais', 'info-negocio'].map(tab => (
