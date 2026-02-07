@@ -954,52 +954,43 @@ export default function Dashboard({ user, onLogout }) {
           cursor: pointer;
         }
 
-        /* ✅ ANNOUNCEMENT BAR - QUANTIDADE ÍMPAR */
-        @keyframes announcement-scroll {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
-        }
-
-        .announcement-bar-wrapper {
-          display: flex;
-          width: 200%;
-          animation: announcement-scroll 18s linear infinite;
-        }
-
-        .announcement-bar-track {
-          width: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 0.75rem 0;
-          white-space: nowrap;
-        }
-
-        /* 📱 MOBILE: 5 repetições */
-        @media (max-width: 639px) {
-          .announcement-bar-track {
-            gap: 2rem; /* ← AJUSTE AQUI para mudar espaçamento mobile */
-          }
-          
-          .announcement-bar-track .desktop-extra {
-            display: none;
-          }
-        }
-
-        /* 💻 DESKTOP: 11 repetições */
-        @media (min-width: 640px) {
-          .announcement-bar-track {
-            gap: 1.5rem; /* ← AJUSTE AQUI para mudar espaçamento desktop */
-          }
-        }
-
-        .announcement-bar-wrapper:hover {
-          animation-play-state: paused;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-wrapper { animation: none; }
-        }
+        {/* ✅ ANNOUNCEMENT BAR - ESTILO DINÂMICO COM LINKS */}
+<div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden h-10 flex items-center">
+  <div className="announcement-bar-wrapper flex">
+    
+    {/* Criamos uma função simples para não repetir código manualmente */}
+    {[1, 2].map((i) => (
+      <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
+        {[...Array(12)].map((_, index) => (
+          <div key={index} className="flex items-center">
+            <span className="text-black font-bold text-sm uppercase mr-6">CLIQUE PARA IR</span>
+            <span className="text-black mx-4">●</span>
+            
+            <Link 
+              to={`/v/${negocio.slug}`} 
+              target="_blank" 
+              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+            >
+              VER VITRINE
+            </Link>
+            
+            <span className="text-black mx-4">●</span>
+            
+            <a 
+              href={SUPORTE_HREF} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+            >
+              SUPORTE
+            </a>
+            
+            <span className="text-black mx-4">●</span>
+          </div>
+        ))}
+      </div>
+    ))}
+  </div>
       `}</style>
 
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
@@ -1103,66 +1094,36 @@ export default function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* ✅ ANNOUNCEMENT BAR - 5 MOBILE / 11 DESKTOP */}
-        <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden">
-          <div className="announcement-bar-wrapper">
-            {/* Track 1 */}
-            <div className="announcement-bar-track text-black font-normal text-sm uppercase">
-              {/* 📱 MOBILE: 5 repetições */}
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>                                    
-              
-              {/* 💻 DESKTOP: +6 repetições extras (total 11) */}
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-            </div>
+        <style>{`
+    @keyframes announcement-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
 
-            {/* Track 2 - CÓPIA EXATA DO TRACK 1 */}
-            <div className="announcement-bar-track text-black font-normal text-sm uppercase" aria-hidden="true">              
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">CLIQUE PARA IR</a>
-              <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80">SUPORTE</a>
-              <span>●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80">VER VITRINE</Link>
-              <span>●</span>
-              
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>
-              <Link to={`/v/${negocio.slug}`} target="_blank" className="hover:opacity-80 desktop-extra">VER VITRINE</Link>
-              <span className="desktop-extra">●</span>
-              <a href={SUPORTE_HREF} target="_blank" rel="noreferrer" className="hover:opacity-80 desktop-extra">SUPORTE</a>
-              <span className="desktop-extra">●</span>                            
-            </div>
-          </div>
-        </div>
+    .announcement-bar-wrapper {
+      display: flex;
+      width: max-content;
+      animation: announcement-scroll 30s linear infinite;
+    }
+
+    /* Interrompe a animação ao passar o mouse (Desktop) ou tocar (Mobile) */
+    .announcement-bar-wrapper:hover {
+      animation-play-state: paused;
+    }
+
+    /* Garante que os links dentro da track sejam clicáveis e fáceis de tocar */
+    .announcement-bar-track a {
+      position: relative;
+      z-index: 10;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .announcement-bar-wrapper { animation: none; }
+    }
+  `}</style>
+</div>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
