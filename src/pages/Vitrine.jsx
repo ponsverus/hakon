@@ -924,24 +924,20 @@ export default function Vitrine({ user, userType }) {
       </div>
 
       <style>{`
-        /* ✅ EFEITO SERROTE - VAI E VOLTA */
-        @keyframes serrote-mobile {
-          0%, 100% { transform: translateX(0); }
-          60% { transform: translateX(-30px); }
+        /* ✅ LOOP INFINITO PERFEITO - SEM ESPAÇOS VAZIOS */
+        @keyframes scroll-loop {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
         }
 
-        @keyframes serrote-desktop {
-          0%, 100% { transform: translateX(0); }
-          60% { transform: translateX(-40px); }
-        }
-
-        .announcement-bar-serrote {
+        .announcement-bar-loop {
           display: flex;
-          width: 100%;
-          overflow: hidden;
+          width: 200%;
+          animation: scroll-loop 20s linear infinite;
         }
 
-        .announcement-bar-track-serrote {
+        .announcement-bar-track-loop {
+          width: 50%;
           display: flex;
           align-items: center;
           justify-content: flex-start;
@@ -950,29 +946,23 @@ export default function Vitrine({ user, userType }) {
         }
 
         /* 📱 MOBILE */
-        .announcement-bar-serrote.block {
-          animation: serrote-mobile 5s ease-in-out infinite;
-        }
-
-        .block .announcement-bar-track-serrote {
-          gap: 1rem;
+        .announcement-bar-loop.block .announcement-bar-track-loop {
+          gap: 2rem;
         }
 
         /* 💻 DESKTOP */
-        .announcement-bar-serrote.hidden {
-          animation: serrote-desktop 6s ease-in-out infinite;
-        }
-
-        .hidden .announcement-bar-track-serrote {
+        .announcement-bar-loop.hidden .announcement-bar-track-loop {
           gap: 1.5rem;
         }
 
-        .announcement-bar-serrote:hover {
+        /* Pausa ao passar o mouse */
+        .announcement-bar-loop:hover {
           animation-play-state: paused;
         }
 
+        /* Respeita preferências de movimento */
         @media (prefers-reduced-motion: reduce) {
-          .announcement-bar-serrote {
+          .announcement-bar-loop {
             animation: none;
           }
         }
