@@ -864,7 +864,7 @@ export default function Vitrine({ user, userType }) {
         /* 📱 MOBILE: menos repetições, espaço maior */
         @media (max-width: 639px) {
           .announcement-bar-track {
-            gap: 3rem;
+            gap: 2rem;
           }
           
           .announcement-bar-track .desktop-extra {
