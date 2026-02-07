@@ -953,37 +953,7 @@ export default function Dashboard({ user, onLogout }) {
           opacity: 0;
           cursor: pointer;
         }
-
-       {`
-    @keyframes announcement-scroll {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
-    }
-
-    .announcement-bar-wrapper {
-      display: flex;
-      width: max-content;
-      animation: announcement-scroll 30s linear infinite;
-    }
-
-    /* Interrompe a animação ao passar o mouse (Desktop) ou tocar (Mobile) */
-    .announcement-bar-wrapper:hover {
-      animation-play-state: paused;
-    }
-
-    /* Garante que os links dentro da track sejam clicáveis e fáceis de tocar */
-    .announcement-bar-track a {
-      position: relative;
-      z-index: 10;
-      cursor: pointer;
-      display: inline-block;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .announcement-bar-wrapper { animation: none; }
-    }
-  `}</style>
-</div>
+      `}</style>
 
       <header className="bg-dark-100 border-b border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1087,42 +1057,73 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         {/* ✅ ANNOUNCEMENT BAR - ESTILO DINÂMICO COM LINKS */}
-<div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden h-10 flex items-center">
-  <div className="announcement-bar-wrapper flex">
-    
-    {/* Criamos uma função simples para não repetir código manualmente */}
-    {[1, 2].map((i) => (
-      <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
-        {[...Array(12)].map((_, index) => (
-          <div key={index} className="flex items-center">
-            <span className="text-black font-bold text-sm uppercase mr-6">CLIQUE PARA IR</span>
-            <span className="text-black mx-4">●</span>
-            
-            <Link 
-              to={`/v/${negocio.slug}`} 
-              target="_blank" 
-              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
-            >
-              VER VITRINE
-            </Link>
-            
-            <span className="text-black mx-4">●</span>
-            
-            <a 
-              href={SUPORTE_HREF} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
-            >
-              SUPORTE
-            </a>
-            
-            <span className="text-black mx-4">●</span>
+        <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen bg-yellow-400 border-y border-yellow-300/50 mb-8 overflow-hidden h-10 flex items-center">
+          <div className="announcement-bar-wrapper flex">
+
+            {/* Criamos uma função simples para não repetir código manualmente */}
+            {[1, 2].map((i) => (
+              <div key={i} className="announcement-bar-track flex items-center shrink-0 whitespace-nowrap px-4" aria-hidden={i === 2}>
+                {[...Array(12)].map((_, index) => (
+                  <div key={index} className="flex items-center">
+                    <span className="text-black font-bold text-sm uppercase mr-6">CLIQUE PARA IR</span>
+                    <span className="text-black mx-4">●</span>
+
+                    <Link
+                      to={`/v/${negocio.slug}`}
+                      target="_blank"
+                      className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+                    >
+                      VER VITRINE
+                    </Link>
+
+                    <span className="text-black mx-4">●</span>
+
+                    <a
+                      href={SUPORTE_HREF}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-black font-normal text-sm uppercase hover:underline underline-offset-4 transition-all"
+                    >
+                      SUPORTE
+                    </a>
+
+                    <span className="text-black mx-4">●</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    ))}
-  </div>
+
+          <style>{`
+            @keyframes announcement-scroll {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+
+            .announcement-bar-wrapper {
+              display: flex;
+              width: max-content;
+              animation: announcement-scroll 30s linear infinite;
+            }
+
+            /* Interrompe a animação ao passar o mouse (Desktop) ou tocar (Mobile) */
+            .announcement-bar-wrapper:hover {
+              animation-play-state: paused;
+            }
+
+            /* Garante que os links dentro da track sejam clicáveis e fáceis de tocar */
+            .announcement-bar-track a {
+              position: relative;
+              z-index: 10;
+              cursor: pointer;
+              display: inline-block;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              .announcement-bar-wrapper { animation: none; }
+            }
+          `}</style>
+        </div>
 
         <div className="bg-dark-100 border border-gray-800 rounded-custom overflow-hidden">
           <div className="flex overflow-x-auto border-b border-gray-800">
